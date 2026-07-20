@@ -231,7 +231,7 @@ Single-exe GitHub release, friend-proof README, JSON/CSV export, launch-on-start
 
 | Question | Decision |
 |----------|----------|
-| Rating scale | **1–5 emoji scale** (😡 😕 😐 🙂 🤩) — one click, enough nuance for averages per champion/friend. |
+| Rating scale | **1–5 grade scale**, one click, enough nuance for averages. Grades (set 2026-07-20): 1 **Absolute Skibidi** 🚽 · 2 **Who Let Them Cook?** 🤨 · 3 **Meh** 🧍 · 4 **Let Him Cook!** 👨‍🍳 · 5 **Maximum Rizz** 👑. Emoji render in color (Pillow COLR font). *Future:* swap emoji for actual meme-face icons (Shocked Pikachu → Chad) — needs non-copyright-encumbered art. |
 | Prompt style | **Always-on-top popup window** — hard to miss, best rating coverage. |
 | Popup vs. next game | **Hides immediately when a new game starts**, game goes to the pending list (F10b). Never visible during gameplay. |
 | Game modes | **All modes captured** — Ranked, Normals, ARAM, Arena, ARAM Mayhem, and any future rotating mode (F3b, revised 2026-07-20; supersedes the earlier ranked/normals/ARAM-only decision). Filtering by mode happens in the dashboard, not at capture time. |
