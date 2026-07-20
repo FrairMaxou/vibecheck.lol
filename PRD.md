@@ -324,3 +324,22 @@ Planned analysis dimensions to extract from the retained raw payloads:
 - **Deeper personal stats** — damage, gold, multikills, surrender/remake flags vs. fun.
 
 **Enabler (F4 payoff):** because the full raw payload is retained on every game, adding any new dimension is a normalize-and-backfill step — a one-time re-parse populates the new fields for all historical games, with no recapture. New extraction belongs in `capture.py`; new columns go through the game store (§11). No Vanguard/lightweight impact — it's post-hoc analysis of already-stored data (§6a/§6b safe).
+
+---
+
+## 14. Future: desktop-app shell & online distribution (Blitz/u.gg-style)
+
+Target look & feel: a polished native desktop app like Blitz or u.gg, not "a browser tab." Our Phase 2 choice (web dashboard served on localhost) was made partly for this — the frontend is already decoupled HTML/CSS/JS, so shelling it into a native window is additive, not a rewrite.
+
+- **Native window (recommended: `pywebview`)** — wrap the existing dashboard in a frameless native window using the OS Edge WebView2 runtime (no bundled browser → stays within §6b lightweight). Custom title bar/chrome. Electron (what Blitz uses) is the higher-ceiling alternative but adds a full JS/Node stack; adopt only if pywebview proves limiting.
+- **Must be a download, not a web app** — the LCU is local to each player's PC, so no website can drive capture. Online = a **landing/download page** + the social backend (§12); the capture app itself is always a local download (this is exactly the Blitz model, and matches the Phase 4 single-exe release).
+- **Login is optional** — the summoner name + PUUID come from the local LCU, so a player needs **no account** to use the app and see their own fun stats. Accounts (§12) unlock only the shared/social features. Never gate local use behind login.
+- Fits the hard constraints: still LCU-only, still lightweight, still single local process (§6a/§6b).
+
+## 15. Voice & tone — the "lame on purpose" pass
+
+Deliberately corny, over-the-top, affectionate franglais/gamer voice is core to the product's charm — a personal fun-tracker should feel like a friend roasting you, not a stats dashboard. A dedicated copy pass across popup, dashboard labels, fun-facts cards, empty states, and loading messages.
+
+- Direction: cheesy, punny, self-aware. Examples (illustrative, not final): **Kiff-o-meter** (avg fun), **Certified Banger / Certified Yikes** (best/worst champ), **"the 'one more game' regret curve"** (session fatigue), **Copium champions** (winning-but-miserable), loading lines like *"Consulting the vibes…"* / *"Asking your jungler what happened…"*.
+- Keep it skimmable and non-annoying (the one-click rating stays instant); tone lives in labels, cards, and flavor text, never in extra friction.
+- Consolidate all user-facing strings so the voice is consistent and easy to tune (also eases any future localization, though UI language is English per §9).
