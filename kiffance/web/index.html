@@ -42,6 +42,7 @@
   <button data-tab="squad">The Squad</button>
   <button data-tab="context">Context</button>
   <button data-tab="sessions">Regret Curve</button>
+  <button data-tab="tags">Tags</button>
   <button data-tab="explorer">Explorer</button>
   <button data-tab="pending">To Rate <span id="pending-badge" class="badge hidden"></span></button>
 </nav>
@@ -88,6 +89,17 @@
     <div class="panel">
       <h2>The "one more game" regret curve <span class="hint">fun by game number in a session — find where the vibe dies and log off there</span></h2>
       <div class="chart-wrap"><canvas id="chart-sessions"></canvas></div>
+    </div>
+  </div>
+
+  <div id="tab-tags" class="tab hidden">
+    <div class="panel">
+      <h2>Tag energy <span class="hint">average kiff per tag — what actually makes a game fun</span></h2>
+      <div class="chart-wrap"><canvas id="chart-tags"></canvas></div>
+    </div>
+    <div class="panel">
+      <h2>Tag your games <span class="hint">slap labels on any game (and a note if you're feeling verbose)</span></h2>
+      <div id="tags-games"></div>
     </div>
   </div>
 

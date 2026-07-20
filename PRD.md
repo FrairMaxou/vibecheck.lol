@@ -211,7 +211,7 @@ Tray app, LCU connection, game-end detection, data capture to SQLite, basic rati
 Dashboard with the global filter bar and explorer view (F13b/F13c), champion kiffance, squad kiffance, context breakdowns (F13–F16, F21), pending-ratings page (F11).
 
 ### Phase 3 — Delight
-Tags, fun-facts cards, session analysis, trends, remake handling, missed-game recovery (F5, F6, F9, F17–F19).
+Tags, fun-facts cards, session analysis, trends, remake handling, missed-game recovery (F5, F6, F9, F17–F19). *(Tags/notes done 2026-07-20: dashboard-based — the popup stays one-click; tag/note any game, default tag set seeded and user-editable, "Tags" tab with per-tag fun breakdown.)*
 **Popup design pass (TODO from 2026-07-20 testing):** the v1 popup works but looks rough — tkinter renders the emoji as monochrome outlines, not color. Rework the visuals (color emoji via images or a webview-based popup, spacing, hover states) once the capture loop is validated.
 
 ### Phase 4 — Share-ready (required before inviting friends)

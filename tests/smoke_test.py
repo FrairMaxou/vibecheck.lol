@@ -167,6 +167,25 @@ def main():
         store.set_meta("capture_watermark", "2099-01-01T21:00:00")
         assert store.get_meta("capture_watermark") == "2099-01-01T21:00:00"
         assert store.has_game("987654321") and not store.has_game("nope")
+
+        # tags & notes (F9)
+        assert "Hard carried" in store.list_tags()  # defaults seeded
+        store.set_game_tags(game_id, ["Hard carried", "Custom vibe"])  # unknown label auto-created
+        assert "Custom vibe" in store.list_tags()
+        detail = next(g for g in store.games_with_details() if g["id"] == game_id)
+        assert sorted(detail["tags"]) == ["Custom vibe", "Hard carried"], detail["tags"]
+        store.set_game_tags(game_id, ["Hard carried"])  # replace, not append
+        detail = next(g for g in store.games_with_details() if g["id"] == game_id)
+        assert detail["tags"] == ["Hard carried"], detail["tags"]
+
+        # a note on an UNRATED game must not make it drop off the pending list
+        note_gid = store.insert_game(
+            dict(game, riot_match_id="987654999", played_at="2099-01-02T10:00:00"), []
+        )
+        store.set_note(note_gid, "int diff from minute 1")
+        assert any(g["id"] == note_gid for g in store.pending_games()), "note dropped pending game"
+        detail = next(g for g in store.games_with_details() if g["id"] == note_gid)
+        assert detail["note"] == "int diff from minute 1"
         store.close()
 
     print("smoke test OK")

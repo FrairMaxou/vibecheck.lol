@@ -29,6 +29,14 @@ class RatingIn(BaseModel):
     skipped: bool = False
 
 
+class TagsIn(BaseModel):
+    tags: list[str] = []
+
+
+class NoteIn(BaseModel):
+    note: str = ""
+
+
 def create_app(store: GameStore) -> FastAPI:
     app = FastAPI(title="League of Kiffance", docs_url=None, redoc_url=None, openapi_url=None)
 
@@ -54,6 +62,20 @@ def create_app(store: GameStore) -> FastAPI:
         log.info(
             "Dashboard rating: game %d -> %s", game_id, "skipped" if body.skipped else body.score
         )
+        return {"ok": True}
+
+    @app.get("/api/tags")
+    def tags():
+        return {"tags": store.list_tags()}
+
+    @app.post("/api/games/{game_id}/tags")
+    def set_tags(game_id: int, body: TagsIn):
+        store.set_game_tags(game_id, body.tags)
+        return {"ok": True}
+
+    @app.post("/api/games/{game_id}/note")
+    def set_note(game_id: int, body: NoteIn):
+        store.set_note(game_id, body.note)
         return {"ok": True}
 
     return app

@@ -46,6 +46,17 @@ QUEUE_TYPE_TO_ID = {
 DASHBOARD_HOST = "127.0.0.1"  # PRD §6b N4: localhost only, never 0.0.0.0
 DASHBOARD_PORT = 8577
 
+# Default quick-tags seeded on first run (F9). User-editable afterwards.
+DEFAULT_TAGS = [
+    "Hard carried",
+    "Int diff",
+    "Good vibes only",
+    "Clutched it",
+    "Griefed",
+    "Never again",
+    "Certified troll",
+]
+
 SESSION_GAP_SECONDS = 3600  # PRD F17: games < 1h apart share a session
 CATCHUP_FIRST_RUN_HOURS = 3  # on first ever launch, look this far back for missed games
 POPUP_TIMEOUT_SECONDS = 300  # PRD F10

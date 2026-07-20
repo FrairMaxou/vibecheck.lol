@@ -30,6 +30,7 @@ Chart.defaults.plugins.legend.display = false;
 Chart.defaults.animation.duration = 250;
 
 let ALL = []; // enriched games
+let ALL_TAGS = []; // known tag labels (for suggestion chips)
 const charts = {}; // canvas id -> Chart instance
 const state = {
   tab: "overview",
@@ -41,9 +42,16 @@ const state = {
 /* ---------------- data ---------------- */
 
 async function loadData() {
-  const res = await fetch("/api/games");
-  const data = await res.json();
-  ALL = data.games.map(enrich);
+  const [games, tags] = await Promise.all([
+    fetch("/api/games").then((r) => r.json()),
+    fetch("/api/tags").then((r) => r.json()),
+  ]);
+  ALL = games.games.map(enrich);
+  ALL_TAGS = tags.tags;
+}
+
+function escapeAttr(s) {
+  return String(s ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 function enrich(g) {
@@ -335,6 +343,60 @@ function renderExplorer(games) {
   }
 }
 
+/* ---------------- tags & notes ---------------- */
+
+function tagEditorHTML(g) {
+  const chips = ALL_TAGS.map(
+    (t) => `<button class="chip${g.tags.includes(t) ? " on" : ""}" data-tag="${escapeAttr(t)}">${t}</button>`,
+  ).join("");
+  return `<div class="tag-editor" data-id="${g.id}">
+      <div class="chips">${chips}<input class="tag-add" placeholder="+ tag" maxlength="24"></div>
+      <input class="note" placeholder="note to self…" value="${escapeAttr(g.note)}" maxlength="500">
+    </div>`;
+}
+
+async function postTags(id, tags) {
+  await fetch(`/api/games/${id}/tags`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tags }),
+  });
+  await refresh();
+}
+
+function wireTagEditors(root) {
+  root.querySelectorAll(".tag-editor").forEach((ed) => {
+    const id = ed.dataset.id;
+    const activeTags = () => [...ed.querySelectorAll(".chip.on")].map((c) => c.dataset.tag);
+    ed.querySelectorAll(".chip").forEach((c) =>
+      c.addEventListener("click", () => { c.classList.toggle("on"); postTags(id, activeTags()); }),
+    );
+    const add = ed.querySelector(".tag-add");
+    add.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && add.value.trim()) postTags(id, [...activeTags(), add.value.trim()]);
+    });
+    const note = ed.querySelector(".note");
+    note.addEventListener("change", () =>
+      fetch(`/api/games/${id}/note`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ note: note.value }),
+      }),
+    );
+  });
+}
+
+function renderTags(games) {
+  funBarChart("chart-tags", aggregate(games, (g) => g.tags), { horizontal: true });
+  const list = games.slice().sort((a, b) => b.date - a.date);
+  const host = document.getElementById("tags-games");
+  host.innerHTML = list.length
+    ? list.map((g) => `
+        <div class="tag-row">
+          <div class="tag-meta"><b>${g.champion || "?"}</b> · ${g.result} · ${g.queue_type || "?"}
+            <span class="when">${g.day}</span> ${g.rated ? EMOJI[g.fun_score] : ""}</div>
+          ${tagEditorHTML(g)}
+        </div>`).join("")
+    : '<div class="empty-note">No games match this filter.</div>';
+  wireTagEditors(host);
+}
+
 function renderPending() {
   const pending = ALL.filter((g) => g.pending).sort((a, b) => b.date - a.date);
   const badge = document.getElementById("pending-badge");
@@ -352,6 +414,7 @@ function renderPending() {
         ${[1, 2, 3, 4, 5].map((s) => `<button data-score="${s}" title="${GRADES[s]}">${EMOJI[s]}</button>`).join("")}
         <button class="skip" data-skip="1" title="exclude from stats">skip</button>
       </div>
+      <div style="flex-basis:100%">${tagEditorHTML(g)}</div>
     </div>`).join("");
   list.querySelectorAll(".rate-btns button").forEach((btn) => {
     btn.addEventListener("click", async () => {
@@ -363,6 +426,7 @@ function renderPending() {
       await refresh();
     });
   });
+  wireTagEditors(list);
 }
 
 /* ---------------- filters UI ---------------- */
@@ -432,6 +496,7 @@ function renderAll() {
   if (t === "squad") renderSquad(games);
   if (t === "context") renderContext(games);
   if (t === "sessions") renderSessions(games);
+  if (t === "tags") renderTags(games);
   if (t === "explorer") renderExplorer(games);
 }
 

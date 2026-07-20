@@ -127,6 +127,27 @@ th { color: var(--ink-2); font-weight: 600; font-size: 12px; text-transform: upp
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 tr.low-n td { color: var(--ink-3); }
 
+/* ---------- tags & notes ---------- */
+.tag-editor { margin-top: 8px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.chip {
+  background: var(--surface-2); border: 1px solid var(--line); color: var(--ink-2);
+  border-radius: 14px; padding: 3px 11px; font-size: 12px; cursor: pointer; font: inherit;
+}
+.chip:hover { border-color: var(--ink-2); color: var(--ink); }
+.chip.on { background: var(--gold); border-color: var(--gold); color: #1e2328; font-weight: 600; }
+.tag-add {
+  background: transparent; border: 1px dashed var(--line); color: var(--ink-2);
+  border-radius: 14px; padding: 3px 10px; font-size: 12px; width: 84px; font: inherit;
+}
+.note {
+  margin-top: 6px; width: 100%; background: var(--surface-2); border: 1px solid var(--line);
+  color: var(--ink); border-radius: 6px; padding: 5px 8px; font: inherit; font-size: 13px;
+}
+.tag-row { padding: 12px 4px; border-bottom: 1px solid var(--line); }
+.tag-meta { font-size: 13px; color: var(--ink); }
+.tag-meta .when { color: var(--ink-3); font-size: 12px; margin-left: 6px; }
+
 /* ---------- pending list ---------- */
 .pending-row {
   display: flex; align-items: center; gap: 14px; flex-wrap: wrap;

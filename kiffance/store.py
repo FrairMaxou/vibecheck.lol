@@ -11,7 +11,7 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
-from .config import DB_PATH, SESSION_GAP_SECONDS
+from .config import DB_PATH, DEFAULT_TAGS, SESSION_GAP_SECONDS
 
 log = logging.getLogger(__name__)
 
@@ -71,6 +71,15 @@ class GameStore:
         self._db.row_factory = sqlite3.Row
         with self._lock, self._db:
             self._db.executescript(_SCHEMA)
+        self._seed_default_tags()
+
+    def _seed_default_tags(self) -> None:
+        with self._lock, self._db:
+            if self._db.execute("SELECT COUNT(*) FROM tags").fetchone()[0] == 0:
+                self._db.executemany(
+                    "INSERT OR IGNORE INTO tags (label) VALUES (?)",
+                    [(label,) for label in DEFAULT_TAGS],
+                )
 
     def close(self) -> None:
         with self._lock:
@@ -139,15 +148,53 @@ class GameStore:
             )
 
     def pending_games(self) -> list:
-        """Games with no rating yet (PRD F11)."""
+        """Games not yet rated or skipped (PRD F11).
+
+        Keyed on fun_score, not the ratings row's existence, so a game that
+        only has a note attached still counts as pending.
+        """
         with self._lock:
             rows = self._db.execute(
                 """SELECT g.* FROM games g
                    LEFT JOIN ratings r ON r.game_id = g.id
-                   WHERE r.game_id IS NULL AND g.is_remake = 0
+                   WHERE r.fun_score IS NULL AND COALESCE(r.skipped, 0) = 0
+                     AND g.is_remake = 0
                    ORDER BY g.played_at DESC"""
             ).fetchall()
         return [dict(r) for r in rows]
+
+    # ---------------- tags & notes (F9) ----------------
+
+    def list_tags(self) -> list:
+        with self._lock:
+            rows = self._db.execute("SELECT label FROM tags ORDER BY label").fetchall()
+        return [r["label"] for r in rows]
+
+    def _ensure_tag(self, label: str) -> int:
+        """Return a tag id, creating the tag if the label is new (user-editable list)."""
+        self._db.execute("INSERT OR IGNORE INTO tags (label) VALUES (?)", (label,))
+        return self._db.execute("SELECT id FROM tags WHERE label = ?", (label,)).fetchone()["id"]
+
+    def set_game_tags(self, game_id: int, labels: list) -> None:
+        """Replace a game's tags with the given labels (unknown labels are created)."""
+        with self._lock, self._db:
+            self._db.execute("DELETE FROM game_tags WHERE game_id = ?", (game_id,))
+            for label in labels:
+                clean = label.strip()
+                if clean:
+                    tag_id = self._ensure_tag(clean)
+                    self._db.execute(
+                        "INSERT INTO game_tags (game_id, tag_id) VALUES (?,?)", (game_id, tag_id)
+                    )
+
+    def set_note(self, game_id: int, note: str) -> None:
+        """Attach a free-text note without disturbing the fun score."""
+        with self._lock, self._db:
+            self._db.execute(
+                """INSERT INTO ratings (game_id, note) VALUES (?,?)
+                   ON CONFLICT(game_id) DO UPDATE SET note=excluded.note""",
+                (game_id, note),
+            )
 
     def get_meta(self, key: str, default: str | None = None) -> str | None:
         with self._lock:
@@ -206,12 +253,16 @@ class GameStore:
                 """SELECT g.id, g.riot_match_id, g.played_at, g.queue_id, g.queue_type,
                           g.champion, g.role, g.win, g.kills, g.deaths, g.assists, g.cs,
                           g.duration_seconds, g.session_id, g.game_index_in_session,
-                          g.is_remake, r.fun_score, r.skipped, r.rated_at
+                          g.is_remake, r.fun_score, r.skipped, r.rated_at, r.note
                    FROM games g LEFT JOIN ratings r ON r.game_id = g.id
                    ORDER BY g.played_at"""
             ).fetchall()
             mates = self._db.execute(
                 "SELECT game_id, summoner_name, riot_puuid, was_premade FROM game_teammates"
+            ).fetchall()
+            tags = self._db.execute(
+                """SELECT gt.game_id, t.label FROM game_tags gt
+                   JOIN tags t ON t.id = gt.tag_id"""
             ).fetchall()
         teammates_by_game: dict = {}
         for m in mates:
@@ -222,10 +273,14 @@ class GameStore:
                     "was_premade": bool(m["was_premade"]),
                 }
             )
+        tags_by_game: dict = {}
+        for t in tags:
+            tags_by_game.setdefault(t["game_id"], []).append(t["label"])
         out = []
         for row in games:
             game = dict(row)
             game["teammates"] = teammates_by_game.get(game["id"], [])
+            game["tags"] = tags_by_game.get(game["id"], [])
             out.append(game)
         return out
 
