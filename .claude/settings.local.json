@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(py --version)",
+      "PowerShell(.venv\\\\Scripts\\\\python tests\\\\smoke_test.py)",
+      "PowerShell(Start-Process -FilePath \".venv\\\\Scripts\\\\python.exe\" -ArgumentList \"-m\",\"kiffance\" -WindowStyle Hidden; Start-Sleep -Seconds 6; Get-Content \"$env:LOCALAPPDATA\\\\LeagueOfKiffance\\\\kiffance.log\" -Tail 5)",
+      "PowerShell(git config user.name \"Maxime Gosselin\")",
+      "PowerShell(git config user.email \"maxime.gosselin.pro@gmail.com\")",
+      "PowerShell(.venv\\\\Scripts\\\\pre-commit install)",
+      "PowerShell(git add -A)"
+    ]
+  }
+}
