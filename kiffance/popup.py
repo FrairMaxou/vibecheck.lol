@@ -19,13 +19,13 @@ from .config import APP_NAME, POPUP_TIMEOUT_SECONDS
 
 log = logging.getLogger(__name__)
 
-# score, emoji, cheesy label
+# score, emoji, grade name (two lines for the popup cards)
 RATINGS = [
-    (1, "\U0001f621", "Rage"),
-    (2, "\U0001f615", "Meh"),
-    (3, "\U0001f610", "Fine"),
-    (4, "\U0001f642", "Good"),
-    (5, "\U0001f929", "Peak"),
+    (1, "\U0001f6bd", "Absolute\nSkibidi"),  # toilet
+    (2, "\U0001f928", "Who Let\nThem Cook?"),  # face-with-raised-eyebrow
+    (3, "\U0001f9cd‍♂️", "Meh"),  # man standing
+    (4, "\U0001f468‍\U0001f373", "Let Him\nCook!"),  # man cook
+    (5, "\U0001f451", "Maximum\nRizz"),  # crown
 ]
 
 _BG = "#1e2328"
@@ -107,8 +107,10 @@ class RatingPopup:
         else:  # fallback: monochrome text emoji still works
             face = tk.Label(card, text=emoji, font=("Segoe UI Emoji", 26), bg=_CARD)
         face.pack(padx=8, pady=(8, 0))
-        name = tk.Label(card, text=label, font=("Segoe UI", 9), bg=_CARD, fg=_MUTED)
-        name.pack(pady=(0, 6))
+        name = tk.Label(
+            card, text=label, font=("Segoe UI", 8), bg=_CARD, fg=_MUTED, justify="center"
+        )
+        name.pack(padx=6, pady=(0, 7))
 
         widgets = (card, face, name)
         for w in widgets:

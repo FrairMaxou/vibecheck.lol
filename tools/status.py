@@ -12,7 +12,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from kiffance.config import DB_PATH, LOG_PATH
 from kiffance.store import GameStore
 
-EMOJI = {1: "\U0001f621", 2: "\U0001f615", 3: "\U0001f610", 4: "\U0001f642", 5: "\U0001f929"}
+EMOJI = {
+    1: "\U0001f6bd",
+    2: "\U0001f928",
+    3: "\U0001f9cd",
+    4: "\U0001f468‍\U0001f373",
+    5: "\U0001f451",
+}
 
 
 def main():

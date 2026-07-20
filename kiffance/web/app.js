@@ -4,7 +4,14 @@
 "use strict";
 
 const MIN_N = 5; // PRD F21: below this, a group is "not enough data yet"
-const EMOJI = { 1: "😡", 2: "😕", 3: "😐", 4: "🙂", 5: "🤩" };
+const EMOJI = { 1: "🚽", 2: "🤨", 3: "🧍‍♂️", 4: "👨‍🍳", 5: "👑" };
+const GRADES = {
+  1: "Absolute Skibidi",
+  2: "Who Let Them Cook?",
+  3: "Meh",
+  4: "Let Him Cook!",
+  5: "Maximum Rizz",
+};
 /* Chart mark colors — validated (dataviz six checks) against surface #1e2328:
    lightness band ok, chroma ok, CVD dE 19.7, normal dE 21.8, contrast 4.65:1.
    The brighter UI gold (#c8aa6e) is for text/chrome only, never chart marks. */
@@ -192,7 +199,7 @@ function renderOverview(games) {
   const facts = [];
   if (rated.length) {
     const avg = rated.reduce((s, g) => s + g.fun_score, 0) / rated.length;
-    facts.push(card("Kiff-o-meter", `${avg.toFixed(2)} <span class="emoji">${EMOJI[Math.round(avg)]}</span>`, `across ${rated.length} rated games`, true));
+    facts.push(card("Kiff-o-meter", `${avg.toFixed(2)} <span class="emoji">${EMOJI[Math.round(avg)]}</span>`, `${GRADES[Math.round(avg)]} · ${rated.length} rated games`, true));
   } else {
     facts.push(card("Kiff-o-meter", "—", "no rated games in this filter (rookie numbers)"));
   }
@@ -342,7 +349,7 @@ function renderPending() {
         <div class="when">${g.played_at.replace("T", " ")} · ${Math.round((g.duration_seconds || 0) / 60)} min${g.premades.length ? " · with " + g.premades.map((t) => t.name).join(", ") : ""}</div>
       </div>
       <div class="rate-btns">
-        ${[1, 2, 3, 4, 5].map((s) => `<button data-score="${s}" title="${s}/5">${EMOJI[s]}</button>`).join("")}
+        ${[1, 2, 3, 4, 5].map((s) => `<button data-score="${s}" title="${GRADES[s]}">${EMOJI[s]}</button>`).join("")}
         <button class="skip" data-skip="1" title="exclude from stats">skip</button>
       </div>
     </div>`).join("");
