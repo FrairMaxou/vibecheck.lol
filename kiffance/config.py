@@ -30,6 +30,7 @@ QUEUE_NAMES = {
     1700: "Arena",
     1710: "Arena",
     1900: "URF",
+    2400: "ARAM Mayhem",  # gameMode "KIWI"
 }
 
 # Fallback when the end-of-game payload has no queueId, only a queueType string.
