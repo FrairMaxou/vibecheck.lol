@@ -11,7 +11,7 @@
 <header>
   <div class="title-block">
     <h1>League of Kiffance</h1>
-    <p class="subtitle">Do you actually have fun? The data knows.</p>
+    <p class="subtitle">Winrate is a lie. Did you have fun though? The data knows.</p>
   </div>
   <div id="header-stats" class="header-stats"></div>
 </header>
@@ -37,38 +37,38 @@
 </section>
 
 <nav id="tabs">
-  <button data-tab="overview" class="active">Overview</button>
+  <button data-tab="overview" class="active">The Vibe Check</button>
   <button data-tab="champions">Champions</button>
-  <button data-tab="squad">Squad</button>
+  <button data-tab="squad">The Squad</button>
   <button data-tab="context">Context</button>
-  <button data-tab="sessions">Sessions</button>
+  <button data-tab="sessions">Regret Curve</button>
   <button data-tab="explorer">Explorer</button>
-  <button data-tab="pending">Pending <span id="pending-badge" class="badge hidden"></span></button>
+  <button data-tab="pending">To Rate <span id="pending-badge" class="badge hidden"></span></button>
 </nav>
 
 <main>
   <div id="tab-overview" class="tab">
     <div id="fun-facts" class="cards"></div>
     <div class="panel">
-      <h2>Fun over time <span class="hint">rolling average of your last 5 ratings</span></h2>
+      <h2>The kiff trend <span class="hint">rolling average of your last 5 ratings — are we healing or coping?</span></h2>
       <div class="chart-wrap"><canvas id="chart-trend"></canvas></div>
     </div>
   </div>
 
   <div id="tab-champions" class="tab hidden">
     <div class="panel">
-      <h2>Fun by champion</h2>
+      <h2>Champion kiff rankings <span class="hint">who sparks joy, who sparks tilt</span></h2>
       <div class="chart-wrap tall"><canvas id="chart-champ-fun"></canvas></div>
     </div>
     <div class="panel">
-      <h2>Fun vs. winrate <span class="hint">top-left: fun but losing · bottom-right: winning but miserable</span></h2>
+      <h2>Fun vs. winrate <span class="hint">top-left: fun but bad · bottom-right: winning and miserable (pure copium)</span></h2>
       <div class="chart-wrap"><canvas id="chart-champ-scatter"></canvas></div>
     </div>
   </div>
 
   <div id="tab-squad" class="tab hidden">
     <div class="panel">
-      <h2>Fun with your premades <span class="hint">vs. playing without them</span></h2>
+      <h2>Squad buff check <span class="hint">fun with the gang vs. solo queue suffering</span></h2>
       <div class="chart-wrap tall"><canvas id="chart-squad"></canvas></div>
     </div>
   </div>
@@ -86,7 +86,7 @@
 
   <div id="tab-sessions" class="tab hidden">
     <div class="panel">
-      <h2>Fun by game number in a session <span class="hint">when should you stop?</span></h2>
+      <h2>The "one more game" regret curve <span class="hint">fun by game number in a session — find where the vibe dies and log off there</span></h2>
       <div class="chart-wrap"><canvas id="chart-sessions"></canvas></div>
     </div>
   </div>
@@ -123,7 +123,7 @@
 
   <div id="tab-pending" class="tab hidden">
     <div class="panel">
-      <h2>Games waiting for a rating</h2>
+      <h2>Games left on read <span class="hint">give them a verdict before you forget how they felt</span></h2>
       <div id="pending-list"></div>
     </div>
   </div>

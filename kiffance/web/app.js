@@ -178,7 +178,7 @@ function renderHeader(games) {
   const banner = document.getElementById("low-data-banner");
   const totalRated = ALL.filter((g) => g.rated).length;
   if (totalRated < MIN_N) {
-    banner.textContent = `Insights unlock at ${MIN_N} rated games — you have ${totalRated}. Keep playing (and rating)!`;
+    banner.textContent = `The vibes are still buffering — ${totalRated}/${MIN_N} rated games until the insights unlock. Go feed the machine. 🎮`;
     banner.classList.remove("hidden");
   } else banner.classList.add("hidden");
 }
@@ -192,28 +192,28 @@ function renderOverview(games) {
   const facts = [];
   if (rated.length) {
     const avg = rated.reduce((s, g) => s + g.fun_score, 0) / rated.length;
-    facts.push(card("Average kiffance", `${avg.toFixed(2)} <span class="emoji">${EMOJI[Math.round(avg)]}</span>`, `${rated.length} rated games`, true));
+    facts.push(card("Kiff-o-meter", `${avg.toFixed(2)} <span class="emoji">${EMOJI[Math.round(avg)]}</span>`, `across ${rated.length} rated games`, true));
   } else {
-    facts.push(card("Average kiffance", "—", "no rated games in this filter"));
+    facts.push(card("Kiff-o-meter", "—", "no rated games in this filter (rookie numbers)"));
   }
   const champs = aggregate(games, (g) => g.champion).filter((r) => r.avgFun != null);
   const bigChamps = champs.filter((r) => r.n >= MIN_N).sort((a, b) => b.avgFun - a.avgFun);
   facts.push(bigChamps.length
-    ? card("Most fun champion", `${bigChamps[0].key} ${EMOJI[Math.round(bigChamps[0].avgFun)]}`, `${bigChamps[0].avgFun.toFixed(2)} avg over ${bigChamps[0].n} games`, true)
-    : card("Most fun champion", "…", `not enough data yet (needs ${MIN_N} rated games on one champion)`));
+    ? card("Certified banger", `${bigChamps[0].key} ${EMOJI[Math.round(bigChamps[0].avgFun)]}`, `${bigChamps[0].avgFun.toFixed(2)} avg over ${bigChamps[0].n} games — this one's for the soul`, true)
+    : card("Certified banger", "…", `not enough data yet (needs ${MIN_N} rated games on one champ)`));
   if (bigChamps.length > 1) {
     const w = bigChamps[bigChamps.length - 1];
-    facts.push(card("Least fun champion", `${w.key} ${EMOJI[Math.round(w.avgFun)]}`, `${w.avgFun.toFixed(2)} avg over ${w.n} games`));
+    facts.push(card("Certified yikes", `${w.key} ${EMOJI[Math.round(w.avgFun)]}`, `${w.avgFun.toFixed(2)} avg over ${w.n} games — why do you keep doing this`));
   }
   const withP = rated.filter((g) => g.premades.length);
   const solo = rated.filter((g) => !g.premades.length);
   facts.push(withP.length >= MIN_N && solo.length >= MIN_N
-    ? card("Squad effect",
+    ? card("Squad buff",
         `${(withP.reduce((s, g) => s + g.fun_score, 0) / withP.length).toFixed(2)} vs ${(solo.reduce((s, g) => s + g.fun_score, 0) / solo.length).toFixed(2)}`,
-        `fun with premades vs. without (${withP.length}/${solo.length} games)`, true)
-    : card("Squad effect", "…", "not enough data yet (play more with & without premades)"));
+        `with the squad vs. solo queue suffering (${withP.length}/${solo.length} games)`, true)
+    : card("Squad buff", "…", "not enough data yet (play more with & without the squad)"));
   const cov = games.length ? Math.round((100 * rated.length) / games.filter((g) => !g.is_remake).length) : 0;
-  facts.push(card("Rating coverage", `${cov}%`, "target ≥ 90% — rate your pending games!"));
+  facts.push(card("Homework done", `${cov}%`, "of games rated — aim for 90%, don't leave games on read"));
   document.getElementById("fun-facts").innerHTML = facts.join("");
 
   // trend: rolling average (window 5) over rated games in chronological order
@@ -334,7 +334,7 @@ function renderPending() {
   if (pending.length) { badge.textContent = pending.length; badge.classList.remove("hidden"); }
   else badge.classList.add("hidden");
   const list = document.getElementById("pending-list");
-  if (!pending.length) { list.innerHTML = '<div class="empty-note">Nothing pending — every game is rated. 🏆</div>'; return; }
+  if (!pending.length) { list.innerHTML = '<div class="empty-note">All caught up — not a single un-vibed game. Certified responsible adult. 🏆</div>'; return; }
   list.innerHTML = pending.map((g) => `
     <div class="pending-row" data-id="${g.id}">
       <div class="meta">

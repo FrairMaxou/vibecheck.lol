@@ -42,7 +42,7 @@ class RatingPopup:
         win.configure(bg=_BG)
         win.protocol("WM_DELETE_WINDOW", self.hide)  # close = pending, not lost
 
-        tk.Label(win, text="Had fun?", font=("Segoe UI", 16, "bold"), bg=_BG, fg=_FG).pack(
+        tk.Label(win, text="Did you kiff?", font=("Segoe UI", 16, "bold"), bg=_BG, fg=_FG).pack(
             padx=24, pady=(16, 2)
         )
         tk.Label(win, text=summary, font=("Segoe UI", 10), bg=_BG, fg="#a09b8c").pack(
