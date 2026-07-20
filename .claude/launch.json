@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dev-dashboard",
+      "runtimeExecutable": ".venv\\Scripts\\python.exe",
+      "runtimeArgs": ["tools/dev_dashboard.py"],
+      "port": 8578
+    },
+    {
+      "name": "kiffance-app",
+      "runtimeExecutable": ".venv\\Scripts\\python.exe",
+      "runtimeArgs": ["-m", "kiffance"],
+      "port": 8577
+    }
+  ]
+}
