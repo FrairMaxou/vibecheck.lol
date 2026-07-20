@@ -162,6 +162,14 @@ class GameStore:
                 (key, value),
             )
 
+    def delete_game(self, game_id: int) -> None:
+        """Remove a game and all its related rows (rating, teammates, tags)."""
+        with self._lock, self._db:
+            self._db.execute("DELETE FROM game_tags WHERE game_id = ?", (game_id,))
+            self._db.execute("DELETE FROM game_teammates WHERE game_id = ?", (game_id,))
+            self._db.execute("DELETE FROM ratings WHERE game_id = ?", (game_id,))
+            self._db.execute("DELETE FROM games WHERE id = ?", (game_id,))
+
     def update_queue_type(self, game_id: int, queue_type: str) -> None:
         with self._lock, self._db:
             self._db.execute("UPDATE games SET queue_type = ? WHERE id = ?", (queue_type, game_id))
