@@ -212,6 +212,7 @@ Dashboard with the global filter bar and explorer view (F13b/F13c), champion kif
 
 ### Phase 3 — Delight
 Tags, fun-facts cards, session analysis, trends, remake handling, missed-game recovery (F5, F6, F9, F17–F19).
+**Popup design pass (TODO from 2026-07-20 testing):** the v1 popup works but looks rough — tkinter renders the emoji as monochrome outlines, not color. Rework the visuals (color emoji via images or a webview-based popup, spacing, hover states) once the capture loop is validated.
 
 ### Phase 4 — Share-ready (required before inviting friends)
 Single-exe GitHub release, friend-proof README, JSON/CSV export, launch-on-startup option, tag insights. (Riot API backfill stays optional.)
