@@ -85,12 +85,17 @@ class LcuClient:
     def end_of_game_stats(self):
         return self.get("/lol-end-of-game/v1/eol-game-data")
 
-    def latest_match_id(self) -> int | None:
-        """Most recent game id from the client's own match history."""
+    def recent_matches(self, count: int = 10) -> list:
+        """Most recent games (summary records) from the client's match history."""
         data = self.get(
-            "/lol-match-history/v1/products/lol/current-summoner/matches?begIndex=0&endIndex=3"
+            f"/lol-match-history/v1/products/lol/current-summoner/matches"
+            f"?begIndex=0&endIndex={count}"
         )
         games = (data or {}).get("games", {}).get("games", [])
+        return games if isinstance(games, list) else []
+
+    def latest_match_id(self) -> int | None:
+        games = self.recent_matches(3)
         if not games:
             return None
         newest = max(games, key=lambda g: g.get("gameCreation", 0))

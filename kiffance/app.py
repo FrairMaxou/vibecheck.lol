@@ -13,9 +13,10 @@ import queue
 import threading
 import time
 import tkinter as tk
+from datetime import datetime, timedelta
 
 from . import capture, lcu
-from .config import APP_NAME, CLIENT_POLL_SECONDS, DATA_DIR, LOG_PATH
+from .config import APP_NAME, CATCHUP_FIRST_RUN_HOURS, CLIENT_POLL_SECONDS, DATA_DIR, LOG_PATH
 from .popup import RatingPopup
 from .store import GameStore
 from .tray import build_tray
@@ -26,11 +27,19 @@ log = logging.getLogger(__name__)
 END_PHASES = {"PreEndOfGame", "EndOfGame"}
 LIVE_PHASES = {"InProgress"}
 LOBBY_PHASES = {"ChampSelect", "InProgress"}
+# Phases meaning "no game running" — safe moments to look for missed games (F6).
+IDLE_PHASES = {"None", "Lobby"}
+
+WATERMARK_KEY = "capture_watermark"  # ISO datetime; games started after this are ours to catch
 
 
 class App:
     def __init__(self):
         self.store = GameStore()
+        # First launch: don't backfill history beyond a short grace window.
+        if self.store.get_meta(WATERMARK_KEY) is None:
+            grace = datetime.now() - timedelta(hours=CATCHUP_FIRST_RUN_HOURS)
+            self.store.set_meta(WATERMARK_KEY, grace.isoformat(timespec="seconds"))
         self.paused = False
         self._stopping = threading.Event()
         self._ui_requests: queue.Queue = queue.Queue()
@@ -96,10 +105,13 @@ class App:
                 summoner.get("gameName") or summoner.get("displayName", "?"),
             )
 
-            # Catch a game that ended while we weren't listening.
+            # Catch games that ended while we weren't listening (F6): a game
+            # still on its stats screen, or finished games missed entirely
+            # (app not running, game crash, client restart).
             phase = self._client.gameflow_phase()
             if phase in END_PHASES:
                 self._handle_end_of_game()
+            self._start_catch_up()
 
             self._events = lcu.GameflowEvents(conn, self._on_phase)
             self._events.run()  # blocks until the client closes
@@ -115,6 +127,10 @@ class App:
             self._popup_request("hide")  # F10b: never on screen during gameplay
         if phase in END_PHASES:
             self._handle_end_of_game()
+        if phase in IDLE_PHASES:
+            # Back to lobby/idle: sweep for games that ended without a clean
+            # EndOfGame (mid-game crash where the client survived).
+            self._start_catch_up()
 
     def _capture_premades(self) -> None:
         members = self._client.lobby_members() if self._client else []
@@ -166,6 +182,60 @@ class App:
         )
         self._finish_capture(game_id_str, result, source="match history")
 
+    def _start_catch_up(self) -> None:
+        """Import finished games we missed (F6), in the capture worker slot."""
+        if not self._capture_lock.acquire(blocking=False):
+            return  # a capture/catch-up is already running
+
+        def worker():
+            try:
+                self._catch_up()
+            except Exception:
+                log.exception("Catch-up sweep failed")
+            finally:
+                self._capture_lock.release()
+
+        threading.Thread(target=worker, name="catch-up", daemon=True).start()
+
+    def _catch_up(self) -> None:
+        watermark = self.store.get_meta(WATERMARK_KEY) or ""
+        missed = []
+        for summary in self._client.recent_matches(10):
+            game_id = str(summary.get("gameId", ""))
+            created_ms = summary.get("gameCreation", 0)
+            if not game_id or not created_ms:
+                continue
+            created = datetime.fromtimestamp(created_ms / 1000).isoformat(timespec="seconds")
+            if created > watermark and not self.store.has_game(game_id):
+                missed.append((created, summary))
+        if not missed:
+            return
+
+        missed.sort()  # oldest first, so session numbering stays chronological
+        log.info("Catch-up: found %d missed game(s)", len(missed))
+        newest = None
+        for _, summary in missed:
+            match = self._client.match_details(summary["gameId"]) or summary
+            result = capture.normalize_match(match, self._my_puuid, self._champ_names, set())
+            stored_id = self.store.insert_game(result["game"], result["teammates"])
+            if stored_id is not None:
+                game = result["game"]
+                self._advance_watermark(game.get("played_at", ""))
+                log.info(
+                    "Caught up game %s: %s (%s)",
+                    game.get("riot_match_id"),
+                    game.get("champion"),
+                    game.get("queue_type"),
+                )
+                newest = (stored_id, game)
+        # Prompt only for the most recent one; older imports wait in pending.
+        if newest is not None and not self.paused:
+            self._popup_request("show", newest[0], _summary_line(newest[1]))
+
+    def _advance_watermark(self, played_at: str) -> None:
+        if played_at and played_at > (self.store.get_meta(WATERMARK_KEY) or ""):
+            self.store.set_meta(WATERMARK_KEY, played_at)
+
     def _fresh_match_from_history(self):
         """Latest match, unless we already have it (history can lag the game end)."""
         match_id = self._client.latest_match_id()
@@ -186,6 +256,7 @@ class App:
         self._processed_game_ids.add(game_id_str)
         self._premade_puuids = set()
         stored_id = self.store.insert_game(result["game"], result["teammates"])
+        self._advance_watermark(result["game"].get("played_at", ""))
         if stored_id is None:
             log.info("Game %s already stored", game_id_str)
             return

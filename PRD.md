@@ -64,7 +64,7 @@ Stats sites (op.gg, u.gg, League client) tell you how well you played. None of t
 | F3b | **Every queue is captured and prompted** — Ranked, Normals, ARAM, Arena, and all rotating modes (ARAM Mayhem, URF, etc.). Known queue ids get friendly labels; unknown ids are stored with the payload's raw queue name so brand-new modes are captured automatically with no code change. | Must |
 | F4 | Persist the raw match payload as-is (JSON blob) alongside the normalized fields, so future insight ideas don't require replaying games. | Must |
 | F5 | Handle remakes and dodges gracefully (record as `remake`, don't prompt for fun). | Should |
-| F6 | Survive client restarts / tool restarts: on startup, check for any recent finished game not yet in the DB (via LCU match history) and import it as "pending rating". | Should |
+| F6 | Survive crashes and restarts (game crash, client restart, tool not running): on connect and on returning to lobby, sweep LCU match history for finished games newer than a stored watermark and not yet in the DB; import them and prompt for the newest (older ones go to pending). First launch looks back 3h max — no deep backfill. *(Implemented early — pulled forward from Phase 3 after a real game crash during testing.)* | Must |
 
 ### 4.2 Fun rating prompt
 

@@ -43,5 +43,6 @@ QUEUE_TYPE_TO_ID = {
 }
 
 SESSION_GAP_SECONDS = 3600  # PRD F17: games < 1h apart share a session
+CATCHUP_FIRST_RUN_HOURS = 3  # on first ever launch, look this far back for missed games
 POPUP_TIMEOUT_SECONDS = 300  # PRD F10
 CLIENT_POLL_SECONDS = 10  # how often to look for the League client when it's not running

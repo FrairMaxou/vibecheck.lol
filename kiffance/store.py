@@ -56,6 +56,10 @@ CREATE TABLE IF NOT EXISTS game_tags (
     game_id INTEGER REFERENCES games(id),
     tag_id INTEGER REFERENCES tags(id)
 );
+CREATE TABLE IF NOT EXISTS meta (
+    key TEXT PRIMARY KEY,
+    value TEXT
+);
 """
 
 
@@ -144,6 +148,19 @@ class GameStore:
                    ORDER BY g.played_at DESC"""
             ).fetchall()
         return [dict(r) for r in rows]
+
+    def get_meta(self, key: str, default: str | None = None) -> str | None:
+        with self._lock:
+            row = self._db.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
+        return row["value"] if row else default
+
+    def set_meta(self, key: str, value: str) -> None:
+        with self._lock, self._db:
+            self._db.execute(
+                "INSERT INTO meta (key, value) VALUES (?,?) "
+                "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                (key, value),
+            )
 
     def has_game(self, riot_match_id: str) -> bool:
         with self._lock:

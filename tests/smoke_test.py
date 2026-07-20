@@ -148,6 +148,13 @@ def main():
         gid3 = store.insert_game(game1_end_plus_20m, [])
         row = [g for g in store.pending_games() if g["id"] == gid3][0]
         assert row["game_index_in_session"] == 2, row
+
+        # meta store (used by the F6 catch-up watermark)
+        assert store.get_meta("capture_watermark") is None
+        store.set_meta("capture_watermark", "2099-01-01T20:00:00")
+        store.set_meta("capture_watermark", "2099-01-01T21:00:00")
+        assert store.get_meta("capture_watermark") == "2099-01-01T21:00:00"
+        assert store.has_game("987654321") and not store.has_game("nope")
         store.close()
 
     print("smoke test OK")
