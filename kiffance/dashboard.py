@@ -62,7 +62,14 @@ def create_app(store: GameStore) -> FastAPI:
 def start_dashboard(store: GameStore) -> str:
     """Start the server in a daemon thread; returns the dashboard URL."""
     config = uvicorn.Config(
-        create_app(store), host=DASHBOARD_HOST, port=DASHBOARD_PORT, log_level="warning"
+        create_app(store),
+        host=DASHBOARD_HOST,
+        port=DASHBOARD_PORT,
+        log_level="warning",
+        # log_config=None: don't let uvicorn run its own logging dictConfig — its
+        # formatter calls sys.stdout.isatty(), which crashes under pythonw (no
+        # console → sys.stdout is None). We use the root logger already set up.
+        log_config=None,
     )
     server = uvicorn.Server(config)
     threading.Thread(target=server.run, name="dashboard", daemon=True).start()

@@ -378,10 +378,16 @@ def _install_crash_logging() -> None:
 
 def main() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
+    # Under pythonw there is no console, so sys.stderr is None — a StreamHandler
+    # would then fail on every emit. Only add console output when a real stream
+    # exists (i.e. running via `python`, not `pythonw`).
+    handlers: list[logging.Handler] = [logging.FileHandler(LOG_PATH, encoding="utf-8")]
+    if sys.stderr is not None:
+        handlers.append(logging.StreamHandler())
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-        handlers=[logging.FileHandler(LOG_PATH, encoding="utf-8"), logging.StreamHandler()],
+        handlers=handlers,
     )
     _install_crash_logging()
     App().run()
