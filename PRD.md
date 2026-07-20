@@ -273,3 +273,39 @@ The social component **matters long-term**: the goal is that friends can see the
 3. **Portable data.** Ratings + normalized fields exportable as JSON/CSV from v1 — a manual "compare with a friend" story exists even before any backend, and it's the escape hatch if a backend never happens.
 4. **README written for friends, not just for me.** Installation must be doable by a non-dev friend (eventually a single .exe release on GitHub — this upgrades the Phase 4 packaging item from "optional" to "required for social Tier 1").
 5. **Any future social feature must still pass §6a** (Vanguard constraints) and §6b (lightweight) — a sync client is a background HTTP push of already-captured data, which fits; anything more invasive doesn't.
+
+---
+
+## 12. Social — Tier 3: shared squad backend (in progress, decided 2026-07-20)
+
+Local capture stays exactly as-is. This adds an **opt-in** layer: log in, join a squad, and your *rated* games sync to a shared backend so the squad can see leaderboards and the mutual-fun matrix. Off by default — a player who never logs in is unaffected and fully local.
+
+### Decisions
+| Question | Decision |
+|----------|----------|
+| Backend | **Supabase** — managed Postgres + built-in Auth + Row-Level Security + auto REST. Free tier covers a squad; near-zero ops. |
+| Identity | **Full accounts** via Supabase Auth (email/password). On first sync the app links `auth.uid ↔ PUUID ↔ display name`. |
+| Grouping | **Squads** with **invite codes**: one member creates a squad and shares a code; friends paste it to join. |
+| Privacy | **Opt-in and squad-scoped.** Only rated, non-skipped games sync. RLS makes a player's shared games visible **only** to members of squads they share. A per-game "don't share" flag is available. |
+
+### Backend schema (Supabase / Postgres)
+- `profiles` — `id` (= auth.uid), `puuid`, `display_name`. Maps account ↔ in-game identity.
+- `squads` — `id`, `name`, `owner_id`, `created_at`.
+- `squad_members` — `squad_id`, `user_id`, `role`, `joined_at`.
+- `squad_invites` — `code`, `squad_id`, `created_by`, `expires_at`.
+- `shared_games` — one row per player per game: `user_id`, `riot_match_id`, `played_at`, `queue_type`, `champion`, `role`, `win`, `kills/deaths/assists`, `duration_seconds`, `fun_score`, `synced_at`. **`riot_match_id` is the join key** — same value for all players in a game — so two squad members' ratings of the same game line up for the mutual-fun matrix.
+
+RLS: a user reads `shared_games`/`profiles` only for users co-membered in a squad; writes only their own rows. `service_role` key is never shipped; the **anon key is public-by-design** (RLS is the guard) and lives in a gitignored local config, not the repo.
+
+### App changes
+| ID | Requirement |
+|----|-------------|
+| F25 | Opt-in account login (email/password) from a dashboard "Squad" settings page. Sync is disabled until logged in. |
+| F26 | Create a squad / join by invite code. |
+| F27 | Background sync worker: push the user's rated, non-skipped games to `shared_games` (behind the game-store interface, §11 constraint 1). Async HTTP, honors §6a/§6b. |
+| F28 | **Squad leaderboard** — avg fun per member (this week / all-time), with sample sizes (F21). |
+| F29 | **Mutual-fun matrix** — for games two members both played (matched on `riot_match_id`), show each pair's two fun scores: "you rated it 4.5, Alex rated it 2.8." |
+| F30 | Privacy: sync opt-in; only non-skipped rated games; per-game "don't share"; leaving a squad removes your visibility to it. |
+
+### External dependency
+Requires a Supabase project (created by the user — account creation can't be automated). The repo provides the SQL schema/migration to run in Supabase; the app reads the project URL + anon key from a local gitignored config.
