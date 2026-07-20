@@ -309,3 +309,18 @@ RLS: a user reads `shared_games`/`profiles` only for users co-membered in a squa
 
 ### External dependency
 Requires a Supabase project (created by the user — account creation can't be automated). The repo provides the SQL schema/migration to run in Supabase; the app reads the project URL + anon key from a local gitignored config.
+
+---
+
+## 13. Future: richer game analysis (data already captured)
+
+Fun isn't explained by your own champion alone — the enemy team, ARAM Mayhem augments, your build, and mode mutators all shape the game and how it felt. **This data is already being captured**: verified 2026-07-20 that stored `raw_payload`s contain, for all 10 players on both teams, `playerAugment1..6`, `item0..6`, `gameModeMutators`, champLevel, gold, damage breakdowns, and full stats. We simply don't normalize/surface it yet.
+
+Planned analysis dimensions to extract from the retained raw payloads:
+- **Enemy composition** — fun vs. specific enemy champions / archetypes faced.
+- **Augments** (ARAM Mayhem, Arena) — which augments correlate with fun and with winning.
+- **Builds / items** — item paths vs. fun.
+- **Mode mutators** — how each rotating-mode modifier affects fun.
+- **Deeper personal stats** — damage, gold, multikills, surrender/remake flags vs. fun.
+
+**Enabler (F4 payoff):** because the full raw payload is retained on every game, adding any new dimension is a normalize-and-backfill step — a one-time re-parse populates the new fields for all historical games, with no recapture. New extraction belongs in `capture.py`; new columns go through the game store (§11). No Vanguard/lightweight impact — it's post-hoc analysis of already-stored data (§6a/§6b safe).
