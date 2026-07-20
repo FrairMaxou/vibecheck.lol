@@ -109,6 +109,9 @@ class App:
             # still on its stats screen, or finished games missed entirely
             # (app not running, game crash, client restart).
             phase = self._client.gameflow_phase()
+            log.info("Current gameflow phase at connect: %s", phase or "unknown")
+            if phase in LIVE_PHASES:
+                log.info("A game is in progress — it will be captured when it ends")
             if phase in END_PHASES:
                 self._handle_end_of_game()
             self._start_catch_up()
