@@ -20,9 +20,14 @@ def _icon_image() -> Image.Image:
 
 
 def build_tray(
-    is_paused: Callable[[], bool], toggle_paused: Callable[[], None], on_quit: Callable[[], None]
+    is_paused: Callable[[], bool],
+    toggle_paused: Callable[[], None],
+    on_quit: Callable[[], None],
+    on_open_dashboard: Callable[[], None],
 ) -> pystray.Icon:
     menu = pystray.Menu(
+        # default=True: double-clicking the tray icon opens the dashboard.
+        pystray.MenuItem("Open dashboard", lambda: on_open_dashboard(), default=True),
         pystray.MenuItem(
             "Pause prompts", lambda: toggle_paused(), checked=lambda _item: is_paused()
         ),

@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>League of Kiffance</title>
+<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤩</text></svg>">
+</head>
+<body data-palette="#b28328,#2f9ac0" data-mode="dark">
+<header>
+  <div class="title-block">
+    <h1>League of Kiffance</h1>
+    <p class="subtitle">Do you actually have fun? The data knows.</p>
+  </div>
+  <div id="header-stats" class="header-stats"></div>
+</header>
+
+<div id="low-data-banner" class="banner hidden"></div>
+
+<section id="filters" class="filters">
+  <div class="filter-group">
+    <label>From</label>
+    <input type="date" id="f-from">
+  </div>
+  <div class="filter-group">
+    <label>To</label>
+    <input type="date" id="f-to">
+  </div>
+  <div class="filter-group"><label>Queue</label><div id="f-queue"></div></div>
+  <div class="filter-group"><label>Champion</label><div id="f-champion"></div></div>
+  <div class="filter-group"><label>Role</label><div id="f-role"></div></div>
+  <div class="filter-group"><label>Teammate</label><div id="f-teammate"></div></div>
+  <div class="filter-group"><label>Result</label><div id="f-result"></div></div>
+  <button id="f-clear" class="ghost-btn">Clear filters</button>
+  <span id="f-count" class="filter-count"></span>
+</section>
+
+<nav id="tabs">
+  <button data-tab="overview" class="active">Overview</button>
+  <button data-tab="champions">Champions</button>
+  <button data-tab="squad">Squad</button>
+  <button data-tab="context">Context</button>
+  <button data-tab="sessions">Sessions</button>
+  <button data-tab="explorer">Explorer</button>
+  <button data-tab="pending">Pending <span id="pending-badge" class="badge hidden"></span></button>
+</nav>
+
+<main>
+  <div id="tab-overview" class="tab">
+    <div id="fun-facts" class="cards"></div>
+    <div class="panel">
+      <h2>Fun over time <span class="hint">rolling average of your last 5 ratings</span></h2>
+      <div class="chart-wrap"><canvas id="chart-trend"></canvas></div>
+    </div>
+  </div>
+
+  <div id="tab-champions" class="tab hidden">
+    <div class="panel">
+      <h2>Fun by champion</h2>
+      <div class="chart-wrap tall"><canvas id="chart-champ-fun"></canvas></div>
+    </div>
+    <div class="panel">
+      <h2>Fun vs. winrate <span class="hint">top-left: fun but losing · bottom-right: winning but miserable</span></h2>
+      <div class="chart-wrap"><canvas id="chart-champ-scatter"></canvas></div>
+    </div>
+  </div>
+
+  <div id="tab-squad" class="tab hidden">
+    <div class="panel">
+      <h2>Fun with your premades <span class="hint">vs. playing without them</span></h2>
+      <div class="chart-wrap tall"><canvas id="chart-squad"></canvas></div>
+    </div>
+  </div>
+
+  <div id="tab-context" class="tab hidden">
+    <div class="grid-2">
+      <div class="panel"><h2>By queue</h2><div class="chart-wrap"><canvas id="chart-ctx-queue"></canvas></div></div>
+      <div class="panel"><h2>By role</h2><div class="chart-wrap"><canvas id="chart-ctx-role"></canvas></div></div>
+      <div class="panel"><h2>Win vs. loss</h2><div class="chart-wrap"><canvas id="chart-ctx-result"></canvas></div></div>
+      <div class="panel"><h2>By game length</h2><div class="chart-wrap"><canvas id="chart-ctx-duration"></canvas></div></div>
+      <div class="panel"><h2>By hour of day</h2><div class="chart-wrap"><canvas id="chart-ctx-hour"></canvas></div></div>
+      <div class="panel"><h2>By day of week</h2><div class="chart-wrap"><canvas id="chart-ctx-weekday"></canvas></div></div>
+    </div>
+  </div>
+
+  <div id="tab-sessions" class="tab hidden">
+    <div class="panel">
+      <h2>Fun by game number in a session <span class="hint">when should you stop?</span></h2>
+      <div class="chart-wrap"><canvas id="chart-sessions"></canvas></div>
+    </div>
+  </div>
+
+  <div id="tab-explorer" class="tab hidden">
+    <div class="panel">
+      <div class="explorer-controls">
+        <label>Group by
+          <select id="ex-dim">
+            <option value="champion">Champion</option>
+            <option value="teammate">Teammate</option>
+            <option value="queue_type">Queue</option>
+            <option value="role">Role</option>
+            <option value="result">Win / Loss</option>
+            <option value="weekday">Day of week</option>
+            <option value="hour">Hour of day</option>
+            <option value="session_index">Game # in session</option>
+            <option value="duration_bucket">Game length</option>
+            <option value="month">Month</option>
+          </select>
+        </label>
+        <label>Show as
+          <select id="ex-type">
+            <option value="bar">Bars (avg fun)</option>
+            <option value="scatter">Scatter (fun vs. winrate)</option>
+            <option value="table">Table</option>
+          </select>
+        </label>
+      </div>
+      <div class="chart-wrap tall"><canvas id="chart-explorer"></canvas></div>
+      <div id="explorer-table"></div>
+    </div>
+  </div>
+
+  <div id="tab-pending" class="tab hidden">
+    <div class="panel">
+      <h2>Games waiting for a rating</h2>
+      <div id="pending-list"></div>
+    </div>
+  </div>
+</main>
+
+<script src="/static/chart.umd.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,451 @@
+/* League of Kiffance dashboard.
+   All filtering/aggregation is client-side: the dataset is small (one row per
+   game) and this keeps the filter bar + explorer instant (PRD F13b/F13c). */
+"use strict";
+
+const MIN_N = 5; // PRD F21: below this, a group is "not enough data yet"
+const EMOJI = { 1: "😡", 2: "😕", 3: "😐", 4: "🙂", 5: "🤩" };
+/* Chart mark colors — validated (dataviz six checks) against surface #1e2328:
+   lightness band ok, chroma ok, CVD dE 19.7, normal dE 21.8, contrast 4.65:1.
+   The brighter UI gold (#c8aa6e) is for text/chrome only, never chart marks. */
+const GOLD = "#b28328";
+const TEAL = "#2f9ac0";
+const MUTED = "#4a5058";
+const INK2 = "#a09b8c";
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const DAYPARTS = ["Morning (6–12)", "Afternoon (12–18)", "Evening (18–24)", "Night (0–6)"];
+const DURATIONS = ["< 20 min", "20–30 min", "30–40 min", "40+ min"];
+
+Chart.defaults.color = INK2;
+Chart.defaults.borderColor = "#3c434d";
+Chart.defaults.font.family = '"Segoe UI", system-ui, sans-serif';
+Chart.defaults.plugins.legend.display = false;
+Chart.defaults.animation.duration = 250;
+
+let ALL = []; // enriched games
+const charts = {}; // canvas id -> Chart instance
+const state = {
+  tab: "overview",
+  from: null,
+  to: null,
+  sets: { queue: new Set(), champion: new Set(), role: new Set(), teammate: new Set(), result: new Set() },
+};
+
+/* ---------------- data ---------------- */
+
+async function loadData() {
+  const res = await fetch("/api/games");
+  const data = await res.json();
+  ALL = data.games.map(enrich);
+}
+
+function enrich(g) {
+  const d = new Date(g.played_at);
+  const mins = (g.duration_seconds || 0) / 60;
+  return {
+    ...g,
+    date: d,
+    day: g.played_at.slice(0, 10),
+    weekday: WEEKDAYS[(d.getDay() + 6) % 7],
+    daypart: DAYPARTS[d.getHours() < 6 ? 3 : d.getHours() < 12 ? 0 : d.getHours() < 18 ? 1 : 2],
+    duration_bucket: mins < 20 ? DURATIONS[0] : mins < 30 ? DURATIONS[1] : mins < 40 ? DURATIONS[2] : DURATIONS[3],
+    month: g.played_at.slice(0, 7),
+    session_index: Math.min(g.game_index_in_session || 1, 5) >= 5 ? "5+" : String(g.game_index_in_session || 1),
+    result: g.win === 1 ? "Win" : g.win === 0 ? "Loss" : "?",
+    rated: g.fun_score != null && !g.skipped,
+    pending: g.fun_score == null && !g.skipped && !g.is_remake,
+    premades: (g.teammates || []).filter((t) => t.was_premade),
+  };
+}
+
+function filtered() {
+  return ALL.filter((g) => {
+    if (state.from && g.day < state.from) return false;
+    if (state.to && g.day > state.to) return false;
+    const s = state.sets;
+    if (s.queue.size && !s.queue.has(g.queue_type)) return false;
+    if (s.champion.size && !s.champion.has(g.champion)) return false;
+    if (s.role.size && !s.role.has(g.role || "(unknown)")) return false;
+    if (s.result.size && !s.result.has(g.result)) return false;
+    if (s.teammate.size && !g.premades.some((t) => s.teammate.has(t.puuid))) return false;
+    return true;
+  });
+}
+
+/* group games by key; returns [{key, n, avgFun, winrate}] using rated games for fun */
+function aggregate(games, keyFn) {
+  const acc = new Map();
+  for (const g of games) {
+    for (const key of [].concat(keyFn(g) ?? [])) {
+      if (key == null || key === "") continue;
+      const a = acc.get(key) || { key, n: 0, funSum: 0, funN: 0, wins: 0, winN: 0 };
+      a.n += 1;
+      if (g.rated) { a.funSum += g.fun_score; a.funN += 1; }
+      if (g.win === 0 || g.win === 1) { a.wins += g.win; a.winN += 1; }
+      acc.set(key, a);
+    }
+  }
+  return [...acc.values()].map((a) => ({
+    key: a.key,
+    n: a.funN,
+    games: a.n,
+    avgFun: a.funN ? a.funSum / a.funN : null,
+    winrate: a.winN ? (100 * a.wins) / a.winN : null,
+  }));
+}
+
+/* ---------------- chart helpers ---------------- */
+
+function destroyChart(id) {
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+}
+
+function funBarChart(id, rows, { horizontal = false, fixedOrder = null } = {}) {
+  destroyChart(id);
+  const el = document.getElementById(id);
+  rows = rows.filter((r) => r.avgFun != null);
+  if (fixedOrder) {
+    rows.sort((a, b) => fixedOrder.indexOf(a.key) - fixedOrder.indexOf(b.key));
+  } else {
+    rows.sort((a, b) => b.avgFun - a.avgFun);
+  }
+  charts[id] = new Chart(el, {
+    type: "bar",
+    data: {
+      labels: rows.map((r) => r.key),
+      datasets: [{
+        data: rows.map((r) => r.avgFun),
+        backgroundColor: rows.map((r) => (r.n < MIN_N ? MUTED : GOLD)),
+        borderRadius: 4,
+        maxBarThickness: 26,
+        borderSkipped: "start",
+      }],
+    },
+    options: {
+      indexAxis: horizontal ? "y" : "x",
+      maintainAspectRatio: false,
+      scales: {
+        [horizontal ? "x" : "y"]: { min: 1, max: 5, ticks: { callback: (v) => EMOJI[v] || v } },
+        [horizontal ? "y" : "x"]: { grid: { display: false } },
+      },
+      plugins: { tooltip: { callbacks: {
+        label: (c) => {
+          const r = rows[c.dataIndex];
+          const tag = r.n < MIN_N ? " · not enough data yet" : "";
+          return ` avg fun ${r.avgFun.toFixed(2)} ${EMOJI[Math.round(r.avgFun)]} · ${r.n} rated game${r.n > 1 ? "s" : ""}${tag}`;
+        },
+      } } },
+    },
+  });
+  return rows.length;
+}
+
+function funScatterChart(id, rows) {
+  destroyChart(id);
+  rows = rows.filter((r) => r.avgFun != null && r.winrate != null);
+  charts[id] = new Chart(document.getElementById(id), {
+    type: "scatter",
+    data: { datasets: [{
+      data: rows.map((r) => ({ x: r.winrate, y: r.avgFun, r })),
+      backgroundColor: rows.map((r) => (r.n < MIN_N ? MUTED : GOLD)),
+      pointRadius: rows.map((r) => Math.min(4 + r.n, 14)),
+      pointHoverRadius: rows.map((r) => Math.min(6 + r.n, 16)),
+    }] },
+    options: {
+      maintainAspectRatio: false,
+      scales: {
+        x: { min: 0, max: 100, title: { display: true, text: "winrate %" } },
+        y: { min: 1, max: 5, title: { display: true, text: "avg fun" }, ticks: { callback: (v) => EMOJI[v] || v } },
+      },
+      plugins: { tooltip: { callbacks: {
+        label: (c) => {
+          const r = c.raw.r;
+          const tag = r.n < MIN_N ? " · not enough data yet" : "";
+          return ` ${r.key}: fun ${r.avgFun.toFixed(2)}, winrate ${r.winrate.toFixed(0)}% (${r.n} rated)${tag}`;
+        },
+      } } },
+    },
+  });
+}
+
+/* ---------------- views ---------------- */
+
+function renderHeader(games) {
+  const rated = games.filter((g) => g.rated);
+  document.getElementById("header-stats").innerHTML =
+    `<b>${games.length}</b> games · <b>${rated.length}</b> rated` +
+    (rated.length ? ` · avg fun <b>${(rated.reduce((s, g) => s + g.fun_score, 0) / rated.length).toFixed(2)}</b>` : "");
+  const banner = document.getElementById("low-data-banner");
+  const totalRated = ALL.filter((g) => g.rated).length;
+  if (totalRated < MIN_N) {
+    banner.textContent = `Insights unlock at ${MIN_N} rated games — you have ${totalRated}. Keep playing (and rating)!`;
+    banner.classList.remove("hidden");
+  } else banner.classList.add("hidden");
+}
+
+function card(k, v, d, gold = false) {
+  return `<div class="card${gold ? " gold" : ""}"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div></div>`;
+}
+
+function renderOverview(games) {
+  const rated = games.filter((g) => g.rated);
+  const facts = [];
+  if (rated.length) {
+    const avg = rated.reduce((s, g) => s + g.fun_score, 0) / rated.length;
+    facts.push(card("Average kiffance", `${avg.toFixed(2)} <span class="emoji">${EMOJI[Math.round(avg)]}</span>`, `${rated.length} rated games`, true));
+  } else {
+    facts.push(card("Average kiffance", "—", "no rated games in this filter"));
+  }
+  const champs = aggregate(games, (g) => g.champion).filter((r) => r.avgFun != null);
+  const bigChamps = champs.filter((r) => r.n >= MIN_N).sort((a, b) => b.avgFun - a.avgFun);
+  facts.push(bigChamps.length
+    ? card("Most fun champion", `${bigChamps[0].key} ${EMOJI[Math.round(bigChamps[0].avgFun)]}`, `${bigChamps[0].avgFun.toFixed(2)} avg over ${bigChamps[0].n} games`, true)
+    : card("Most fun champion", "…", `not enough data yet (needs ${MIN_N} rated games on one champion)`));
+  if (bigChamps.length > 1) {
+    const w = bigChamps[bigChamps.length - 1];
+    facts.push(card("Least fun champion", `${w.key} ${EMOJI[Math.round(w.avgFun)]}`, `${w.avgFun.toFixed(2)} avg over ${w.n} games`));
+  }
+  const withP = rated.filter((g) => g.premades.length);
+  const solo = rated.filter((g) => !g.premades.length);
+  facts.push(withP.length >= MIN_N && solo.length >= MIN_N
+    ? card("Squad effect",
+        `${(withP.reduce((s, g) => s + g.fun_score, 0) / withP.length).toFixed(2)} vs ${(solo.reduce((s, g) => s + g.fun_score, 0) / solo.length).toFixed(2)}`,
+        `fun with premades vs. without (${withP.length}/${solo.length} games)`, true)
+    : card("Squad effect", "…", "not enough data yet (play more with & without premades)"));
+  const cov = games.length ? Math.round((100 * rated.length) / games.filter((g) => !g.is_remake).length) : 0;
+  facts.push(card("Rating coverage", `${cov}%`, "target ≥ 90% — rate your pending games!"));
+  document.getElementById("fun-facts").innerHTML = facts.join("");
+
+  // trend: rolling average (window 5) over rated games in chronological order
+  destroyChart("chart-trend");
+  const seq = rated.slice().sort((a, b) => a.date - b.date);
+  const points = seq.map((g, i) => {
+    const win = seq.slice(Math.max(0, i - 4), i + 1);
+    return { x: i + 1, y: win.reduce((s, x) => s + x.fun_score, 0) / win.length, g };
+  });
+  charts["chart-trend"] = new Chart(document.getElementById("chart-trend"), {
+    type: "line",
+    data: { datasets: [{
+      data: points, borderColor: GOLD, borderWidth: 2, pointRadius: 3,
+      pointBackgroundColor: GOLD, tension: 0.3, fill: false,
+    }] },
+    options: {
+      maintainAspectRatio: false,
+      scales: {
+        x: { type: "linear", title: { display: true, text: "rated game #" }, ticks: { stepSize: 1 } },
+        y: { min: 1, max: 5, ticks: { callback: (v) => EMOJI[v] || v } },
+      },
+      plugins: { tooltip: { callbacks: {
+        label: (c) => ` ${c.raw.g.champion || "?"} ${EMOJI[c.raw.g.fun_score]} — rolling avg ${c.raw.y.toFixed(2)}`,
+        title: (items) => items[0].raw.g.day,
+      } } },
+    },
+  });
+}
+
+function renderChampions(games) {
+  funBarChart("chart-champ-fun", aggregate(games, (g) => g.champion), { horizontal: true });
+  funScatterChart("chart-champ-scatter", aggregate(games, (g) => g.champion));
+}
+
+function renderSquad(games) {
+  // key premades by puuid, display latest known name
+  const names = new Map();
+  for (const g of games) for (const t of g.premades) names.set(t.puuid, t.name || "(unknown)");
+  const rows = aggregate(games, (g) => (g.premades.length ? g.premades.map((t) => t.puuid) : ["__solo__"]));
+  for (const r of rows) r.key = r.key === "__solo__" ? "Without premades" : `with ${names.get(r.key) || "?"}`;
+  destroyChart("chart-squad");
+  const data = rows.filter((r) => r.avgFun != null).sort((a, b) => b.avgFun - a.avgFun);
+  charts["chart-squad"] = new Chart(document.getElementById("chart-squad"), {
+    type: "bar",
+    data: {
+      labels: data.map((r) => r.key),
+      datasets: [{
+        data: data.map((r) => r.avgFun),
+        backgroundColor: data.map((r) => (r.n < MIN_N ? MUTED : r.key === "Without premades" ? TEAL : GOLD)),
+        borderRadius: 4, maxBarThickness: 26,
+      }],
+    },
+    options: {
+      indexAxis: "y", maintainAspectRatio: false,
+      scales: { x: { min: 1, max: 5, ticks: { callback: (v) => EMOJI[v] || v } }, y: { grid: { display: false } } },
+      plugins: { tooltip: { callbacks: {
+        label: (c) => {
+          const r = data[c.dataIndex];
+          const tag = r.n < MIN_N ? " · not enough data yet" : "";
+          return ` avg fun ${r.avgFun.toFixed(2)} · ${r.n} rated games${tag}`;
+        },
+      } } },
+    },
+  });
+}
+
+function renderContext(games) {
+  funBarChart("chart-ctx-queue", aggregate(games, (g) => g.queue_type));
+  funBarChart("chart-ctx-role", aggregate(games, (g) => g.role || "(unknown)"));
+  funBarChart("chart-ctx-result", aggregate(games, (g) => g.result), { fixedOrder: ["Win", "Loss", "?"] });
+  funBarChart("chart-ctx-duration", aggregate(games, (g) => g.duration_bucket), { fixedOrder: DURATIONS });
+  funBarChart("chart-ctx-hour", aggregate(games, (g) => g.daypart), { fixedOrder: DAYPARTS });
+  funBarChart("chart-ctx-weekday", aggregate(games, (g) => g.weekday), { fixedOrder: WEEKDAYS });
+}
+
+function renderSessions(games) {
+  funBarChart("chart-sessions", aggregate(games, (g) => g.session_index), { fixedOrder: ["1", "2", "3", "4", "5+"] });
+}
+
+const DIMS = {
+  champion: (g) => g.champion,
+  teammate: (g) => g.premades.map((t) => t.name || "?"),
+  queue_type: (g) => g.queue_type,
+  role: (g) => g.role || "(unknown)",
+  result: (g) => g.result,
+  weekday: (g) => g.weekday,
+  hour: (g) => g.daypart,
+  session_index: (g) => g.session_index,
+  duration_bucket: (g) => g.duration_bucket,
+  month: (g) => g.month,
+};
+const DIM_ORDERS = { weekday: WEEKDAYS, hour: DAYPARTS, duration_bucket: DURATIONS, session_index: ["1", "2", "3", "4", "5+"], result: ["Win", "Loss", "?"] };
+
+function renderExplorer(games) {
+  const dim = document.getElementById("ex-dim").value;
+  const type = document.getElementById("ex-type").value;
+  const rows = aggregate(games, DIMS[dim]);
+  const tableDiv = document.getElementById("explorer-table");
+  const wrap = document.querySelector("#tab-explorer .chart-wrap");
+  if (type === "table") {
+    destroyChart("chart-explorer");
+    wrap.classList.add("hidden");
+    const sorted = rows.slice().sort((a, b) => (b.avgFun ?? 0) - (a.avgFun ?? 0));
+    tableDiv.innerHTML = `<table><thead><tr><th>${dim.replace("_", " ")}</th><th class="num">games</th><th class="num">rated</th><th class="num">avg fun</th><th class="num">winrate</th></tr></thead><tbody>` +
+      sorted.map((r) => `<tr${r.n < MIN_N ? ' class="low-n"' : ""}><td>${r.key}</td><td class="num">${r.games}</td><td class="num">${r.n}</td><td class="num">${r.avgFun != null ? r.avgFun.toFixed(2) + " " + EMOJI[Math.round(r.avgFun)] : "—"}${r.n < MIN_N && r.n > 0 ? " ·  n<" + MIN_N : ""}</td><td class="num">${r.winrate != null ? r.winrate.toFixed(0) + "%" : "—"}</td></tr>`).join("") +
+      "</tbody></table>";
+  } else {
+    tableDiv.innerHTML = "";
+    wrap.classList.remove("hidden");
+    if (type === "scatter") funScatterChart("chart-explorer", rows);
+    else funBarChart("chart-explorer", rows, { horizontal: rows.length > 8, fixedOrder: DIM_ORDERS[dim] || null });
+  }
+}
+
+function renderPending() {
+  const pending = ALL.filter((g) => g.pending).sort((a, b) => b.date - a.date);
+  const badge = document.getElementById("pending-badge");
+  if (pending.length) { badge.textContent = pending.length; badge.classList.remove("hidden"); }
+  else badge.classList.add("hidden");
+  const list = document.getElementById("pending-list");
+  if (!pending.length) { list.innerHTML = '<div class="empty-note">Nothing pending — every game is rated. 🏆</div>'; return; }
+  list.innerHTML = pending.map((g) => `
+    <div class="pending-row" data-id="${g.id}">
+      <div class="meta">
+        <div><b>${g.champion || "?"}</b> · ${g.result} · ${g.kills ?? "?"}/${g.deaths ?? "?"}/${g.assists ?? "?"} · ${g.queue_type || "?"}</div>
+        <div class="when">${g.played_at.replace("T", " ")} · ${Math.round((g.duration_seconds || 0) / 60)} min${g.premades.length ? " · with " + g.premades.map((t) => t.name).join(", ") : ""}</div>
+      </div>
+      <div class="rate-btns">
+        ${[1, 2, 3, 4, 5].map((s) => `<button data-score="${s}" title="${s}/5">${EMOJI[s]}</button>`).join("")}
+        <button class="skip" data-skip="1" title="exclude from stats">skip</button>
+      </div>
+    </div>`).join("");
+  list.querySelectorAll(".rate-btns button").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const id = btn.closest(".pending-row").dataset.id;
+      const body = btn.dataset.skip ? { skipped: true } : { score: Number(btn.dataset.score) };
+      await fetch(`/api/games/${id}/rating`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+      });
+      await refresh();
+    });
+  });
+}
+
+/* ---------------- filters UI ---------------- */
+
+function buildMultiselect(containerId, label, options, set, onChange) {
+  const host = document.getElementById(containerId);
+  host.innerHTML = "";
+  const div = document.createElement("div");
+  div.className = "msel";
+  const btn = document.createElement("button");
+  btn.className = "msel-btn";
+  const panel = document.createElement("div");
+  panel.className = "msel-panel hidden";
+  const sync = () => {
+    btn.textContent = set.size ? `${label}: ${set.size} selected` : `All ${label.toLowerCase()}s`;
+    btn.classList.toggle("has-selection", set.size > 0);
+  };
+  for (const opt of options) {
+    const row = document.createElement("label");
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = set.has(opt.value);
+    cb.addEventListener("change", () => {
+      cb.checked ? set.add(opt.value) : set.delete(opt.value);
+      sync(); onChange();
+    });
+    row.append(cb, document.createTextNode(" " + opt.label));
+    panel.append(row);
+  }
+  btn.addEventListener("click", (e) => { e.stopPropagation(); document.querySelectorAll(".msel-panel").forEach((p) => p !== panel && p.classList.add("hidden")); panel.classList.toggle("hidden"); });
+  document.addEventListener("click", (e) => { if (!div.contains(e.target)) panel.classList.add("hidden"); });
+  sync();
+  div.append(btn, panel);
+  host.append(div);
+}
+
+function buildFilters() {
+  const uniq = (fn) => [...new Set(ALL.map(fn).flat().filter(Boolean))].sort();
+  buildMultiselect("f-queue", "Queue", uniq((g) => g.queue_type).map((v) => ({ value: v, label: v })), state.sets.queue, renderAll);
+  buildMultiselect("f-champion", "Champion", uniq((g) => g.champion).map((v) => ({ value: v, label: v })), state.sets.champion, renderAll);
+  buildMultiselect("f-role", "Role", uniq((g) => g.role || "(unknown)").map((v) => ({ value: v, label: v })), state.sets.role, renderAll);
+  const mates = new Map();
+  for (const g of ALL) for (const t of g.premades) mates.set(t.puuid, t.name || "(unknown)");
+  buildMultiselect("f-teammate", "Teammate", [...mates].map(([p, n]) => ({ value: p, label: n })), state.sets.teammate, renderAll);
+  buildMultiselect("f-result", "Result", ["Win", "Loss"].map((v) => ({ value: v, label: v })), state.sets.result, renderAll);
+  document.getElementById("f-from").addEventListener("change", (e) => { state.from = e.target.value || null; renderAll(); });
+  document.getElementById("f-to").addEventListener("change", (e) => { state.to = e.target.value || null; renderAll(); });
+  document.getElementById("f-clear").addEventListener("click", () => {
+    state.from = state.to = null;
+    document.getElementById("f-from").value = document.getElementById("f-to").value = "";
+    Object.values(state.sets).forEach((s) => s.clear());
+    buildFilters(); renderAll();
+  });
+}
+
+/* ---------------- shell ---------------- */
+
+function renderAll() {
+  const games = filtered();
+  document.getElementById("f-count").textContent =
+    games.length === ALL.length ? "" : `${games.length} of ${ALL.length} games match`;
+  renderHeader(games);
+  renderPending();
+  const t = state.tab;
+  if (t === "overview") renderOverview(games);
+  if (t === "champions") renderChampions(games);
+  if (t === "squad") renderSquad(games);
+  if (t === "context") renderContext(games);
+  if (t === "sessions") renderSessions(games);
+  if (t === "explorer") renderExplorer(games);
+}
+
+async function refresh() {
+  await loadData();
+  buildFilters();
+  renderAll();
+}
+
+document.querySelectorAll("#tabs button").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("#tabs button").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    state.tab = btn.dataset.tab;
+    document.querySelectorAll(".tab").forEach((el) => el.classList.add("hidden"));
+    document.getElementById(`tab-${state.tab}`).classList.remove("hidden");
+    renderAll();
+  });
+});
+document.getElementById("ex-dim").addEventListener("change", renderAll);
+document.getElementById("ex-type").addEventListener("change", renderAll);
+
+refresh();
+setInterval(refresh, 60_000); // live-ish: new games appear without a manual reload

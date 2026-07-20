@@ -184,6 +184,39 @@ class GameStore:
             ).fetchall()
         return [dict(r) for r in rows]
 
+    def games_with_details(self) -> list:
+        """Every game with rating fields and teammates — the dashboard's dataset.
+
+        raw_payload is excluded (large, and the dashboard never needs it).
+        """
+        with self._lock:
+            games = self._db.execute(
+                """SELECT g.id, g.riot_match_id, g.played_at, g.queue_id, g.queue_type,
+                          g.champion, g.role, g.win, g.kills, g.deaths, g.assists, g.cs,
+                          g.duration_seconds, g.session_id, g.game_index_in_session,
+                          g.is_remake, r.fun_score, r.skipped, r.rated_at
+                   FROM games g LEFT JOIN ratings r ON r.game_id = g.id
+                   ORDER BY g.played_at"""
+            ).fetchall()
+            mates = self._db.execute(
+                "SELECT game_id, summoner_name, riot_puuid, was_premade FROM game_teammates"
+            ).fetchall()
+        teammates_by_game: dict = {}
+        for m in mates:
+            teammates_by_game.setdefault(m["game_id"], []).append(
+                {
+                    "name": m["summoner_name"],
+                    "puuid": m["riot_puuid"],
+                    "was_premade": bool(m["was_premade"]),
+                }
+            )
+        out = []
+        for row in games:
+            game = dict(row)
+            game["teammates"] = teammates_by_game.get(game["id"], [])
+            out.append(game)
+        return out
+
     def game_count(self) -> int:
         with self._lock:
             return self._db.execute("SELECT COUNT(*) FROM games").fetchone()[0]

@@ -1,0 +1,143 @@
+:root {
+  --bg: #10141a;
+  --surface: #1e2328;
+  --surface-2: #282e36;
+  --line: #3c434d;
+  --ink: #f0e6d2;
+  --ink-2: #a09b8c;
+  --ink-3: #6b7280;
+  --gold: #c8aa6e;
+  --teal: #3fa7c4;
+  --muted-bar: #4a5058;
+}
+
+* { box-sizing: border-box; margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font: 14px/1.5 "Segoe UI", system-ui, sans-serif;
+  padding: 20px clamp(12px, 4vw, 48px) 60px;
+}
+
+header { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+h1 { font-size: 26px; letter-spacing: .5px; color: var(--gold); }
+.subtitle { color: var(--ink-2); font-size: 13px; }
+.header-stats { color: var(--ink-2); font-size: 13px; }
+.header-stats b { color: var(--ink); font-size: 16px; }
+
+.banner {
+  background: linear-gradient(90deg, #2a2415, #1e2328);
+  border: 1px solid var(--gold);
+  border-radius: 8px;
+  padding: 10px 16px;
+  margin-bottom: 14px;
+  color: var(--ink);
+}
+.hidden { display: none !important; }
+
+/* ---------- filters ---------- */
+.filters {
+  display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 10px; padding: 12px 16px; margin-bottom: 14px;
+  position: sticky; top: 0; z-index: 20;
+}
+.filter-group label { display: block; font-size: 11px; color: var(--ink-2); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 3px; }
+.filters input[type="date"] {
+  background: var(--surface-2); color: var(--ink); border: 1px solid var(--line);
+  border-radius: 6px; padding: 5px 8px; font: inherit;
+}
+.ghost-btn {
+  background: none; border: 1px solid var(--line); color: var(--ink-2);
+  border-radius: 6px; padding: 6px 12px; cursor: pointer; font: inherit;
+}
+.ghost-btn:hover { color: var(--ink); border-color: var(--ink-2); }
+.filter-count { color: var(--ink-2); font-size: 12px; margin-left: auto; }
+
+/* multiselect dropdown */
+.msel { position: relative; min-width: 130px; }
+.msel-btn {
+  width: 100%; text-align: left; background: var(--surface-2); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 6px; padding: 5px 26px 5px 8px;
+  cursor: pointer; font: inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.msel-btn::after { content: "▾"; position: absolute; right: 8px; color: var(--ink-2); }
+.msel-btn.has-selection { border-color: var(--gold); color: var(--gold); }
+.msel-panel {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 30;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px;
+  padding: 6px; min-width: 180px; max-height: 260px; overflow-y: auto;
+  box-shadow: 0 8px 24px rgba(0,0,0,.5);
+}
+.msel-panel label {
+  display: flex; gap: 8px; align-items: center; padding: 4px 6px;
+  border-radius: 5px; cursor: pointer; font-size: 13px; color: var(--ink);
+}
+.msel-panel label:hover { background: var(--surface); }
+
+/* ---------- tabs ---------- */
+#tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 14px; }
+#tabs button {
+  background: none; border: none; border-bottom: 2px solid transparent;
+  color: var(--ink-2); padding: 8px 14px; cursor: pointer; font: inherit; font-size: 14px;
+}
+#tabs button:hover { color: var(--ink); }
+#tabs button.active { color: var(--gold); border-bottom-color: var(--gold); }
+.badge {
+  background: var(--gold); color: #1e2328; border-radius: 10px;
+  font-size: 11px; font-weight: 700; padding: 1px 7px; margin-left: 4px;
+}
+
+/* ---------- panels & charts ---------- */
+.panel {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  padding: 16px 18px; margin-bottom: 14px;
+}
+.panel h2 { font-size: 15px; font-weight: 600; margin-bottom: 12px; }
+.hint { color: var(--ink-3); font-weight: 400; font-size: 12px; margin-left: 8px; }
+.chart-wrap { position: relative; height: 260px; }
+.chart-wrap.tall { height: 340px; }
+.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; }
+.empty-note { color: var(--ink-3); padding: 30px 0; text-align: center; }
+
+/* ---------- cards ---------- */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 14px; }
+.card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  padding: 14px 16px;
+}
+.card .k { font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--ink-2); }
+.card .v { font-size: 24px; font-weight: 700; margin: 4px 0 2px; color: var(--ink); }
+.card .v .emoji { font-size: 22px; }
+.card .d { font-size: 12px; color: var(--ink-2); }
+.card.gold .v { color: var(--gold); }
+
+/* ---------- explorer ---------- */
+.explorer-controls { display: flex; gap: 18px; margin-bottom: 12px; flex-wrap: wrap; }
+.explorer-controls label { color: var(--ink-2); font-size: 13px; display: flex; align-items: center; gap: 8px; }
+.explorer-controls select {
+  background: var(--surface-2); color: var(--ink); border: 1px solid var(--line);
+  border-radius: 6px; padding: 5px 8px; font: inherit;
+}
+
+/* ---------- tables ---------- */
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); }
+th { color: var(--ink-2); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+tr.low-n td { color: var(--ink-3); }
+
+/* ---------- pending list ---------- */
+.pending-row {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 10px 6px; border-bottom: 1px solid var(--line);
+}
+.pending-row .meta { flex: 1; min-width: 220px; }
+.pending-row .meta .when { color: var(--ink-2); font-size: 12px; }
+.rate-btns { display: flex; gap: 6px; }
+.rate-btns button {
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px;
+  font-size: 20px; padding: 4px 9px; cursor: pointer; line-height: 1;
+}
+.rate-btns button:hover { border-color: var(--gold); transform: translateY(-1px); }
+.rate-btns .skip { font-size: 12px; color: var(--ink-2); }

@@ -13,10 +13,12 @@ import queue
 import threading
 import time
 import tkinter as tk
+import webbrowser
 from datetime import datetime, timedelta
 
 from . import capture, lcu
 from .config import APP_NAME, CATCHUP_FIRST_RUN_HOURS, CLIENT_POLL_SECONDS, DATA_DIR, LOG_PATH
+from .dashboard import start_dashboard
 from .popup import RatingPopup
 from .store import GameStore
 from .tray import build_tray
@@ -55,10 +57,12 @@ class App:
         self._root = tk.Tk()
         self._root.withdraw()
         self._popup = RatingPopup(self._root, self._on_rate)
+        self._dashboard_url = start_dashboard(self.store)
         self._tray = build_tray(
             is_paused=lambda: self.paused,
             toggle_paused=self._toggle_paused,
             on_quit=self.stop,
+            on_open_dashboard=lambda: webbrowser.open(self._dashboard_url),
         )
 
     # ---------------- lifecycle ----------------
