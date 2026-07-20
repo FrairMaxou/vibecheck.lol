@@ -145,6 +145,13 @@ class GameStore:
             ).fetchall()
         return [dict(r) for r in rows]
 
+    def has_game(self, riot_match_id: str) -> bool:
+        with self._lock:
+            row = self._db.execute(
+                "SELECT 1 FROM games WHERE riot_match_id = ?", (riot_match_id,)
+            ).fetchone()
+        return row is not None
+
     def recent_games(self, limit: int = 10) -> list:
         """Latest games with their rating (fun_score is NULL while pending)."""
         with self._lock:

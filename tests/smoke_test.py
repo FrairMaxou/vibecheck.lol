@@ -51,7 +51,64 @@ FAKE_EOL = {
 }
 
 
+FAKE_MATCH_HISTORY = {
+    "gameId": 555000111,
+    "gameCreation": 1789000000000,
+    "gameDuration": 1420,
+    "queueId": 870,
+    "participants": [
+        {
+            "participantId": 1,
+            "teamId": 100,
+            "championId": 202,
+            "timeline": {"lane": "BOTTOM"},
+            "stats": {
+                "win": True,
+                "kills": 15,
+                "deaths": 2,
+                "assists": 7,
+                "totalMinionsKilled": 120,
+                "neutralMinionsKilled": 8,
+            },
+        },
+        {
+            "participantId": 2,
+            "teamId": 100,
+            "championId": 157,
+            "stats": {"win": True, "kills": 3, "deaths": 5, "assists": 2},
+        },
+        {"participantId": 3, "teamId": 200, "championId": 1, "stats": {"win": False}},
+    ],
+    "participantIdentities": [
+        {"participantId": 1, "player": {"puuid": MY_PUUID, "gameName": "Maxime"}},
+        {"participantId": 2, "player": {"puuid": "friend-1", "gameName": "Alex"}},
+        {"participantId": 3, "player": {"puuid": "bot-1", "gameName": "Annie Bot"}},
+    ],
+}
+
+
+def test_match_history_fallback():
+    champ_names = {202: "Jhin", 157: "Yasuo", 1: "Annie"}
+    result = capture.normalize_match(
+        FAKE_MATCH_HISTORY, MY_PUUID, champ_names, premade_puuids={"friend-1"}
+    )
+    game, teammates = result["game"], result["teammates"]
+
+    assert game["champion"] == "Jhin", game
+    assert game["win"] == 1
+    assert (game["kills"], game["deaths"], game["assists"]) == (15, 2, 7)
+    assert game["cs"] == 128
+    assert game["duration_seconds"] == 1420
+    assert game["queue_type"] == "Co-op vs AI (Intro)", game
+    assert game["riot_match_id"] == "555000111"
+    assert game["raw_payload"] == FAKE_MATCH_HISTORY
+    # Only same-team players; the enemy-team bot is excluded.
+    assert [t["riot_puuid"] for t in teammates] == ["friend-1"], teammates
+    assert teammates[0]["was_premade"] is True
+
+
 def main():
+    test_match_history_fallback()
     champ_names = {202: "Jhin", 157: "Yasuo", 1: "Annie"}
 
     result = capture.normalize(FAKE_EOL, MY_PUUID, champ_names, premade_puuids={"friend-1"})

@@ -95,6 +95,81 @@ def normalize(eol: dict, my_puuid: str, champ_names: dict, premade_puuids: set) 
     return {"game": game, "teammates": teammates}
 
 
+def normalize_match(match: dict, my_puuid: str, champ_names: dict, premade_puuids: set) -> dict:
+    """Normalize an LCU match-history record (fallback source when the
+    end-of-game endpoint never populates, e.g. bot games or fast re-queues).
+
+    Shape: participants[] keyed by participantId + participantIdentities[]
+    carrying puuid/name, Match-V4 style.
+    """
+    duration = int(match.get("gameDuration", 0))
+    created_ms = match.get("gameCreation", 0)
+    if created_ms:
+        played_at = datetime.fromtimestamp(created_ms / 1000).isoformat(timespec="seconds")
+    else:
+        played_at = (datetime.now() - timedelta(seconds=duration)).isoformat(timespec="seconds")
+    queue_id = match.get("queueId") if isinstance(match.get("queueId"), int) else None
+
+    game = {
+        "riot_match_id": str(match.get("gameId", "")) or None,
+        "played_at": played_at,
+        "queue_id": queue_id,
+        "queue_type": QUEUE_NAMES.get(queue_id) or str(match.get("gameQueueConfigId", "")),
+        "duration_seconds": duration,
+        "raw_payload": match,
+        "champion": None,
+        "role": None,
+        "win": None,
+        "kills": None,
+        "deaths": None,
+        "assists": None,
+        "cs": None,
+    }
+    teammates = []
+
+    try:
+        identities = {
+            ident.get("participantId"): ident.get("player", {})
+            for ident in match.get("participantIdentities", [])
+        }
+        me = None
+        for part in match.get("participants", []):
+            if identities.get(part.get("participantId"), {}).get("puuid") == my_puuid:
+                me = part
+                break
+        if me is not None:
+            stats = me.get("stats") or {}
+            game.update(
+                {
+                    "champion": champ_names.get(me.get("championId"), ""),
+                    "role": (me.get("timeline") or {}).get("lane", ""),
+                    "win": int(bool(stats.get("win"))) if "win" in stats else None,
+                    "kills": stats.get("kills", 0),
+                    "deaths": stats.get("deaths", 0),
+                    "assists": stats.get("assists", 0),
+                    "cs": (
+                        stats.get("totalMinionsKilled", 0) + stats.get("neutralMinionsKilled", 0)
+                    ),
+                }
+            )
+            for part in match.get("participants", []):
+                if part is me or part.get("teamId") != me.get("teamId"):
+                    continue
+                player = identities.get(part.get("participantId"), {})
+                puuid = player.get("puuid", "")
+                teammates.append(
+                    {
+                        "summoner_name": player.get("gameName") or player.get("summonerName", ""),
+                        "riot_puuid": puuid,
+                        "was_premade": bool(puuid) and puuid in premade_puuids,
+                    }
+                )
+    except Exception as exc:
+        log.warning("Partial match-history parse (raw payload kept): %s", exc)
+
+    return {"game": game, "teammates": teammates}
+
+
 def _find_me(eol: dict, my_puuid: str):
     """Locate the local player and their team in the payload."""
     for team in eol.get("teams", []):

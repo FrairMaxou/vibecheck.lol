@@ -41,6 +41,7 @@ class App:
         self._champ_names: dict = {}
         self._premade_puuids: set = set()
         self._processed_game_ids: set = set()
+        self._capture_lock = threading.Lock()
 
         self._root = tk.Tk()
         self._root.withdraw()
@@ -124,41 +125,90 @@ class App:
             log.info("Lobby premades captured: %d", len(puuids))
 
     def _handle_end_of_game(self) -> None:
-        eol = self._await_end_of_game_stats()
-        if eol is None:
-            log.warning("End of game detected but stats never became available")
-            return
-        game_id_str = str(eol.get("gameId", ""))
-        if not game_id_str or game_id_str in self._processed_game_ids:
-            return
-        self._processed_game_ids.add(game_id_str)
+        """Kick off capture in a worker thread.
 
-        # F3b (revised): every queue is captured, including rotating modes.
-        result = capture.normalize(eol, self._my_puuid, self._champ_names, self._premade_puuids)
+        Never blocks the websocket event thread (a slow stats endpoint must not
+        delay later phase events), and at most one capture runs at a time —
+        PreEndOfGame and EndOfGame both trigger this for the same game.
+        """
+        if not self._capture_lock.acquire(blocking=False):
+            return
+
+        def worker():
+            try:
+                self._capture_game()
+            finally:
+                self._capture_lock.release()
+
+        threading.Thread(target=worker, name="capture", daemon=True).start()
+
+    def _capture_game(self) -> None:
+        # Primary source: the end-of-game stats endpoint (has premade/party info).
+        eol = self._await(self._client.end_of_game_stats, attempts=6)
+        if eol is not None:
+            game_id_str = str(eol.get("gameId", ""))
+            if self._already_captured(game_id_str):
+                return
+            result = capture.normalize(eol, self._my_puuid, self._champ_names, self._premade_puuids)
+            self._finish_capture(game_id_str, result, source="end-of-game stats")
+            return
+
+        # Fallback: the client's own match history. Works for every game type
+        # (incl. bots) and persists after the stats screen is gone.
+        log.info("End-of-game stats unavailable; falling back to match history")
+        match = self._await(self._fresh_match_from_history, attempts=10, interval=3.0)
+        if match is None:
+            log.warning("Game ended but neither stats nor match history yielded it")
+            return
+        game_id_str = str(match.get("gameId", ""))
+        result = capture.normalize_match(
+            match, self._my_puuid, self._champ_names, self._premade_puuids
+        )
+        self._finish_capture(game_id_str, result, source="match history")
+
+    def _fresh_match_from_history(self):
+        """Latest match, unless we already have it (history can lag the game end)."""
+        match_id = self._client.latest_match_id()
+        if match_id is None or self._already_captured(str(match_id), record=False):
+            return None
+        return self._client.match_details(match_id)
+
+    def _already_captured(self, game_id_str: str, record: bool = True) -> bool:
+        if not game_id_str or game_id_str in self._processed_game_ids:
+            return True
+        if self.store.has_game(game_id_str):
+            return True
+        if record:
+            self._processed_game_ids.add(game_id_str)
+        return False
+
+    def _finish_capture(self, game_id_str: str, result: dict, source: str) -> None:
+        self._processed_game_ids.add(game_id_str)
         self._premade_puuids = set()
         stored_id = self.store.insert_game(result["game"], result["teammates"])
         if stored_id is None:
             log.info("Game %s already stored", game_id_str)
             return
-
         game = result["game"]
         log.info(
-            "Captured game %s: %s %s",
+            "Captured game %s via %s: %s %s (%s)",
             game_id_str,
+            source,
             game.get("champion"),
             "W" if game.get("win") else "L",
+            game.get("queue_type"),
         )
         if not self.paused:
             self._popup_request("show", stored_id, _summary_line(game))
 
-    def _await_end_of_game_stats(self, attempts: int = 15, interval: float = 2.0):
-        """The eol endpoint 404s briefly after the game ends; retry politely."""
+    def _await(self, fetch, attempts: int, interval: float = 2.0):
+        """Retry a fetch that legitimately 404s/lags right after game end."""
         for _ in range(attempts):
             if self._stopping.is_set() or self._client is None:
                 return None
-            eol = self._client.end_of_game_stats()
-            if isinstance(eol, dict) and eol.get("gameId"):
-                return eol
+            value = fetch()
+            if isinstance(value, dict) and value.get("gameId"):
+                return value
             time.sleep(interval)
         return None
 
