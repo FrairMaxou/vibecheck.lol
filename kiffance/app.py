@@ -10,6 +10,7 @@ Threading model:
 
 import logging
 import queue
+import sys
 import threading
 import time
 import tkinter as tk
@@ -56,6 +57,11 @@ class App:
 
         self._root = tk.Tk()
         self._root.withdraw()
+        # Tk swallows callback exceptions to stderr (invisible under pythonw) —
+        # send them to the log instead so UI errors are never lost.
+        self._root.report_callback_exception = lambda *exc: log.error(
+            "Tk callback error", exc_info=exc
+        )
         self._popup = RatingPopup(self._root, self._on_rate)
         self._dashboard_url = start_dashboard(self.store)
         self._tray = build_tray(
@@ -90,43 +96,60 @@ class App:
     # ---------------- watcher thread ----------------
 
     def _watcher_loop(self) -> None:
+        # This loop must run for the whole life of the app. Any error in a single
+        # connect/reconnect cycle is logged and retried — a hiccup while the
+        # client restarts or the socket drops can never kill the watcher.
         while not self._stopping.is_set():
-            conn = lcu.discover()
-            if conn is None:
+            try:
+                self._watch_once()
+            except Exception:
+                log.exception("Watcher cycle failed; retrying in %ss", CLIENT_POLL_SECONDS)
                 self._stopping.wait(CLIENT_POLL_SECONDS)
-                continue
 
-            self._client = lcu.LcuClient(conn)
-            summoner = self._client.current_summoner()
-            if not summoner or "puuid" not in summoner:
-                # Client process is up but the API isn't ready yet.
-                self._stopping.wait(CLIENT_POLL_SECONDS)
-                continue
-            self._my_puuid = summoner["puuid"]
-            self._champ_names = self._client.champion_names()
-            log.info(
-                "Connected to League client (summoner: %s)",
-                summoner.get("gameName") or summoner.get("displayName", "?"),
-            )
+    def _watch_once(self) -> None:
+        conn = lcu.discover()
+        if conn is None:
+            self._stopping.wait(CLIENT_POLL_SECONDS)
+            return
 
-            # Catch games that ended while we weren't listening (F6): a game
-            # still on its stats screen, or finished games missed entirely
-            # (app not running, game crash, client restart).
-            phase = self._client.gameflow_phase()
-            log.info("Current gameflow phase at connect: %s", phase or "unknown")
-            if phase in LIVE_PHASES:
-                log.info("A game is in progress — it will be captured when it ends")
-            if phase in END_PHASES:
-                self._handle_end_of_game()
-            self._start_catch_up()
+        self._client = lcu.LcuClient(conn)
+        summoner = self._client.current_summoner()
+        if not summoner or "puuid" not in summoner:
+            # Client process is up but the API isn't ready yet.
+            self._stopping.wait(CLIENT_POLL_SECONDS)
+            return
+        self._my_puuid = summoner["puuid"]
+        self._champ_names = self._client.champion_names()
+        log.info(
+            "Connected to League client (summoner: %s)",
+            summoner.get("gameName") or summoner.get("displayName", "?"),
+        )
 
-            self._events = lcu.GameflowEvents(conn, self._on_phase)
-            self._events.run()  # blocks until the client closes
-            log.info("League client connection lost; will reconnect")
-            self._popup_request("hide")
-            self._stopping.wait(5)
+        # Catch games that ended while we weren't listening (F6): a game still on
+        # its stats screen, or finished games missed entirely (app not running,
+        # game crash, client restart).
+        phase = self._client.gameflow_phase()
+        log.info("Current gameflow phase at connect: %s", phase or "unknown")
+        if phase in LIVE_PHASES:
+            log.info("A game is in progress — it will be captured when it ends")
+        if phase in END_PHASES:
+            self._handle_end_of_game()
+        self._start_catch_up()
+
+        self._events = lcu.GameflowEvents(conn, self._on_phase)
+        self._events.run()  # blocks until the client closes
+        log.info("League client connection lost; will reconnect")
+        self._popup_request("hide")
+        self._stopping.wait(5)
 
     def _on_phase(self, phase: str) -> None:
+        # Runs on the websocket thread — must not raise, or the socket callback dies.
+        try:
+            self._dispatch_phase(phase)
+        except Exception:
+            log.exception("Error handling gameflow phase %s", phase)
+
+    def _dispatch_phase(self, phase: str) -> None:
         log.info("Gameflow phase: %s", phase)
         if phase in LOBBY_PHASES:
             self._capture_premades()
@@ -299,10 +322,15 @@ class App:
         try:
             while True:
                 action, args = self._ui_requests.get_nowait()
-                if action == "show":
-                    self._popup.show(*args)
-                elif action == "hide":
-                    self._popup.hide()
+                try:
+                    if action == "show":
+                        self._popup.show(*args)
+                    elif action == "hide":
+                        self._popup.hide()
+                except Exception:
+                    # A popup error must not break this loop — it's what keeps
+                    # the whole UI thread alive.
+                    log.exception("Popup %s failed", action)
         except queue.Empty:
             pass
         if not self._stopping.is_set():
@@ -324,6 +352,30 @@ def _summary_line(game: dict) -> str:
     return "  ·  ".join(str(p) for p in parts)
 
 
+def _install_crash_logging() -> None:
+    """Route otherwise-invisible crashes to the log file.
+
+    Under pythonw there is no console, so an uncaught exception in any thread
+    would kill it silently (exactly the failure we saw: process gone, no clue
+    in the log). These hooks make the cause visible next time.
+    """
+
+    def log_uncaught(exc_type, exc_value, exc_tb):
+        log.critical("Uncaught exception in main thread", exc_info=(exc_type, exc_value, exc_tb))
+
+    def log_thread_uncaught(args):
+        if args.exc_type is SystemExit:
+            return
+        log.critical(
+            "Uncaught exception in thread %s",
+            args.thread.name if args.thread else "?",
+            exc_info=(args.exc_type, args.exc_value, args.exc_traceback),
+        )
+
+    sys.excepthook = log_uncaught
+    threading.excepthook = log_thread_uncaught
+
+
 def main() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
@@ -331,4 +383,5 @@ def main() -> None:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
         handlers=[logging.FileHandler(LOG_PATH, encoding="utf-8"), logging.StreamHandler()],
     )
+    _install_crash_logging()
     App().run()

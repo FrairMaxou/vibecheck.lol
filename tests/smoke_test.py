@@ -108,12 +108,13 @@ def test_match_history_fallback():
 
 
 def test_queue_label_fallback():
-    # known id -> friendly label
+    # known ids -> friendly labels
     assert capture.queue_label(450, {}) == "ARAM"
-    # unknown id -> raw gameMode from payload (the KIWI/2400 real-world case)
-    assert capture.queue_label(2400, {"gameMode": "KIWI"}) == "KIWI"
+    assert capture.queue_label(2400, {"gameMode": "KIWI"}) == "ARAM Mayhem"
+    # unknown id -> raw gameMode from payload (the blank-queue bug this guards)
+    assert capture.queue_label(9999, {"gameMode": "NEXUSBLITZ"}) == "NEXUSBLITZ"
     # unknown id, no strings -> never blank
-    assert capture.queue_label(2400, {}) == "Queue 2400"
+    assert capture.queue_label(9999, {}) == "Queue 9999"
     assert capture.queue_label(None, {}) == "Unknown queue"
 
 
