@@ -145,6 +145,21 @@ class GameStore:
             ).fetchall()
         return [dict(r) for r in rows]
 
+    def recent_games(self, limit: int = 10) -> list:
+        """Latest games with their rating (fun_score is NULL while pending)."""
+        with self._lock:
+            rows = self._db.execute(
+                """SELECT g.id, g.played_at, g.queue_type, g.champion, g.role, g.win,
+                          g.kills, g.deaths, g.assists, g.duration_seconds,
+                          g.session_id, g.game_index_in_session,
+                          r.fun_score, r.skipped, r.rated_at
+                   FROM games g
+                   LEFT JOIN ratings r ON r.game_id = g.id
+                   ORDER BY g.played_at DESC LIMIT ?""",
+                (limit,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
     def game_count(self) -> int:
         with self._lock:
             return self._db.execute("SELECT COUNT(*) FROM games").fetchone()[0]
