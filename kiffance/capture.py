@@ -33,6 +33,23 @@ def resolve_queue_id(eol: dict) -> int | None:
     return QUEUE_TYPE_TO_ID.get(str(eol.get("queueType", "")).upper())
 
 
+def queue_label(queue_id: int | None, payload: dict) -> str:
+    """Friendly queue name; never blank.
+
+    Known ids get a label; otherwise fall back to the payload's own queue/mode
+    strings (raw name), and finally to the id itself — so a brand-new mode is
+    always identifiable rather than empty.
+    """
+    known = QUEUE_NAMES.get(queue_id)
+    if known:
+        return known
+    for field in ("queueType", "gameMode"):
+        value = payload.get(field)
+        if value:
+            return str(value)
+    return f"Queue {queue_id}" if queue_id else "Unknown queue"
+
+
 def normalize(eol: dict, my_puuid: str, champ_names: dict, premade_puuids: set) -> dict:
     """Returns {"game": {...}, "teammates": [...]} ready for GameStore.insert_game."""
     duration = _duration_seconds(eol)
@@ -43,7 +60,7 @@ def normalize(eol: dict, my_puuid: str, champ_names: dict, premade_puuids: set) 
         "riot_match_id": str(eol.get("gameId", "")) or None,
         "played_at": played_at,
         "queue_id": queue_id,
-        "queue_type": QUEUE_NAMES.get(queue_id) or str(eol.get("queueType", "")),
+        "queue_type": queue_label(queue_id, eol),
         "duration_seconds": duration,
         "raw_payload": eol,
         "champion": None,
@@ -114,7 +131,7 @@ def normalize_match(match: dict, my_puuid: str, champ_names: dict, premade_puuid
         "riot_match_id": str(match.get("gameId", "")) or None,
         "played_at": played_at,
         "queue_id": queue_id,
-        "queue_type": QUEUE_NAMES.get(queue_id) or str(match.get("gameQueueConfigId", "")),
+        "queue_type": queue_label(queue_id, match),
         "duration_seconds": duration,
         "raw_payload": match,
         "champion": None,

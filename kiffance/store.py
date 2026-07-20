@@ -162,6 +162,10 @@ class GameStore:
                 (key, value),
             )
 
+    def update_queue_type(self, game_id: int, queue_type: str) -> None:
+        with self._lock, self._db:
+            self._db.execute("UPDATE games SET queue_type = ? WHERE id = ?", (queue_type, game_id))
+
     def has_game(self, riot_match_id: str) -> bool:
         with self._lock:
             row = self._db.execute(

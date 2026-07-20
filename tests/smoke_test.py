@@ -107,8 +107,19 @@ def test_match_history_fallback():
     assert teammates[0]["was_premade"] is True
 
 
+def test_queue_label_fallback():
+    # known id -> friendly label
+    assert capture.queue_label(450, {}) == "ARAM"
+    # unknown id -> raw gameMode from payload (the KIWI/2400 real-world case)
+    assert capture.queue_label(2400, {"gameMode": "KIWI"}) == "KIWI"
+    # unknown id, no strings -> never blank
+    assert capture.queue_label(2400, {}) == "Queue 2400"
+    assert capture.queue_label(None, {}) == "Unknown queue"
+
+
 def main():
     test_match_history_fallback()
+    test_queue_label_fallback()
     champ_names = {202: "Jhin", 157: "Yasuo", 1: "Annie"}
 
     result = capture.normalize(FAKE_EOL, MY_PUUID, champ_names, premade_puuids={"friend-1"})
