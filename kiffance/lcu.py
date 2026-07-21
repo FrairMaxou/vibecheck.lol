@@ -116,6 +116,24 @@ class LcuClient:
             return {}
         return {c["id"]: c["name"] for c in summary if c.get("id", -1) > 0}
 
+    def item_names(self) -> dict:
+        """itemId -> name (for build analysis, §13)."""
+        data = self.get("/lol-game-data/assets/v1/items.json")
+        if not isinstance(data, list):
+            return {}
+        return {i["id"]: i["name"] for i in data if isinstance(i.get("id"), int)}
+
+    def augment_names(self) -> dict:
+        """augmentId -> name. Covers ARAM Mayhem and Arena augments (§13)."""
+        data = self.get("/lol-game-data/assets/v1/cherry-augments.json")
+        if not isinstance(data, list):
+            return {}
+        return {
+            a["id"]: (a.get("nameTRA") or a.get("augmentNameId") or "")
+            for a in data
+            if isinstance(a.get("id"), int)
+        }
+
 
 class GameflowEvents:
     """Event-driven gameflow-phase subscription over the LCU WebSocket.

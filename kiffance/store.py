@@ -33,7 +33,12 @@ CREATE TABLE IF NOT EXISTS games (
     session_id INTEGER,
     game_index_in_session INTEGER,
     is_remake INTEGER DEFAULT 0,
-    raw_payload TEXT
+    raw_payload TEXT,
+    enemy_champions TEXT,
+    augments TEXT,
+    items TEXT,
+    damage_to_champs INTEGER,
+    gold INTEGER
 );
 CREATE TABLE IF NOT EXISTS ratings (
     game_id INTEGER PRIMARY KEY REFERENCES games(id),
@@ -71,7 +76,28 @@ class GameStore:
         self._db.row_factory = sqlite3.Row
         with self._lock, self._db:
             self._db.executescript(_SCHEMA)
+        self._migrate()
         self._seed_default_tags()
+
+    # Columns added after v1 shipped; existing databases get them via ALTER.
+    _ADDED_COLUMNS = (
+        ("enemy_champions", "TEXT"),
+        ("augments", "TEXT"),
+        ("items", "TEXT"),
+        ("damage_to_champs", "INTEGER"),
+        ("gold", "INTEGER"),
+    )
+    # Fields stored as JSON arrays.
+    _JSON_COLUMNS = ("enemy_champions", "augments", "items")
+
+    def _migrate(self) -> None:
+        with self._lock, self._db:
+            existing = {r["name"] for r in self._db.execute("PRAGMA table_info(games)")}
+            for name, decl in self._ADDED_COLUMNS:
+                if name not in existing:
+                    # Names are fixed literals above, never user input.
+                    self._db.execute(f"ALTER TABLE games ADD COLUMN {name} {decl}")  # noqa: S608
+                    log.info("Migrated games table: added column %s", name)
 
     def _seed_default_tags(self) -> None:
         with self._lock, self._db:
@@ -97,8 +123,9 @@ class GameStore:
                 """INSERT OR IGNORE INTO games
                    (riot_match_id, played_at, queue_id, queue_type, champion, role,
                     win, kills, deaths, assists, cs, duration_seconds,
-                    session_id, game_index_in_session, is_remake, raw_payload)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    session_id, game_index_in_session, is_remake, raw_payload,
+                    enemy_champions, augments, items, damage_to_champs, gold)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     game.get("riot_match_id"),
                     game["played_at"],
@@ -116,6 +143,11 @@ class GameStore:
                     game_index,
                     game.get("is_remake", 0),
                     json.dumps(game.get("raw_payload")) if game.get("raw_payload") else None,
+                    json.dumps(game.get("enemy_champions") or []),
+                    json.dumps(game.get("augments") or []),
+                    json.dumps(game.get("items") or []),
+                    game.get("damage_to_champs"),
+                    game.get("gold"),
                 ),
             )
             if cur.rowcount == 0:
@@ -253,7 +285,9 @@ class GameStore:
                 """SELECT g.id, g.riot_match_id, g.played_at, g.queue_id, g.queue_type,
                           g.champion, g.role, g.win, g.kills, g.deaths, g.assists, g.cs,
                           g.duration_seconds, g.session_id, g.game_index_in_session,
-                          g.is_remake, r.fun_score, r.skipped, r.rated_at, r.note
+                          g.is_remake, g.enemy_champions, g.augments, g.items,
+                   g.damage_to_champs, g.gold,
+                   r.fun_score, r.skipped, r.rated_at, r.note
                    FROM games g LEFT JOIN ratings r ON r.game_id = g.id
                    ORDER BY g.played_at"""
             ).fetchall()
@@ -281,8 +315,38 @@ class GameStore:
             game = dict(row)
             game["teammates"] = teammates_by_game.get(game["id"], [])
             game["tags"] = tags_by_game.get(game["id"], [])
+            for col in self._JSON_COLUMNS:
+                try:
+                    game[col] = json.loads(game[col]) if game.get(col) else []
+                except (TypeError, ValueError):
+                    game[col] = []
             out.append(game)
         return out
+
+    def set_analysis_fields(self, game_id: int, fields: dict) -> None:
+        """Populate the §13 analysis columns (used by the backfill tool)."""
+        with self._lock, self._db:
+            self._db.execute(
+                """UPDATE games SET enemy_champions=?, augments=?, items=?,
+                                    damage_to_champs=?, gold=?
+                   WHERE id=?""",
+                (
+                    json.dumps(fields.get("enemy_champions") or []),
+                    json.dumps(fields.get("augments") or []),
+                    json.dumps(fields.get("items") or []),
+                    fields.get("damage_to_champs"),
+                    fields.get("gold"),
+                    game_id,
+                ),
+            )
+
+    def games_with_raw(self) -> list:
+        """(id, raw_payload) for every game — the backfill's input."""
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT id, raw_payload FROM games WHERE raw_payload IS NOT NULL"
+            ).fetchall()
+        return [dict(r) for r in rows]
 
     def game_count(self) -> int:
         with self._lock:

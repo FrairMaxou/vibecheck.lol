@@ -323,6 +323,8 @@ Planned analysis dimensions to extract from the retained raw payloads:
 - **Mode mutators** — how each rotating-mode modifier affects fun.
 - **Deeper personal stats** — damage, gold, multikills, surrender/remake flags vs. fun.
 
+**Status (done 2026-07-20):** enemy composition, augments, items, and damage/gold are extracted at capture and exposed as Explorer dimensions (fun by enemy champion / augment / item / tag). Names resolve via the client's asset endpoints (`items.json`, `cherry-augments.json`, `champion-summary.json`), cached in `meta` so analysis works offline; unknown ids degrade to "Augment 1081" rather than being dropped. `tools/backfill_analysis.py` re-parsed all existing games — no replays needed. *Not yet surfaced: mode mutators (the field turned out to carry only map skins, e.g. `mapskin_ha_bilgewater`).*
+
 **Enabler (F4 payoff):** because the full raw payload is retained on every game, adding any new dimension is a normalize-and-backfill step — a one-time re-parse populates the new fields for all historical games, with no recapture. New extraction belongs in `capture.py`; new columns go through the game store (§11). No Vanguard/lightweight impact — it's post-hoc analysis of already-stored data (§6a/§6b safe).
 
 ---

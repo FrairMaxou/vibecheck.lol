@@ -64,6 +64,10 @@ function enrich(g) {
     weekday: WEEKDAYS[(d.getDay() + 6) % 7],
     daypart: DAYPARTS[d.getHours() < 6 ? 3 : d.getHours() < 12 ? 0 : d.getHours() < 18 ? 1 : 2],
     duration_bucket: mins < 20 ? DURATIONS[0] : mins < 30 ? DURATIONS[1] : mins < 40 ? DURATIONS[2] : DURATIONS[3],
+    enemy_champions: g.enemy_champions || [],
+    augments: g.augments || [],
+    items: g.items || [],
+    tags: g.tags || [],
     month: g.played_at.slice(0, 7),
     session_index: Math.min(g.game_index_in_session || 1, 5) >= 5 ? "5+" : String(g.game_index_in_session || 1),
     result: g.win === 1 ? "Win" : g.win === 0 ? "Loss" : "?",
@@ -311,6 +315,10 @@ function renderSessions(games) {
 
 const DIMS = {
   champion: (g) => g.champion,
+  enemy: (g) => g.enemy_champions,
+  augment: (g) => g.augments,
+  item: (g) => g.items,
+  tag: (g) => g.tags,
   teammate: (g) => g.premades.map((t) => t.name || "?"),
   queue_type: (g) => g.queue_type,
   role: (g) => g.role || "(unknown)",

@@ -20,6 +20,38 @@ def _stat(stats: dict, *keys, default=0):
     return default
 
 
+def _resolve(ids, mapping: dict, prefix: str) -> list:
+    """Map ids to display names, skipping empty slots (0/None).
+
+    Unknown ids degrade to "Augment 1081" rather than being dropped, so the
+    data stays analysable even before the client's asset maps are available.
+    """
+    out = []
+    for raw in ids:
+        if not raw:
+            continue
+        out.append((mapping or {}).get(raw) or f"{prefix} {raw}")
+    return out
+
+
+def _extract_extras(stats: dict, enemy_ids: list, champ_names: dict, assets: dict | None) -> dict:
+    """Enemy comp, augments, build, and headline personal stats (PRD §13)."""
+    assets = assets or {}
+    augment_ids = [
+        stats.get(f"playerAugment{n}") or stats.get(f"PLAYER_AUGMENT_{n}") for n in range(1, 7)
+    ]
+    item_ids = [stats.get(f"item{n}", stats.get(f"ITEM{n}")) for n in range(7)]
+    return {
+        "enemy_champions": _resolve(enemy_ids, champ_names, "Champion"),
+        "augments": _resolve(augment_ids, assets.get("augments"), "Augment"),
+        "items": _resolve(item_ids, assets.get("items"), "Item"),
+        "damage_to_champs": _stat(
+            stats, "totalDamageDealtToChampions", "TOTAL_DAMAGE_DEALT_TO_CHAMPIONS"
+        ),
+        "gold": _stat(stats, "goldEarned", "GOLD_EARNED"),
+    }
+
+
 def _is_remake(stats: dict) -> bool:
     """Detect a remake/early-surrender from a player's stats (F5).
 
@@ -62,7 +94,9 @@ def queue_label(queue_id: int | None, payload: dict) -> str:
     return f"Queue {queue_id}" if queue_id else "Unknown queue"
 
 
-def normalize(eol: dict, my_puuid: str, champ_names: dict, premade_puuids: set) -> dict:
+def normalize(
+    eol: dict, my_puuid: str, champ_names: dict, premade_puuids: set, assets: dict | None = None
+) -> dict:
     """Returns {"game": {...}, "teammates": [...]} ready for GameStore.insert_game."""
     duration = _duration_seconds(eol)
     played_at = (datetime.now() - timedelta(seconds=duration)).isoformat(timespec="seconds")
@@ -119,13 +153,22 @@ def normalize(eol: dict, my_puuid: str, champ_names: dict, premade_puuids: set) 
                     "is_remake": int(_is_remake(stats)),
                 }
             )
+            enemy_ids = [
+                p.get("championId")
+                for team in eol.get("teams", [])
+                if my_team is None or team.get("teamId") != my_team.get("teamId")
+                for p in team.get("players", [])
+            ]
+            game.update(_extract_extras(stats, enemy_ids, champ_names, assets))
     except Exception as exc:
         log.warning("Partial end-of-game parse (raw payload kept): %s", exc)
 
     return {"game": game, "teammates": teammates}
 
 
-def normalize_match(match: dict, my_puuid: str, champ_names: dict, premade_puuids: set) -> dict:
+def normalize_match(
+    match: dict, my_puuid: str, champ_names: dict, premade_puuids: set, assets: dict | None = None
+) -> dict:
     """Normalize an LCU match-history record (fallback source when the
     end-of-game endpoint never populates, e.g. bot games or fast re-queues).
 
@@ -183,6 +226,12 @@ def normalize_match(match: dict, my_puuid: str, champ_names: dict, premade_puuid
                     "is_remake": int(_is_remake(stats)),
                 }
             )
+            enemy_ids = [
+                p.get("championId")
+                for p in match.get("participants", [])
+                if p.get("teamId") != me.get("teamId")
+            ]
+            game.update(_extract_extras(stats, enemy_ids, champ_names, assets))
             for part in match.get("participants", []):
                 if part is me or part.get("teamId") != me.get("teamId"):
                     continue

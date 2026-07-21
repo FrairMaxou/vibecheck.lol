@@ -8,6 +8,7 @@ Threading model:
 - tray thread: pystray icon.
 """
 
+import json
 import logging
 import queue
 import sys
@@ -34,6 +35,10 @@ LOBBY_PHASES = {"ChampSelect", "InProgress"}
 IDLE_PHASES = {"None", "Lobby"}
 
 WATERMARK_KEY = "capture_watermark"  # ISO datetime; games started after this are ours to catch
+MY_PUUID_KEY = "my_puuid"
+ASSETS_ITEMS_KEY = "assets_items"
+ASSETS_AUGMENTS_KEY = "assets_augments"
+ASSETS_CHAMPS_KEY = "assets_champions"
 
 
 class App:
@@ -51,6 +56,7 @@ class App:
         self._events: lcu.GameflowEvents | None = None
         self._my_puuid: str | None = None
         self._champ_names: dict = {}
+        self._assets: dict = {}
         self._premade_puuids: set = set()
         self._processed_game_ids: set = set()
         self._capture_lock = threading.Lock()
@@ -119,7 +125,9 @@ class App:
             self._stopping.wait(CLIENT_POLL_SECONDS)
             return
         self._my_puuid = summoner["puuid"]
+        self.store.set_meta(MY_PUUID_KEY, self._my_puuid)  # lets offline tools identify you
         self._champ_names = self._client.champion_names()
+        self._load_assets()
         log.info(
             "Connected to League client (summoner: %s)",
             summoner.get("gameName") or summoner.get("displayName", "?"),
@@ -162,6 +170,23 @@ class App:
             # EndOfGame (mid-game crash where the client survived).
             self._start_catch_up()
 
+    def _load_assets(self) -> None:
+        """Cache the client's item/augment/champion name maps (§13).
+
+        Persisted to the store so analysis and backfill still resolve names
+        when the client isn't running.
+        """
+        items = self._client.item_names()
+        augments = self._client.augment_names()
+        if items:
+            self.store.set_meta(ASSETS_ITEMS_KEY, json.dumps(items))
+        if augments:
+            self.store.set_meta(ASSETS_AUGMENTS_KEY, json.dumps(augments))
+        if self._champ_names:
+            self.store.set_meta(ASSETS_CHAMPS_KEY, json.dumps(self._champ_names))
+        self._assets = {"items": items, "augments": augments}
+        log.info("Asset maps loaded: %d items, %d augments", len(items), len(augments))
+
     def _capture_premades(self) -> None:
         members = self._client.lobby_members() if self._client else []
         puuids = {m.get("puuid") for m in members if m.get("puuid")}
@@ -195,7 +220,9 @@ class App:
             game_id_str = str(eol.get("gameId", ""))
             if self._already_captured(game_id_str):
                 return
-            result = capture.normalize(eol, self._my_puuid, self._champ_names, self._premade_puuids)
+            result = capture.normalize(
+                eol, self._my_puuid, self._champ_names, self._premade_puuids, self._assets
+            )
             self._finish_capture(game_id_str, result, source="end-of-game stats")
             return
 
@@ -208,7 +235,7 @@ class App:
             return
         game_id_str = str(match.get("gameId", ""))
         result = capture.normalize_match(
-            match, self._my_puuid, self._champ_names, self._premade_puuids
+            match, self._my_puuid, self._champ_names, self._premade_puuids, self._assets
         )
         self._finish_capture(game_id_str, result, source="match history")
 
@@ -246,7 +273,9 @@ class App:
         newest = None
         for _, summary in missed:
             match = self._client.match_details(summary["gameId"]) or summary
-            result = capture.normalize_match(match, self._my_puuid, self._champ_names, set())
+            result = capture.normalize_match(
+                match, self._my_puuid, self._champ_names, set(), self._assets
+            )
             stored_id = self.store.insert_game(result["game"], result["teammates"])
             if stored_id is not None:
                 game = result["game"]
