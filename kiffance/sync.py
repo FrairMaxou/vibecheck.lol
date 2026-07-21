@@ -205,10 +205,17 @@ class Supabase:
             extra_headers={"Prefer": "resolution=merge-duplicates,return=minimal"},
         )
 
-    def insert(self, table: str, row: dict) -> list:
-        out = self._request(
-            "POST", table, json=row, extra_headers={"Prefer": "return=representation"}
-        )
+    def insert(self, table: str, row: dict, minimal: bool = False) -> list:
+        """Insert one row.
+
+        `minimal=True` skips RETURNING. Necessary when the table's SELECT policy
+        can't see the row being created — e.g. squad_members, whose select
+        policy asks "are you in this squad?", which is only true *after* the
+        insert. Asking for the row back there fails the SELECT check and
+        surfaces as "new row violates row-level security policy".
+        """
+        prefer = "return=minimal" if minimal else "return=representation"
+        out = self._request("POST", table, json=row, extra_headers={"Prefer": prefer})
         return out if isinstance(out, list) else []
 
     def rpc(self, fn: str, payload: dict):
@@ -349,6 +356,7 @@ class SquadService:
             self.client.insert(
                 "squad_members",
                 {"squad_id": squad_id, "user_id": self.client.user_id, "role": "owner"},
+                minimal=True,
             )
         return {"id": squad_id, "name": name}
 

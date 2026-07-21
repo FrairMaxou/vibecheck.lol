@@ -140,7 +140,12 @@ drop policy if exists sm_select on squad_members;
 drop policy if exists sm_insert on squad_members;
 drop policy if exists sm_update on squad_members;
 drop policy if exists sm_delete on squad_members;
-create policy sm_select on squad_members for select using (is_squad_member(squad_id));
+-- "user_id = auth.uid() or ..." matters: you must be able to see your OWN
+-- membership row. With only the is_squad_member() check, any INSERT that asks
+-- for the row back (RETURNING) fails the SELECT check — you aren't a member
+-- until the insert lands — and surfaces as an RLS violation.
+create policy sm_select on squad_members for select
+  using (user_id = auth.uid() or is_squad_member(squad_id));
 create policy sm_insert on squad_members for insert with check (user_id = auth.uid());
 create policy sm_update on squad_members for update using (user_id = auth.uid());
 create policy sm_delete on squad_members for delete using (user_id = auth.uid());
