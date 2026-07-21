@@ -281,15 +281,40 @@ class SquadService:
         ]
 
     def create_squad(self, name: str) -> dict:
-        created = self.client.insert("squads", {"name": name, "owner_id": self.client.user_id})
-        if not created:
-            raise SupabaseError("could not create the squad")
-        squad_id = created[0]["id"]
-        self.client.upsert(
-            "squad_members",
-            [{"squad_id": squad_id, "user_id": self.client.user_id, "role": "owner"}],
-            on_conflict="squad_id,user_id",
+        """Create a squad and join it as owner.
+
+        Idempotent: if a squad of this name is already owned by me (e.g. a
+        previous attempt created the row but failed to add the membership), it
+        is reused instead of creating a duplicate.
+        """
+        existing = self.client.select(
+            "squads",
+            {"select": "id,name", "owner_id": f"eq.{self.client.user_id}", "name": f"eq.{name}"},
         )
+        if existing:
+            squad_id = existing[0]["id"]
+        else:
+            created = self.client.insert("squads", {"name": name, "owner_id": self.client.user_id})
+            if not created:
+                raise SupabaseError("could not create the squad")
+            squad_id = created[0]["id"]
+
+        # Plain INSERT, not upsert: PostgREST upserts need an UPDATE policy and
+        # squad_members only grants INSERT (schema.sql). A duplicate membership
+        # is simply ignored.
+        already = self.client.select(
+            "squad_members",
+            {
+                "select": "squad_id",
+                "squad_id": f"eq.{squad_id}",
+                "user_id": f"eq.{self.client.user_id}",
+            },
+        )
+        if not already:
+            self.client.insert(
+                "squad_members",
+                {"squad_id": squad_id, "user_id": self.client.user_id, "role": "owner"},
+            )
         return {"id": squad_id, "name": name}
 
     def create_invite(self, squad_id: str) -> str:

@@ -109,29 +109,54 @@ alter table squad_members enable row level security;
 alter table squad_invites enable row level security;
 alter table shared_games  enable row level security;
 
+-- Every policy is dropped first so this whole file is safe to re-run. Postgres
+-- has no "create policy if not exists", and a half-applied run leaves RLS
+-- enabled with policies missing — which denies everything on that table.
+
 -- profiles: see your own + squad-mates'; write only your own.
+drop policy if exists profiles_select on profiles;
+drop policy if exists profiles_insert on profiles;
+drop policy if exists profiles_update on profiles;
 create policy profiles_select on profiles for select
   using (id = auth.uid() or shares_squad_with(id));
 create policy profiles_insert on profiles for insert with check (id = auth.uid());
 create policy profiles_update on profiles for update using (id = auth.uid());
 
--- squads: visible to members + owner; create as yourself.
+-- squads: visible to members + owner; create/manage your own.
+drop policy if exists squads_select on squads;
+drop policy if exists squads_insert on squads;
+drop policy if exists squads_update on squads;
+drop policy if exists squads_delete on squads;
 create policy squads_select on squads for select
   using (owner_id = auth.uid() or is_squad_member(id));
 create policy squads_insert on squads for insert with check (owner_id = auth.uid());
+create policy squads_update on squads for update using (owner_id = auth.uid());
+create policy squads_delete on squads for delete using (owner_id = auth.uid());
 
--- squad_members: members see the roster; you may add only yourself
--- (invite validation happens in join_squad()).
+-- squad_members: members see the roster; you may add/remove only yourself
+-- (invite validation happens in join_squad()). The update policy exists so
+-- PostgREST upserts are permitted, not just plain inserts.
+drop policy if exists sm_select on squad_members;
+drop policy if exists sm_insert on squad_members;
+drop policy if exists sm_update on squad_members;
+drop policy if exists sm_delete on squad_members;
 create policy sm_select on squad_members for select using (is_squad_member(squad_id));
 create policy sm_insert on squad_members for insert with check (user_id = auth.uid());
+create policy sm_update on squad_members for update using (user_id = auth.uid());
 create policy sm_delete on squad_members for delete using (user_id = auth.uid());
 
 -- invites: squad members can read + create them.
+drop policy if exists si_select on squad_invites;
+drop policy if exists si_insert on squad_invites;
 create policy si_select on squad_invites for select using (is_squad_member(squad_id));
 create policy si_insert on squad_invites for insert
   with check (is_squad_member(squad_id) and created_by = auth.uid());
 
 -- shared_games: your own + squad-mates' are readable; write only your own.
+drop policy if exists sg_select on shared_games;
+drop policy if exists sg_insert on shared_games;
+drop policy if exists sg_update on shared_games;
+drop policy if exists sg_delete on shared_games;
 create policy sg_select on shared_games for select
   using (user_id = auth.uid() or shares_squad_with(user_id));
 create policy sg_insert on shared_games for insert with check (user_id = auth.uid());
