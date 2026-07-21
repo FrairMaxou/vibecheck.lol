@@ -20,6 +20,18 @@ def _stat(stats: dict, *keys, default=0):
     return default
 
 
+def _is_remake(stats: dict) -> bool:
+    """Detect a remake/early-surrender from a player's stats (F5).
+
+    Handles both payload shapes: match-history `gameEndedInEarlySurrender`
+    and end-of-game `GAME_ENDED_IN_EARLY_SURRENDER`.
+    """
+    for key, value in stats.items():
+        if value and key.lower().replace("_", "") == "gameendedinearlysurrender":
+            return True
+    return False
+
+
 def _duration_seconds(eol: dict) -> int:
     raw = eol.get("gameLength") or eol.get("gameLengthSeconds") or 0
     # Some patches report milliseconds; no real game lasts > 3h.
@@ -104,6 +116,7 @@ def normalize(eol: dict, my_puuid: str, champ_names: dict, premade_puuids: set) 
                         _stat(stats, "MINIONS_KILLED", "minionsKilled")
                         + _stat(stats, "NEUTRAL_MINIONS_KILLED", "neutralMinionsKilled")
                     ),
+                    "is_remake": int(_is_remake(stats)),
                 }
             )
     except Exception as exc:
@@ -167,6 +180,7 @@ def normalize_match(match: dict, my_puuid: str, champ_names: dict, premade_puuid
                     "cs": (
                         stats.get("totalMinionsKilled", 0) + stats.get("neutralMinionsKilled", 0)
                     ),
+                    "is_remake": int(_is_remake(stats)),
                 }
             )
             for part in match.get("participants", []):

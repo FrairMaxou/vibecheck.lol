@@ -75,6 +75,7 @@ function enrich(g) {
 
 function filtered() {
   return ALL.filter((g) => {
+    if (g.is_remake) return false; // F5: remakes never count toward stats
     if (state.from && g.day < state.from) return false;
     if (state.to && g.day > state.to) return false;
     const s = state.sets;

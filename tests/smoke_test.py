@@ -3,6 +3,7 @@
 Run: .venv\\Scripts\\python tests\\smoke_test.py
 """
 
+import json
 import sys
 import tempfile
 from pathlib import Path
@@ -107,6 +108,35 @@ def test_match_history_fallback():
     assert teammates[0]["was_premade"] is True
 
 
+def test_remake_detection():
+    """F5: a remake is flagged from the early-surrender stat, both payload shapes."""
+    champ_names = {202: "Jhin"}
+
+    # normal game -> not a remake
+    normal = capture.normalize_match(FAKE_MATCH_HISTORY, MY_PUUID, champ_names, set())
+    assert normal["game"]["is_remake"] == 0
+
+    # match-history shape (camelCase flag)
+    remade = json.loads(json.dumps(FAKE_MATCH_HISTORY))
+    remade["participants"][0]["stats"]["gameEndedInEarlySurrender"] = True
+    out = capture.normalize_match(remade, MY_PUUID, champ_names, set())
+    assert out["game"]["is_remake"] == 1, out["game"]
+
+    # end-of-game shape (SCREAMING_SNAKE flag)
+    eol = json.loads(json.dumps(FAKE_EOL))
+    eol["teams"][0]["players"][0]["stats"]["GAME_ENDED_IN_EARLY_SURRENDER"] = True
+    out = capture.normalize(eol, MY_PUUID, champ_names, set())
+    assert out["game"]["is_remake"] == 1, out["game"]
+
+    # a remake is stored but never appears as pending (so it's never prompted)
+    with tempfile.TemporaryDirectory() as tmp:
+        store = GameStore(Path(tmp) / "remake.sqlite3")
+        gid = store.insert_game(out["game"], [])
+        assert gid is not None
+        assert store.pending_games() == [], "remake should not be pending"
+        store.close()
+
+
 def test_queue_label_fallback():
     # known ids -> friendly labels
     assert capture.queue_label(450, {}) == "ARAM"
@@ -120,6 +150,7 @@ def test_queue_label_fallback():
 
 def main():
     test_match_history_fallback()
+    test_remake_detection()
     test_queue_label_fallback()
     champ_names = {202: "Jhin", 157: "Yasuo", 1: "Annie"}
 

@@ -252,12 +252,14 @@ class App:
                 game = result["game"]
                 self._advance_watermark(game.get("played_at", ""))
                 log.info(
-                    "Caught up game %s: %s (%s)",
+                    "Caught up game %s: %s (%s)%s",
                     game.get("riot_match_id"),
                     game.get("champion"),
                     game.get("queue_type"),
+                    " [remake]" if game.get("is_remake") else "",
                 )
-                newest = (stored_id, game)
+                if not game.get("is_remake"):  # F5: never prompt for a remake
+                    newest = (stored_id, game)
         # Prompt only for the most recent one; older imports wait in pending.
         if newest is not None and not self.paused:
             self._popup_request("show", newest[0], _summary_line(newest[1]))
@@ -292,14 +294,16 @@ class App:
             return
         game = result["game"]
         log.info(
-            "Captured game %s via %s: %s %s (%s)",
+            "Captured game %s via %s: %s %s (%s)%s",
             game_id_str,
             source,
             game.get("champion"),
             "W" if game.get("win") else "L",
             game.get("queue_type"),
+            " [remake — not prompting]" if game.get("is_remake") else "",
         )
-        if not self.paused:
+        # F5: remakes are recorded but never rated (there was no real game).
+        if not self.paused and not game.get("is_remake"):
             self._popup_request("show", stored_id, _summary_line(game))
 
     def _await(self, fetch, attempts: int, interval: float = 2.0):
