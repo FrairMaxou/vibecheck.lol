@@ -12,12 +12,17 @@ import logging
 import tkinter as tk
 from collections.abc import Callable
 from functools import lru_cache
+from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont, ImageTk
 
 from .config import APP_NAME, POPUP_TIMEOUT_SECONDS
 
 log = logging.getLogger(__name__)
+
+# Custom grade art, if the user supplied any (see assets/README.md).
+GRADES_DIR = Path(__file__).parent / "assets" / "grades"
+IMAGE_SUFFIXES = (".png", ".webp", ".jpg", ".jpeg")
 
 # score, emoji, grade name (two lines for the popup cards)
 RATINGS = [
@@ -52,6 +57,26 @@ def _render_emoji(char: str, px: int) -> Image.Image | None:
             continue
     log.info("Color emoji font unavailable; popup will use text emoji")
     return None
+
+
+@lru_cache(maxsize=16)
+def _grade_image(score: int, emoji: str, px: int) -> Image.Image | None:
+    """Custom art for this grade if present, otherwise the colour emoji.
+
+    Lets anyone drop `assets/grades/<score>.png` in to reskin the popup with
+    no code change; an empty folder keeps the built-in emoji look.
+    """
+    for suffix in IMAGE_SUFFIXES:
+        path = GRADES_DIR / f"{score}{suffix}"
+        if not path.exists():
+            continue
+        try:
+            img = Image.open(path).convert("RGBA")
+            img.thumbnail((px, px), Image.LANCZOS)
+            return img
+        except Exception:
+            log.exception("Could not load grade art %s; falling back to emoji", path)
+    return _render_emoji(emoji, px)
 
 
 class RatingPopup:
@@ -99,7 +124,7 @@ class RatingPopup:
         card = tk.Frame(parent, bg=_CARD, cursor="hand2")
         card.pack(side=tk.LEFT, padx=5)
 
-        img = _render_emoji(emoji, _EMOJI_PX)
+        img = _grade_image(score, emoji, _EMOJI_PX)
         if img is not None:
             photo = ImageTk.PhotoImage(img)
             self._images.append(photo)

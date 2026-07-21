@@ -1,15 +1,30 @@
 """System tray icon (PRD F22). Runs in its own thread via pystray."""
 
+import logging
 import os
 from collections.abc import Callable
+from pathlib import Path
 
 import pystray
 from PIL import Image, ImageDraw
 
 from .config import APP_NAME, DATA_DIR
 
+log = logging.getLogger(__name__)
+
+
+LOGO_PATH = Path(__file__).parent / "assets" / "logo.png"
+
 
 def _icon_image() -> Image.Image:
+    """The user's logo if they supplied one, else the built-in gold smiley coin."""
+    if LOGO_PATH.exists():
+        try:
+            img = Image.open(LOGO_PATH).convert("RGBA")
+            img.thumbnail((64, 64), Image.LANCZOS)
+            return img
+        except Exception:
+            log.exception("Could not load %s; using the built-in icon", LOGO_PATH)
     img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
     draw.ellipse((4, 4, 60, 60), fill="#c8aa6e")  # gold coin
