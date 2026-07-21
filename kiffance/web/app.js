@@ -352,6 +352,196 @@ function renderExplorer(games) {
   }
 }
 
+/* ---------------- squad online (§12) ---------------- */
+
+let SQUAD = { status: null, activeSquad: null };
+
+async function api(path, body) {
+  const res = await fetch(path, body
+    ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
+    : undefined);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || "request failed");
+  return data;
+}
+
+async function renderOnline() {
+  const body = document.getElementById("squad-body");
+  document.getElementById("squad-board-panel").classList.add("hidden");
+  document.getElementById("squad-matrix-panel").classList.add("hidden");
+  let st;
+  try {
+    st = SQUAD.status = await api("/api/squad/status");
+  } catch (e) {
+    body.innerHTML = `<div class="empty-note">Couldn't reach the backend: ${e.message}</div>`;
+    return;
+  }
+
+  if (!st.configured) {
+    body.innerHTML = `
+      <p class="squad-help">Not set up yet. Create a free project at <b>supabase.com</b>, run
+        <code>supabase/schema.sql</code> in its SQL editor, then paste the project URL and
+        <b>anon</b> key below (Project Settings → API). Never paste the service_role key.</p>
+      <div class="squad-form">
+        <input id="sb-url" placeholder="https://xxxx.supabase.co">
+        <input id="sb-key" placeholder="anon public key">
+        <button class="primary-btn" id="sb-save">Save</button>
+      </div>`;
+    document.getElementById("sb-save").addEventListener("click", async (e) => {
+      await guard(e.target, () => api("/api/squad/config", {
+        url: document.getElementById("sb-url").value.trim(),
+        anon_key: document.getElementById("sb-key").value.trim(),
+      }));
+      renderOnline();
+    });
+    return;
+  }
+
+  if (!st.logged_in) {
+    body.innerHTML = `
+      <p class="squad-help">Sign in to sync your kiff scores with your squad. Your games stay
+        local until you do.</p>
+      <div class="squad-form">
+        <input id="sb-email" type="email" placeholder="e-mail" autocomplete="username">
+        <input id="sb-pass" type="password" placeholder="password" autocomplete="current-password">
+        <button class="primary-btn" id="sb-login">Sign in</button>
+        <button class="ghost-btn" id="sb-signup">Create account</button>
+      </div>
+      ${st.error ? `<div class="squad-err">${st.error}</div>` : ""}`;
+    const doAuth = (create) => async (e) => {
+      await guard(e.target, () => api("/api/squad/login", {
+        email: document.getElementById("sb-email").value.trim(),
+        password: document.getElementById("sb-pass").value,
+        create,
+      }));
+      renderOnline();
+    };
+    document.getElementById("sb-login").addEventListener("click", doAuth(false));
+    document.getElementById("sb-signup").addEventListener("click", doAuth(true));
+    return;
+  }
+
+  const squads = st.squads || [];
+  SQUAD.activeSquad = SQUAD.activeSquad && squads.some((s) => s.id === SQUAD.activeSquad)
+    ? SQUAD.activeSquad : (squads[0] || {}).id;
+  body.innerHTML = `
+    <div class="squad-bar">
+      <span>Signed in as <b>${st.email || "?"}</b></span>
+      <button class="ghost-btn" id="sb-sync">Sync my games</button>
+      <button class="ghost-btn" id="sb-logout">Sign out</button>
+    </div>
+    <div class="squad-form">
+      ${squads.length ? `<select id="sb-squad">${squads.map((s) =>
+        `<option value="${s.id}"${s.id === SQUAD.activeSquad ? " selected" : ""}>${s.name}</option>`).join("")}</select>
+        <button class="ghost-btn" id="sb-invite">Get invite code</button>` : ""}
+      <input id="sb-new" placeholder="new squad name">
+      <button class="ghost-btn" id="sb-create">Create</button>
+      <input id="sb-code" placeholder="invite code" maxlength="12">
+      <button class="ghost-btn" id="sb-join">Join</button>
+    </div>
+    <div id="sb-msg" class="squad-msg"></div>`;
+
+  const msg = (t) => { document.getElementById("sb-msg").textContent = t; };
+  document.getElementById("sb-logout").addEventListener("click", async (e) => {
+    await guard(e.target, () => api("/api/squad/logout")); SQUAD.activeSquad = null; renderOnline();
+  });
+  document.getElementById("sb-sync").addEventListener("click", async (e) => {
+    const r = await guard(e.target, () => api("/api/squad/push"));
+    if (r) { msg(`Synced ${r.synced} rated games.`); renderSquadStats(); }
+  });
+  document.getElementById("sb-create").addEventListener("click", async (e) => {
+    const name = document.getElementById("sb-new").value.trim();
+    if (!name) return;
+    if (await guard(e.target, () => api("/api/squad/create", { name }))) renderOnline();
+  });
+  document.getElementById("sb-join").addEventListener("click", async (e) => {
+    const code = document.getElementById("sb-code").value.trim();
+    if (!code) return;
+    if (await guard(e.target, () => api("/api/squad/join", { code }))) renderOnline();
+  });
+  const inviteBtn = document.getElementById("sb-invite");
+  if (inviteBtn) inviteBtn.addEventListener("click", async (e) => {
+    const r = await guard(e.target, () => api("/api/squad/invite", { squad_id: SQUAD.activeSquad }));
+    if (r) msg(`Invite code: ${r.code} — share it with your squad.`);
+  });
+  const sel = document.getElementById("sb-squad");
+  if (sel) sel.addEventListener("change", () => { SQUAD.activeSquad = sel.value; renderSquadStats(); });
+
+  if (SQUAD.activeSquad) renderSquadStats();
+}
+
+async function guard(btn, fn) {
+  const old = btn.textContent;
+  btn.disabled = true; btn.textContent = "…";
+  try {
+    return await fn();
+  } catch (e) {
+    document.getElementById("sb-msg")
+      ? (document.getElementById("sb-msg").textContent = e.message)
+      : alert(e.message);
+    return null;
+  } finally {
+    btn.disabled = false; btn.textContent = old;
+  }
+}
+
+async function renderSquadStats() {
+  const boardPanel = document.getElementById("squad-board-panel");
+  const matrixPanel = document.getElementById("squad-matrix-panel");
+  let data;
+  try {
+    data = await api(`/api/squad/${SQUAD.activeSquad}/data`);
+  } catch {
+    return;
+  }
+  const names = data.players || {};
+  const games = data.games || [];
+  if (!games.length) return;
+  boardPanel.classList.remove("hidden");
+  matrixPanel.classList.remove("hidden");
+
+  // leaderboard: average fun per member
+  const per = {};
+  for (const g of games) {
+    const a = (per[g.user_id] ||= { sum: 0, n: 0 });
+    a.sum += g.fun_score; a.n += 1;
+  }
+  const rows = Object.entries(per).map(([id, a]) => ({
+    key: names[id] || "Summoner", n: a.n, games: a.n, avgFun: a.sum / a.n, winrate: null,
+  }));
+  funBarChart("chart-squad-board", rows, { horizontal: true });
+
+  // mutual kiff: games two members both played, matched on riot_match_id
+  const me = Object.keys(per).find((id) => id === (SQUAD.status.user_id || id));
+  const byMatch = {};
+  for (const g of games) (byMatch[g.riot_match_id] ||= []).push(g);
+  const pairs = {};
+  for (const group of Object.values(byMatch)) {
+    if (group.length < 2) continue;
+    for (let i = 0; i < group.length; i++)
+      for (let j = i + 1; j < group.length; j++) {
+        const [a, b] = [group[i], group[j]];
+        const key = [a.user_id, b.user_id].sort().join("|");
+        const p = (pairs[key] ||= { a: a.user_id, b: b.user_id, sa: 0, sb: 0, n: 0 });
+        const flip = p.a !== a.user_id;
+        p.sa += flip ? b.fun_score : a.fun_score;
+        p.sb += flip ? a.fun_score : b.fun_score;
+        p.n += 1;
+      }
+  }
+  const list = Object.values(pairs).sort((x, y) => y.n - x.n);
+  document.getElementById("squad-matrix").innerHTML = list.length
+    ? `<table><thead><tr><th>Pair</th><th class="num">shared games</th><th class="num">their kiff</th><th class="num">vs</th><th class="num">their kiff</th></tr></thead><tbody>` +
+      list.map((p) => `<tr${p.n < MIN_N ? ' class="low-n"' : ""}>
+        <td>${names[p.a] || "?"} &amp; ${names[p.b] || "?"}</td>
+        <td class="num">${p.n}</td>
+        <td class="num">${(p.sa / p.n).toFixed(2)} ${EMOJI[Math.round(p.sa / p.n)]}</td>
+        <td class="num">·</td>
+        <td class="num">${(p.sb / p.n).toFixed(2)} ${EMOJI[Math.round(p.sb / p.n)]}</td></tr>`).join("") +
+      "</tbody></table>"
+    : '<div class="empty-note">No games played together yet — once two of you rate the same game, it shows up here.</div>';
+}
+
 /* ---------------- tags & notes ---------------- */
 
 function tagEditorHTML(g) {
@@ -506,6 +696,7 @@ function renderAll() {
   if (t === "context") renderContext(games);
   if (t === "sessions") renderSessions(games);
   if (t === "tags") renderTags(games);
+  if (t === "online") renderOnline();
   if (t === "explorer") renderExplorer(games);
 }
 

@@ -1,0 +1,363 @@
+"""Supabase adapter + squad sync (PRD §12, Tier 3).
+
+The ONLY module that talks to the shared backend, mirroring how lcu.py is the
+only module that talks to the League client. Uses Supabase's REST/Auth HTTP API
+directly (no SDK) — the app already depends on `requests`, and this keeps the
+surface small and inspectable.
+
+Everything here is opt-in: with no config and no login the app is completely
+local (§12), and nothing is ever sent anywhere.
+
+Credentials: the project URL + anon key are entered by the user in the
+dashboard and stored in %LOCALAPPDATA%\\LeagueOfKiffance\\supabase.json — never
+in the repo. The anon key is public-by-design; Row-Level Security in
+supabase/schema.sql is what actually protects the data. The service_role key is
+never used by this app.
+"""
+
+import json
+import logging
+import secrets
+import string
+import threading
+from datetime import datetime
+
+import requests
+
+from .config import DATA_DIR
+from .store import GameStore
+
+log = logging.getLogger(__name__)
+
+CONFIG_PATH = DATA_DIR / "supabase.json"
+SESSION_KEY = "supabase_session"  # tokens live in the local DB, per machine
+TIMEOUT = 15
+
+
+class SupabaseError(Exception):
+    """Any backend failure, surfaced to the UI with a readable message."""
+
+
+# ---------------------------------------------------------------- config
+
+
+def load_config() -> dict:
+    """{url, anon_key} entered by the user, or {} if the backend isn't set up."""
+    try:
+        return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def save_config(url: str, anon_key: str) -> None:
+    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    CONFIG_PATH.write_text(
+        json.dumps({"url": url.rstrip("/"), "anon_key": anon_key}, indent=2), encoding="utf-8"
+    )
+    log.info("Supabase config saved (%s)", url)
+
+
+def _invite_code(length: int = 8) -> str:
+    alphabet = string.ascii_uppercase + string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(length))
+
+
+# ---------------------------------------------------------------- client
+
+
+class Supabase:
+    """Thin HTTP client for Supabase Auth + PostgREST."""
+
+    def __init__(self, url: str, anon_key: str, session: dict | None = None):
+        self.url = url.rstrip("/")
+        self.anon_key = anon_key
+        self.session = session or {}
+
+    # -- auth --------------------------------------------------------
+
+    @property
+    def user_id(self) -> str | None:
+        return (self.session.get("user") or {}).get("id")
+
+    @property
+    def logged_in(self) -> bool:
+        return bool(self.session.get("access_token"))
+
+    def _auth(self, path: str, payload: dict) -> dict:
+        try:
+            resp = requests.post(
+                f"{self.url}/auth/v1/{path}",
+                json=payload,
+                headers={"apikey": self.anon_key, "Content-Type": "application/json"},
+                timeout=TIMEOUT,
+            )
+        except requests.RequestException as exc:
+            raise SupabaseError(
+                f"Could not reach the backend — check the project URL. ({exc.__class__.__name__})"
+            ) from exc
+        data = _json(resp)
+        if resp.status_code >= 400:
+            raise SupabaseError(
+                data.get("msg") or data.get("error_description") or data.get("message") or resp.text
+            )
+        if not data.get("access_token"):
+            # Supabase returns 200 with no token when e-mail confirmation is on.
+            raise SupabaseError(
+                "Account created — confirm your e-mail address, then sign in. "
+                "(Or disable e-mail confirmation in Supabase → Authentication → Providers.)"
+            )
+        self.session = data
+        return data
+
+    def sign_up(self, email: str, password: str) -> dict:
+        return self._auth("signup", {"email": email, "password": password})
+
+    def sign_in(self, email: str, password: str) -> dict:
+        return self._auth("token?grant_type=password", {"email": email, "password": password})
+
+    def refresh(self) -> dict:
+        token = self.session.get("refresh_token")
+        if not token:
+            raise SupabaseError("not signed in")
+        return self._auth("token?grant_type=refresh_token", {"refresh_token": token})
+
+    def sign_out(self) -> None:
+        self.session = {}
+
+    # -- data --------------------------------------------------------
+
+    def _headers(self, extra: dict | None = None) -> dict:
+        headers = {
+            "apikey": self.anon_key,
+            "Authorization": f"Bearer {self.session.get('access_token', self.anon_key)}",
+            "Content-Type": "application/json",
+        }
+        headers.update(extra or {})
+        return headers
+
+    def _request(self, method: str, path: str, retry: bool = True, **kwargs):
+        try:
+            resp = requests.request(
+                method,
+                f"{self.url}/rest/v1/{path}",
+                headers=self._headers(kwargs.pop("extra_headers", None)),
+                timeout=TIMEOUT,
+                **kwargs,
+            )
+        except requests.RequestException as exc:
+            raise SupabaseError(f"Could not reach the backend. ({exc.__class__.__name__})") from exc
+        if resp.status_code == 401 and retry and self.session.get("refresh_token"):
+            self.refresh()  # access tokens expire hourly
+            return self._request(method, path, retry=False, **kwargs)
+        if resp.status_code >= 400:
+            data = _json(resp)
+            raise SupabaseError(data.get("message") or data.get("hint") or resp.text)
+        return _json(resp)
+
+    def select(self, table: str, params: dict) -> list:
+        out = self._request("GET", table, params=params)
+        return out if isinstance(out, list) else []
+
+    def upsert(self, table: str, rows: list, on_conflict: str | None = None) -> None:
+        if not rows:
+            return
+        params = {"on_conflict": on_conflict} if on_conflict else None
+        self._request(
+            "POST",
+            table,
+            params=params,
+            json=rows,
+            extra_headers={"Prefer": "resolution=merge-duplicates,return=minimal"},
+        )
+
+    def insert(self, table: str, row: dict) -> list:
+        out = self._request(
+            "POST", table, json=row, extra_headers={"Prefer": "return=representation"}
+        )
+        return out if isinstance(out, list) else []
+
+    def rpc(self, fn: str, payload: dict):
+        return self._request("POST", f"rpc/{fn}", json=payload)
+
+
+def _json(resp) -> dict:
+    try:
+        return resp.json() or {}
+    except ValueError:
+        return {}
+
+
+# ---------------------------------------------------------------- service
+
+
+class SquadService:
+    """App-facing squad operations: login, squads, push, and shared reads."""
+
+    def __init__(self, store: GameStore):
+        self.store = store
+        self._lock = threading.Lock()
+        cfg = load_config()
+        session = {}
+        raw = store.get_meta(SESSION_KEY)
+        if raw:
+            try:
+                session = json.loads(raw)
+            except ValueError:
+                session = {}
+        self.client = (
+            Supabase(cfg["url"], cfg["anon_key"], session)
+            if cfg.get("url") and cfg.get("anon_key")
+            else None
+        )
+
+    # -- state -------------------------------------------------------
+
+    @property
+    def configured(self) -> bool:
+        return self.client is not None
+
+    @property
+    def logged_in(self) -> bool:
+        return bool(self.client and self.client.logged_in)
+
+    def status(self) -> dict:
+        user = (self.client.session.get("user") or {}) if self.client else {}
+        return {
+            "configured": self.configured,
+            "logged_in": self.logged_in,
+            "email": user.get("email"),
+            "squads": self.my_squads() if self.logged_in else [],
+        }
+
+    def _persist_session(self) -> None:
+        self.store.set_meta(SESSION_KEY, json.dumps(self.client.session))
+
+    def configure(self, url: str, anon_key: str) -> None:
+        save_config(url, anon_key)
+        self.client = Supabase(url, anon_key)
+
+    def sign_in(self, email: str, password: str, create: bool = False) -> None:
+        if not self.client:
+            raise SupabaseError("Set your Supabase project URL and key first.")
+        if create:
+            self.client.sign_up(email, password)
+        else:
+            self.client.sign_in(email, password)
+        self._persist_session()
+        self._upsert_profile()
+
+    def sign_out(self) -> None:
+        if self.client:
+            self.client.sign_out()
+        self.store.set_meta(SESSION_KEY, "")
+
+    def _upsert_profile(self) -> None:
+        """Link this account to the in-game identity (auth.uid <-> puuid)."""
+        puuid = self.store.get_meta("my_puuid")
+        name = self.store.get_meta("my_summoner_name") or "Summoner"
+        if not puuid:
+            log.info("No puuid known yet; profile will link on the next client connect")
+            return
+        self.client.upsert(
+            "profiles",
+            [{"id": self.client.user_id, "puuid": puuid, "display_name": name}],
+            on_conflict="id",
+        )
+
+    # -- squads ------------------------------------------------------
+
+    def my_squads(self) -> list:
+        rows = self.client.select(
+            "squad_members",
+            {"select": "squad_id,role,squads(name)", "user_id": f"eq.{self.client.user_id}"},
+        )
+        return [
+            {
+                "id": r["squad_id"],
+                "name": (r.get("squads") or {}).get("name", "?"),
+                "role": r.get("role"),
+            }
+            for r in rows
+        ]
+
+    def create_squad(self, name: str) -> dict:
+        created = self.client.insert("squads", {"name": name, "owner_id": self.client.user_id})
+        if not created:
+            raise SupabaseError("could not create the squad")
+        squad_id = created[0]["id"]
+        self.client.upsert(
+            "squad_members",
+            [{"squad_id": squad_id, "user_id": self.client.user_id, "role": "owner"}],
+            on_conflict="squad_id,user_id",
+        )
+        return {"id": squad_id, "name": name}
+
+    def create_invite(self, squad_id: str) -> str:
+        code = _invite_code()
+        self.client.insert(
+            "squad_invites",
+            {"code": code, "squad_id": squad_id, "created_by": self.client.user_id},
+        )
+        return code
+
+    def join_squad(self, code: str) -> str:
+        return self.client.rpc("join_squad", {"invite_code": code.strip().upper()})
+
+    # -- sync --------------------------------------------------------
+
+    def push(self) -> int:
+        """Upsert my rated, non-skipped, non-remake games. Idempotent."""
+        if not self.logged_in:
+            return 0
+        with self._lock:
+            rows = [
+                {
+                    "user_id": self.client.user_id,
+                    "riot_match_id": g["riot_match_id"],
+                    "played_at": g["played_at"],
+                    "queue_type": g["queue_type"],
+                    "champion": g["champion"],
+                    "role": g["role"],
+                    "win": bool(g["win"]) if g["win"] is not None else None,
+                    "kills": g["kills"],
+                    "deaths": g["deaths"],
+                    "assists": g["assists"],
+                    "duration_seconds": g["duration_seconds"],
+                    "fun_score": g["fun_score"],
+                    "synced_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+                }
+                for g in self.store.games_with_details()
+                if g.get("fun_score")
+                and not g.get("skipped")
+                and not g.get("is_remake")
+                and g.get("riot_match_id")
+            ]
+            self.client.upsert("shared_games", rows, on_conflict="user_id,riot_match_id")
+            log.info("Synced %d rated games to the squad backend", len(rows))
+            return len(rows)
+
+    # -- shared reads ------------------------------------------------
+
+    def squad_games(self, squad_id: str) -> dict:
+        """Every squad member's shared games + display names."""
+        members = self.client.select(
+            "squad_members", {"select": "user_id", "squad_id": f"eq.{squad_id}"}
+        )
+        ids = [m["user_id"] for m in members]
+        if not ids:
+            return {"players": {}, "games": []}
+        in_list = f"({','.join(ids)})"
+        profiles = self.client.select(
+            "profiles", {"select": "id,display_name", "id": f"in.{in_list}"}
+        )
+        games = self.client.select(
+            "shared_games",
+            {
+                "select": "user_id,riot_match_id,played_at,queue_type,champion,win,fun_score",
+                "user_id": f"in.{in_list}",
+            },
+        )
+        return {
+            "players": {p["id"]: p.get("display_name") or "Summoner" for p in profiles},
+            "games": games,
+        }

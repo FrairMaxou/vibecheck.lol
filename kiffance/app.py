@@ -144,6 +144,9 @@ class App:
             return
         self._my_puuid = summoner["puuid"]
         self.store.set_meta(MY_PUUID_KEY, self._my_puuid)  # lets offline tools identify you
+        display_name = summoner.get("gameName") or summoner.get("displayName") or ""
+        if display_name:
+            self.store.set_meta("my_summoner_name", display_name)  # squad profile (§12)
         self._champ_names = self._client.champion_names()
         self._load_assets()
         log.info(

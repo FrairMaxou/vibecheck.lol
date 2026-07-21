@@ -127,6 +127,26 @@ th { color: var(--ink-2); font-weight: 600; font-size: 12px; text-transform: upp
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 tr.low-n td { color: var(--ink-3); }
 
+/* ---------- squad online ---------- */
+.squad-help { color: var(--ink-2); font-size: 13px; margin-bottom: 12px; max-width: 70ch; }
+.squad-help code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+.squad-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.squad-form input, .squad-form select {
+  background: var(--surface-2); border: 1px solid var(--line); color: var(--ink);
+  border-radius: 6px; padding: 6px 9px; font: inherit; font-size: 13px; min-width: 170px;
+}
+.primary-btn {
+  background: var(--gold); border: 1px solid var(--gold); color: #1e2328;
+  border-radius: 6px; padding: 6px 14px; cursor: pointer; font: inherit; font-weight: 600;
+}
+.primary-btn:hover { filter: brightness(1.08); }
+.squad-bar {
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  margin-bottom: 12px; color: var(--ink-2); font-size: 13px;
+}
+.squad-msg { margin-top: 10px; color: var(--gold); font-size: 13px; min-height: 18px; }
+.squad-err { margin-top: 10px; color: #e2725b; font-size: 13px; }
+
 /* ---------- tags & notes ---------- */
 .tag-editor { margin-top: 8px; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }

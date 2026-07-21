@@ -43,6 +43,7 @@
   <button data-tab="context">Context</button>
   <button data-tab="sessions">Regret Curve</button>
   <button data-tab="tags">Tags</button>
+  <button data-tab="online">Squad Online</button>
   <button data-tab="explorer">Explorer</button>
   <button data-tab="pending">To Rate <span id="pending-badge" class="badge hidden"></span></button>
 </nav>
@@ -100,6 +101,21 @@
     <div class="panel">
       <h2>Tag your games <span class="hint">slap labels on any game (and a note if you're feeling verbose)</span></h2>
       <div id="tags-games"></div>
+    </div>
+  </div>
+
+  <div id="tab-online" class="tab hidden">
+    <div class="panel">
+      <h2>Squad Online <span class="hint">compare kiff with the gang — fully optional, off until you log in</span></h2>
+      <div id="squad-body"></div>
+    </div>
+    <div class="panel hidden" id="squad-board-panel">
+      <h2>Squad leaderboard <span class="hint">who's actually enjoying this game</span></h2>
+      <div class="chart-wrap"><canvas id="chart-squad-board"></canvas></div>
+    </div>
+    <div class="panel hidden" id="squad-matrix-panel">
+      <h2>Mutual kiff <span class="hint">same game, two very different opinions</span></h2>
+      <div id="squad-matrix"></div>
     </div>
   </div>
 

@@ -17,6 +17,7 @@ from pydantic import BaseModel
 
 from .config import DASHBOARD_HOST, DASHBOARD_PORT
 from .store import GameStore
+from .sync import SquadService, SupabaseError
 
 log = logging.getLogger(__name__)
 
@@ -35,6 +36,29 @@ class TagsIn(BaseModel):
 
 class NoteIn(BaseModel):
     note: str = ""
+
+
+class SquadConfigIn(BaseModel):
+    url: str
+    anon_key: str
+
+
+class LoginIn(BaseModel):
+    email: str
+    password: str
+    create: bool = False
+
+
+class SquadNameIn(BaseModel):
+    name: str
+
+
+class InviteIn(BaseModel):
+    squad_id: str
+
+
+class JoinIn(BaseModel):
+    code: str
 
 
 def create_app(store: GameStore) -> FastAPI:
@@ -77,6 +101,57 @@ def create_app(store: GameStore) -> FastAPI:
     def set_note(game_id: int, body: NoteIn):
         store.set_note(game_id, body.note)
         return {"ok": True}
+
+    # ---------------- squad / social (§12) ----------------
+    # Opt-in: with no config these all report "not set up" and nothing leaves
+    # the machine. Bound to localhost, so credentials stay on this PC.
+
+    squad = SquadService(store)
+
+    def _guard(fn):
+        try:
+            return {"ok": True, **(fn() or {})}
+        except SupabaseError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+    @app.get("/api/squad/status")
+    def squad_status():
+        try:
+            return squad.status()
+        except SupabaseError as exc:
+            return {"configured": squad.configured, "logged_in": False, "error": str(exc)}
+
+    @app.post("/api/squad/config")
+    def squad_config(body: SquadConfigIn):
+        return _guard(lambda: squad.configure(body.url, body.anon_key))
+
+    @app.post("/api/squad/login")
+    def squad_login(body: LoginIn):
+        return _guard(lambda: squad.sign_in(body.email, body.password, body.create))
+
+    @app.post("/api/squad/logout")
+    def squad_logout():
+        return _guard(squad.sign_out)
+
+    @app.post("/api/squad/create")
+    def squad_create(body: SquadNameIn):
+        return _guard(lambda: {"squad": squad.create_squad(body.name)})
+
+    @app.post("/api/squad/invite")
+    def squad_invite(body: InviteIn):
+        return _guard(lambda: {"code": squad.create_invite(body.squad_id)})
+
+    @app.post("/api/squad/join")
+    def squad_join(body: JoinIn):
+        return _guard(lambda: {"squad_id": squad.join_squad(body.code)})
+
+    @app.post("/api/squad/push")
+    def squad_push():
+        return _guard(lambda: {"synced": squad.push()})
+
+    @app.get("/api/squad/{squad_id}/data")
+    def squad_data(squad_id: str):
+        return _guard(lambda: squad.squad_games(squad_id))
 
     return app
 
