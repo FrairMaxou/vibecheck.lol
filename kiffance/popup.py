@@ -39,7 +39,11 @@ _HOVER = "#3c434d"
 _FG = "#f0e6d2"
 _GOLD = "#c8aa6e"
 _MUTED = "#a09b8c"
-_EMOJI_PX = 44
+# Faces get a fixed cell, and any aspect ratio is fitted and centred inside it.
+# Meme crops are rarely square (wide reaction shots, tall Chad), so a square box
+# would make the row ragged and shrink the wide ones to nothing.
+FACE_W, FACE_H = 104, 88
+_EMOJI_PX = 60  # emoji fallback renders square inside the same cell
 
 _EMOJI_FONT_CANDIDATES = ("seguiemj.ttf", "C:/Windows/Fonts/seguiemj.ttf")
 
@@ -59,24 +63,35 @@ def _render_emoji(char: str, px: int) -> Image.Image | None:
     return None
 
 
+def _centred(img: Image.Image, width: int, height: int) -> Image.Image:
+    """Fit img inside width x height, preserving aspect, centred on transparency."""
+    fitted = img.copy()
+    fitted.thumbnail((width, height), Image.LANCZOS)
+    canvas = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    canvas.alpha_composite(fitted, ((width - fitted.width) // 2, (height - fitted.height) // 2))
+    return canvas
+
+
 @lru_cache(maxsize=16)
-def _grade_image(score: int, emoji: str, px: int) -> Image.Image | None:
+def _grade_image(score: int, emoji: str, width: int, height: int) -> Image.Image | None:
     """Custom art for this grade if present, otherwise the colour emoji.
 
     Lets anyone drop `assets/grades/<score>.png` in to reskin the popup with
-    no code change; an empty folder keeps the built-in emoji look.
+    no code change; an empty folder keeps the built-in emoji look. Every result
+    is the same cell size, so the row of faces stays aligned whatever shape the
+    source art is.
     """
     for suffix in IMAGE_SUFFIXES:
         path = GRADES_DIR / f"{score}{suffix}"
         if not path.exists():
             continue
         try:
-            img = Image.open(path).convert("RGBA")
-            img.thumbnail((px, px), Image.LANCZOS)
-            return img
+            with Image.open(path) as raw:
+                return _centred(raw.convert("RGBA"), width, height)
         except Exception:
             log.exception("Could not load grade art %s; falling back to emoji", path)
-    return _render_emoji(emoji, px)
+    emoji_img = _render_emoji(emoji, _EMOJI_PX)
+    return _centred(emoji_img, width, height) if emoji_img else None
 
 
 class RatingPopup:
@@ -124,7 +139,7 @@ class RatingPopup:
         card = tk.Frame(parent, bg=_CARD, cursor="hand2")
         card.pack(side=tk.LEFT, padx=5)
 
-        img = _grade_image(score, emoji, _EMOJI_PX)
+        img = _grade_image(score, emoji, FACE_W, FACE_H)
         if img is not None:
             photo = ImageTk.PhotoImage(img)
             self._images.append(photo)
