@@ -1,0 +1,76 @@
+name: Release
+
+# Tag a version to publish a build:
+#   git tag v0.1.0 && git push origin v0.1.0
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch: # manual runs produce an artifact without a release
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write # needed to create the release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Verify before building
+        run: |
+          ruff check .
+          python tests/smoke_test.py
+
+      # The publishable key is public-by-design but kept out of the repo so bots
+      # don't find the endpoint. See docs/RELEASE.md.
+      - name: Bake backend credentials
+        if: ${{ secrets.SUPABASE_URL != '' }}
+        shell: pwsh
+        run: |
+          "SUPABASE_URL = '${{ secrets.SUPABASE_URL }}'"           | Out-File kiffance/_bundled.py -Encoding utf8
+          "SUPABASE_KEY = '${{ secrets.SUPABASE_PUBLISHABLE_KEY }}'" | Out-File kiffance/_bundled.py -Encoding utf8 -Append
+
+      - name: Build exe
+        run: pyinstaller kiffance.spec --noconfirm
+
+      - name: Smoke-test the exe
+        shell: pwsh
+        run: |
+          $env:KIFFANCE_PORT = "8590"
+          $p = Start-Process dist/LeagueOfKiffance.exe -PassThru
+          Start-Sleep -Seconds 20
+          if (-not (Get-Process -Id $p.Id -ErrorAction SilentlyContinue)) {
+            throw "exe exited on startup"
+          }
+          # Bundled web assets must resolve from the PyInstaller temp dir.
+          $r = Invoke-WebRequest "http://127.0.0.1:8590/" -UseBasicParsing -TimeoutSec 10
+          if ($r.StatusCode -ne 200) { throw "dashboard did not serve" }
+          Invoke-WebRequest "http://127.0.0.1:8590/static/app.js" -UseBasicParsing -TimeoutSec 10 | Out-Null
+          Stop-Process -Id $p.Id -Force
+          Write-Host "exe smoke test passed"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LeagueOfKiffance
+          path: dist/LeagueOfKiffance.exe
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/LeagueOfKiffance.exe
+          generate_release_notes: true
+          body: |
+            ## Install
+            Download **LeagueOfKiffance.exe** below and double-click it.
+
+            Windows will warn that the app isn't code-signed — click
+            **More info → Run anyway**. A gold hexagon appears in your system
+            tray; that means it's running. Play a game and it'll ask how it went.
+
+            See the [README](../../blob/main/README.md) for the full guide.

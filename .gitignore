@@ -1,9 +1,13 @@
 .venv/
 __pycache__/
 *.pyc
+
+# PyInstaller: build output is generated, but kiffance.spec is our build
+# definition and must be tracked.
 build/
 dist/
 *.spec
+!kiffance.spec
 
 .claude/settings.local.json
 

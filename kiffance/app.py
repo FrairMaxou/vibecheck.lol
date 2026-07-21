@@ -20,7 +20,14 @@ import webbrowser
 from datetime import datetime, timedelta
 
 from . import capture, lcu
-from .config import APP_NAME, CATCHUP_FIRST_RUN_HOURS, CLIENT_POLL_SECONDS, DATA_DIR, LOG_PATH
+from .config import (
+    APP_NAME,
+    CATCHUP_FIRST_RUN_HOURS,
+    CLIENT_POLL_SECONDS,
+    DATA_DIR,
+    FROZEN,
+    LOG_PATH,
+)
 from .dashboard import start_dashboard
 from .popup import RatingPopup
 from .store import GameStore
@@ -108,10 +115,15 @@ class App:
         if self._window_proc is not None and self._window_proc.poll() is None:
             log.info("Dashboard window already open")
             return
+        # Frozen builds have no `python -m`, so the exe relaunches itself with a
+        # flag that run_kiffance.py routes to the window (see that module).
+        argv = (
+            [sys.executable, "--window", self._dashboard_url]
+            if FROZEN
+            else [sys.executable, "-m", "kiffance.window", self._dashboard_url]
+        )
         try:
-            self._window_proc = subprocess.Popen(  # noqa: S603 - fixed argv, no shell
-                [sys.executable, "-m", "kiffance.window", self._dashboard_url]
-            )
+            self._window_proc = subprocess.Popen(argv)  # noqa: S603 - fixed argv, no shell
             log.info("Opened dashboard window (pid %d)", self._window_proc.pid)
         except Exception:
             log.exception("Could not launch the dashboard window; using the browser")

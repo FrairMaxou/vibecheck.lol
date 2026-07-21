@@ -12,16 +12,15 @@ import logging
 import tkinter as tk
 from collections.abc import Callable
 from functools import lru_cache
-from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont, ImageTk
 
-from .config import APP_NAME, POPUP_TIMEOUT_SECONDS
+from .config import APP_NAME, ASSETS_DIR, POPUP_TIMEOUT_SECONDS
 
 log = logging.getLogger(__name__)
 
 # Custom grade art, if the user supplied any (see assets/README.md).
-GRADES_DIR = Path(__file__).parent / "assets" / "grades"
+GRADES_DIR = ASSETS_DIR / "grades"
 IMAGE_SUFFIXES = (".png", ".webp", ".jpg", ".jpeg")
 
 # score, emoji, grade name (two lines for the popup cards)

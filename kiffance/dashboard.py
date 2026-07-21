@@ -8,20 +8,18 @@ aggregation client-side, which is what makes the filter bar and explorer
 
 import logging
 import threading
-from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from .config import DASHBOARD_HOST, DASHBOARD_PORT
+from .config import DASHBOARD_HOST, DASHBOARD_PORT, WEB_DIR
 from .store import GameStore
 from .sync import SquadService, SupabaseError
 
 log = logging.getLogger(__name__)
 
-WEB_DIR = Path(__file__).parent / "web"
 STATIC_FILES = {"app.js", "style.css", "chart.umd.js"}
 
 

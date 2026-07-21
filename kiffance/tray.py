@@ -3,17 +3,16 @@
 import logging
 import os
 from collections.abc import Callable
-from pathlib import Path
 
 import pystray
 from PIL import Image, ImageDraw
 
-from .config import APP_NAME, DATA_DIR
+from .config import APP_NAME, ASSETS_DIR, DATA_DIR
 
 log = logging.getLogger(__name__)
 
 
-LOGO_PATH = Path(__file__).parent / "assets" / "logo.png"
+LOGO_PATH = ASSETS_DIR / "logo.png"
 
 
 def _icon_image() -> Image.Image:
