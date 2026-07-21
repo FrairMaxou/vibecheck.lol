@@ -11,6 +11,7 @@ Threading model:
 import json
 import logging
 import queue
+import subprocess
 import sys
 import threading
 import time
@@ -70,11 +71,12 @@ class App:
         )
         self._popup = RatingPopup(self._root, self._on_rate)
         self._dashboard_url = start_dashboard(self.store)
+        self._window_proc: subprocess.Popen | None = None
         self._tray = build_tray(
             is_paused=lambda: self.paused,
             toggle_paused=self._toggle_paused,
             on_quit=self.stop,
-            on_open_dashboard=lambda: webbrowser.open(self._dashboard_url),
+            on_open_dashboard=self._open_dashboard,
         )
 
     # ---------------- lifecycle ----------------
@@ -91,6 +93,8 @@ class App:
         if self._events:
             self._events.stop()
         self._tray.stop()
+        if self._window_proc is not None and self._window_proc.poll() is None:
+            self._window_proc.terminate()  # don't leave the window orphaned
         self.store.close()
         # Quit Tk from its own thread.
         self._root.after(0, self._root.quit)
@@ -98,6 +102,20 @@ class App:
     def _toggle_paused(self) -> None:
         self.paused = not self.paused
         log.info("Prompts %s", "paused" if self.paused else "resumed")
+
+    def _open_dashboard(self) -> None:
+        """Open the dashboard in its own native window process (§14)."""
+        if self._window_proc is not None and self._window_proc.poll() is None:
+            log.info("Dashboard window already open")
+            return
+        try:
+            self._window_proc = subprocess.Popen(  # noqa: S603 - fixed argv, no shell
+                [sys.executable, "-m", "kiffance.window", self._dashboard_url]
+            )
+            log.info("Opened dashboard window (pid %d)", self._window_proc.pid)
+        except Exception:
+            log.exception("Could not launch the dashboard window; using the browser")
+            webbrowser.open(self._dashboard_url)
 
     # ---------------- watcher thread ----------------
 
