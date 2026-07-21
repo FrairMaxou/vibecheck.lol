@@ -13,6 +13,7 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .config import DASHBOARD_HOST, DASHBOARD_PORT, WEB_DIR
 from .store import GameStore
@@ -61,6 +62,12 @@ class JoinIn(BaseModel):
 
 def create_app(store: GameStore) -> FastAPI:
     app = FastAPI(title="League of Kiffance", docs_url=None, redoc_url=None, openapi_url=None)
+
+    # Binding to 127.0.0.1 stops remote access, but not DNS rebinding: an
+    # attacker's domain can resolve to 127.0.0.1, at which point the browser
+    # treats their page as same-origin with this server and CORS no longer
+    # protects us. Rejecting unexpected Host headers closes that.
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])
 
     @app.get("/")
     def index():
