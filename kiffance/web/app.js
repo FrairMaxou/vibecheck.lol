@@ -379,9 +379,12 @@ async function renderOnline() {
 
   if (!st.configured) {
     body.innerHTML = `
-      <p class="squad-help">Not set up yet. Create a free project at <b>supabase.com</b>, run
-        <code>supabase/schema.sql</code> in its SQL editor, then paste the project URL and
-        <b>anon</b> key below (Project Settings → API). Never paste the service_role key.</p>
+      <p class="squad-help"><b>Advanced / self-host setup.</b> Released builds already point at
+        the shared backend — you'd normally go straight to signing in. You're seeing this because
+        this build has no bundled backend (a source checkout, or you're running your own).<br><br>
+        Create a free project at <b>supabase.com</b>, run <code>supabase/schema.sql</code> in its
+        SQL editor, then paste the project URL and <b>publishable</b> key below
+        (Project Settings → API). Never paste the secret / service_role key.</p>
       <div class="squad-form">
         <input id="sb-url" placeholder="https://xxxx.supabase.co">
         <input id="sb-key" placeholder="anon public key">

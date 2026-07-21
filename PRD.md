@@ -308,8 +308,10 @@ RLS: a user reads `shared_games`/`profiles` only for users co-membered in a squa
 | F29 | **Mutual-fun matrix** — for games two members both played (matched on `riot_match_id`), show each pair's two fun scores: "you rated it 4.5, Alex rated it 2.8." |
 | F30 | Privacy: sync opt-in; only non-skipped rated games; per-game "don't share"; leaving a squad removes your visibility to it. |
 
-### External dependency
-Requires a Supabase project (created by the user — account creation can't be automated). The repo provides the SQL schema/migration to run in Supabase; the app reads the project URL + anon key from a local gitignored config.
+### Distribution model (decided 2026-07-20)
+**One Supabase project, owned by the maintainer, shared by all players.** End users never create a Supabase account, never run SQL, and never enter a key — a friend's flow is download → create an app account → join a squad with an invite code. Released builds bake the project URL + **publishable** key into `kiffance/_bundled.py` at build time from CI secrets (gitignored, never in the repo). Credential resolution: local config file (self-host/dev) → bundled defaults (releases) → env vars. The key-entry form only appears when none are present, i.e. a source checkout or a self-hoster.
+
+**Why shipping the publishable key is safe:** it is designed to be embedded in clients and is visible in every Supabase web app's JavaScript. Data is protected by the RLS policies in `supabase/schema.sql`, not by key secrecy — every table denies by default and exposes rows only to their owner or squad-mates. The **service_role/secret key is never shipped, committed, or used by this app**. The publishable key is kept out of the repo purely to avoid bots discovering the endpoint and burning free-tier quota. Full procedure and abuse mitigations: [docs/RELEASE.md](docs/RELEASE.md).
 
 ---
 
