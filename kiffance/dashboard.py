@@ -60,14 +60,28 @@ class JoinIn(BaseModel):
     code: str
 
 
-def create_app(store: GameStore) -> FastAPI:
+def create_app(store: GameStore, squad: SquadService | None = None) -> FastAPI:
     app = FastAPI(title="League of Kiffance", docs_url=None, redoc_url=None, openapi_url=None)
+    squad = squad or SquadService(store)
 
     # Binding to 127.0.0.1 stops remote access, but not DNS rebinding: an
     # attacker's domain can resolve to 127.0.0.1, at which point the browser
     # treats their page as same-origin with this server and CORS no longer
     # protects us. Rejecting unexpected Host headers closes that.
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])
+
+    def _auto_sync() -> None:
+        """Push rated games to the backend in the background after a rating."""
+        if not squad.logged_in:
+            return
+
+        def worker():
+            try:
+                squad.push()
+            except SupabaseError:
+                log.warning("Background squad sync failed (will retry next rating)")
+
+        threading.Thread(target=worker, name="squad-sync", daemon=True).start()
 
     @app.get("/")
     def index():
@@ -91,6 +105,7 @@ def create_app(store: GameStore) -> FastAPI:
         log.info(
             "Dashboard rating: game %d -> %s", game_id, "skipped" if body.skipped else body.score
         )
+        _auto_sync()
         return {"ok": True}
 
     @app.get("/api/tags")
@@ -110,8 +125,6 @@ def create_app(store: GameStore) -> FastAPI:
     # ---------------- squad / social (§12) ----------------
     # Opt-in: with no config these all report "not set up" and nothing leaves
     # the machine. Bound to localhost, so credentials stay on this PC.
-
-    squad = SquadService(store)
 
     def _guard(fn):
         try:
@@ -161,10 +174,10 @@ def create_app(store: GameStore) -> FastAPI:
     return app
 
 
-def start_dashboard(store: GameStore) -> str:
+def start_dashboard(store: GameStore, squad: SquadService | None = None) -> str:
     """Start the server in a daemon thread; returns the dashboard URL."""
     config = uvicorn.Config(
-        create_app(store),
+        create_app(store, squad),
         host=DASHBOARD_HOST,
         port=DASHBOARD_PORT,
         log_level="warning",

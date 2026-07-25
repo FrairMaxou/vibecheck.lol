@@ -31,6 +31,7 @@ from .config import (
 from .dashboard import start_dashboard
 from .popup import RatingPopup
 from .store import GameStore
+from .sync import SquadService
 from .tray import build_tray
 
 log = logging.getLogger(__name__)
@@ -77,7 +78,10 @@ class App:
             "Tk callback error", exc_info=exc
         )
         self._popup = RatingPopup(self._root, self._on_rate)
-        self._dashboard_url = start_dashboard(self.store)
+        # One shared squad service: the dashboard drives login/squads, and the
+        # rating path uses the same instance to auto-sync in the background.
+        self.squad = SquadService(self.store)
+        self._dashboard_url = start_dashboard(self.store, self.squad)
         self._window_proc: subprocess.Popen | None = None
         self._tray = build_tray(
             is_paused=lambda: self.paused,
@@ -405,6 +409,24 @@ class App:
     def _on_rate(self, game_id: int, score: int) -> None:
         self.store.set_rating(game_id, score)
         log.info("Game %d rated %d/5", game_id, score)
+        self._auto_sync()
+
+    def _auto_sync(self) -> None:
+        """Push rated games to the squad backend in the background (§12).
+
+        No-op unless the user is signed in. Runs off the UI thread and never
+        raises into it — a backend hiccup must not disturb rating.
+        """
+        if not self.squad.logged_in:
+            return
+
+        def worker():
+            try:
+                self.squad.push()
+            except Exception:
+                log.warning("Background squad sync failed (will retry next rating)", exc_info=True)
+
+        threading.Thread(target=worker, name="squad-sync", daemon=True).start()
 
 
 def _summary_line(game: dict) -> str:

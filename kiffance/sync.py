@@ -170,12 +170,12 @@ class Supabase:
         headers.update(extra or {})
         return headers
 
-    def _request(self, method: str, path: str, retry: bool = True, **kwargs):
+    def _request(self, method: str, path: str, retry: bool = True, extra_headers=None, **kwargs):
         try:
             resp = requests.request(
                 method,
                 f"{self.url}/rest/v1/{path}",
-                headers=self._headers(kwargs.pop("extra_headers", None)),
+                headers=self._headers(extra_headers),
                 timeout=TIMEOUT,
                 **kwargs,
             )
@@ -183,7 +183,9 @@ class Supabase:
             raise SupabaseError(f"Could not reach the backend. ({exc.__class__.__name__})") from exc
         if resp.status_code == 401 and retry and self.session.get("refresh_token"):
             self.refresh()  # access tokens expire hourly
-            return self._request(method, path, retry=False, **kwargs)
+            # extra_headers must be forwarded, or the retried upsert loses its
+            # Prefer: merge-duplicates and becomes a plain insert -> dup key.
+            return self._request(method, path, retry=False, extra_headers=extra_headers, **kwargs)
         if resp.status_code >= 400:
             data = _json(resp)
             raise SupabaseError(data.get("message") or data.get("hint") or resp.text)
