@@ -100,7 +100,7 @@ Stats sites (op.gg, u.gg, League client) tell you how well you played. None of t
 | ID | Requirement | Priority |
 |----|-------------|----------|
 | F22 | Runs as a Windows system-tray app; tray menu: open dashboard, pause prompts, quit. | Must |
-| F23 | Manual launch by default, with a settings checkbox to enable "start with Windows" for users who want set-and-forget. | Should |
+| F23 | Manual launch by default, with a settings checkbox to enable "start with Windows" for users who want set-and-forget. *(Done 2026-07-25: first-run Yes/No prompt + a "Start with Windows" checkbox in the tray menu; per-user HKCU Run key via kiffance/startup.py.)* | Should |
 | F24 | Works whether the tool is started before or after the League client. Reconnects automatically if the client restarts. | Must |
 
 ---

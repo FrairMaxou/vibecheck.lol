@@ -18,8 +18,9 @@ import time
 import tkinter as tk
 import webbrowser
 from datetime import datetime, timedelta
+from tkinter import messagebox
 
-from . import capture, lcu
+from . import capture, lcu, startup
 from .config import (
     APP_NAME,
     CATCHUP_FIRST_RUN_HOURS,
@@ -88,6 +89,8 @@ class App:
             toggle_paused=self._toggle_paused,
             on_quit=self.stop,
             on_open_dashboard=self._open_dashboard,
+            is_autostart=startup.is_enabled,
+            toggle_autostart=lambda: startup.set_enabled(not startup.is_enabled()),
         )
 
     # ---------------- lifecycle ----------------
@@ -97,7 +100,27 @@ class App:
         threading.Thread(target=self._watcher_loop, name="lcu-watcher", daemon=True).start()
         threading.Thread(target=self._tray.run, name="tray", daemon=True).start()
         self._root.after(100, self._drain_ui_requests)
+        self._root.after(1500, self._maybe_prompt_autostart)  # once, after the tray is up
         self._root.mainloop()
+
+    def _maybe_prompt_autostart(self) -> None:
+        """First-run only: offer launch-at-login (F23). Tray toggle changes it later."""
+        if self.store.get_meta("autostart_prompted"):
+            return
+        self.store.set_meta("autostart_prompted", "1")
+        try:
+            self._root.attributes("-topmost", True)  # bring the dialog to the front
+            want = messagebox.askyesno(
+                APP_NAME,
+                "Launch League of Kiffance automatically when Windows starts?\n\n"
+                "You can change this anytime from the tray icon menu "
+                '("Start with Windows").',
+                parent=self._root,
+            )
+            startup.set_enabled(bool(want))
+            log.info("First-run auto-start choice: %s", want)
+        except Exception:
+            log.exception("Auto-start prompt failed")
 
     def stop(self) -> None:
         self._stopping.set()

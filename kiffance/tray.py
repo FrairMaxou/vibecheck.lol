@@ -38,12 +38,19 @@ def build_tray(
     toggle_paused: Callable[[], None],
     on_quit: Callable[[], None],
     on_open_dashboard: Callable[[], None],
+    is_autostart: Callable[[], bool],
+    toggle_autostart: Callable[[], None],
 ) -> pystray.Icon:
     menu = pystray.Menu(
         # default=True: double-clicking the tray icon opens the dashboard.
         pystray.MenuItem("Open dashboard", lambda: on_open_dashboard(), default=True),
         pystray.MenuItem(
             "Pause prompts", lambda: toggle_paused(), checked=lambda _item: is_paused()
+        ),
+        pystray.MenuItem(
+            "Start with Windows",
+            lambda: toggle_autostart(),
+            checked=lambda _item: is_autostart(),
         ),
         # startfile opens Explorer on our own data dir — fixed local path, not user input.
         pystray.MenuItem("Open data folder", lambda: os.startfile(DATA_DIR)),  # noqa: S606
