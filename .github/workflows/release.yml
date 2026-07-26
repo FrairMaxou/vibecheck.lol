@@ -27,13 +27,19 @@ jobs:
           python tests/smoke_test.py
 
       # The publishable key is public-by-design but kept out of the repo so bots
-      # don't find the endpoint. See docs/RELEASE.md.
+      # don't find the endpoint. See docs/RELEASE.md. Secrets are mapped to env
+      # first: GitHub does not reliably allow the `secrets` context inside `if:`,
+      # so we gate on an env var (which does work) to guarantee this runs when
+      # the credentials are configured.
       - name: Bake backend credentials
-        if: ${{ secrets.SUPABASE_URL != '' }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        if: ${{ env.SUPABASE_URL != '' }}
         shell: pwsh
         run: |
-          "SUPABASE_URL = '${{ secrets.SUPABASE_URL }}'"           | Out-File vibecheck/_bundled.py -Encoding utf8
-          "SUPABASE_KEY = '${{ secrets.SUPABASE_PUBLISHABLE_KEY }}'" | Out-File vibecheck/_bundled.py -Encoding utf8 -Append
+          "SUPABASE_URL = '$env:SUPABASE_URL'"           | Out-File vibecheck/_bundled.py -Encoding utf8
+          "SUPABASE_KEY = '$env:SUPABASE_PUBLISHABLE_KEY'" | Out-File vibecheck/_bundled.py -Encoding utf8 -Append
 
       - name: Build exe
         run: pyinstaller vibecheck.spec --noconfirm
