@@ -3,19 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>League of Kiffance</title>
+<title>VibeCheck.lol</title>
 <link rel="stylesheet" href="/static/style.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤩</text></svg>">
 </head>
 <body data-palette="#b28328,#2f9ac0" data-mode="dark">
 <header>
   <div class="title-block">
-    <h1>League of Kiffance</h1>
-    <p class="subtitle">Winrate is a lie. Did you have fun though? The data knows.</p>
+    <h1>VibeCheck.lol</h1>
+    <p class="subtitle">Winrate is temporary. The vibes are forever.</p>
   </div>
   <div id="header-stats" class="header-stats"></div>
 </header>
 
+<div id="offline-banner" class="banner banner-err hidden"></div>
 <div id="low-data-banner" class="banner hidden"></div>
 
 <section id="filters" class="filters">
@@ -43,7 +44,7 @@
   <button data-tab="context">Context</button>
   <button data-tab="sessions">Regret Curve</button>
   <button data-tab="tags">Tags</button>
-  <button data-tab="online">Squad Online</button>
+  <button data-tab="online">The Gang</button>
   <button data-tab="settings">Settings</button>
   <button data-tab="explorer">Explorer</button>
   <button data-tab="pending">To Rate <span id="pending-badge" class="badge hidden"></span></button>
@@ -53,26 +54,32 @@
   <div id="tab-overview" class="tab">
     <div id="fun-facts" class="cards"></div>
     <div class="panel">
-      <h2>The kiff trend <span class="hint">rolling average of your last 5 ratings — are we healing or coping?</span></h2>
+      <h2>Copium Tracking <span class="hint">rolling average of your last 5 ratings — are we healing or coping?</span></h2>
       <div class="chart-wrap"><canvas id="chart-trend"></canvas></div>
     </div>
   </div>
 
   <div id="tab-champions" class="tab hidden">
     <div class="panel">
-      <h2>Champion kiff rankings <span class="hint">who sparks joy, who sparks tilt</span></h2>
+      <h2>Champion Vibe Tier List <span class="hint">who sparks joy, who sparks tilt</span></h2>
       <div class="chart-wrap tall"><canvas id="chart-champ-fun"></canvas></div>
     </div>
     <div class="panel">
-      <h2>Fun vs. winrate <span class="hint">top-left: fun but bad · bottom-right: winning and miserable (pure copium)</span></h2>
+      <h2>Vibes vs. Win Rate <span class="hint">top-left: fun but bad · bottom-right: winning and miserable (pure copium)</span></h2>
       <div class="chart-wrap"><canvas id="chart-champ-scatter"></canvas></div>
     </div>
   </div>
 
   <div id="tab-squad" class="tab hidden">
     <div class="panel">
-      <h2>Squad buff check <span class="hint">fun with the gang vs. solo queue suffering</span></h2>
+      <h2>Squad Buff Check <span class="hint">fun with the gang vs. solo queue despair</span></h2>
       <div class="chart-wrap tall"><canvas id="chart-squad"></canvas></div>
+    </div>
+    <div class="panel">
+      <h2>Community Service <span class="hint">a.k.a. Charity Work</span></h2>
+      <p class="squad-help">We all have that one friend who goes 0/10, but we love them anyway.
+        Track the karma points you rack up for playing with the designated deadweight.</p>
+      <div id="community-service"></div>
     </div>
   </div>
 
@@ -96,7 +103,7 @@
 
   <div id="tab-tags" class="tab hidden">
     <div class="panel">
-      <h2>Tag energy <span class="hint">average kiff per tag — what actually makes a game fun</span></h2>
+      <h2>Tag energy <span class="hint">average vibe per tag — what actually makes a game good</span></h2>
       <div class="chart-wrap"><canvas id="chart-tags"></canvas></div>
     </div>
     <div class="panel">
@@ -107,15 +114,15 @@
 
   <div id="tab-online" class="tab hidden">
     <div class="panel">
-      <h2>Squad Online <span class="hint">your League friends who also run Kiffance — no signup, no codes</span></h2>
+      <h2>Squad Sync <span class="hint">your League friends who also run VibeCheck — no signup, no codes</span></h2>
       <div id="squad-body"></div>
     </div>
     <div class="panel hidden" id="squad-board-panel">
-      <h2>Squad leaderboard <span class="hint">who's actually enjoying this game</span></h2>
+      <h2>Flex Queue Survivors <span class="hint">who's actually enjoying this game</span></h2>
       <div class="chart-wrap"><canvas id="chart-squad-board"></canvas></div>
     </div>
     <div class="panel hidden" id="squad-matrix-panel">
-      <h2>Mutual kiff <span class="hint">same game, two very different opinions</span></h2>
+      <h2>Mutual vibes <span class="hint">same game, two very different opinions</span></h2>
       <div id="squad-matrix"></div>
     </div>
   </div>
@@ -126,14 +133,14 @@
       <div class="setting-row">
         <div class="setting-text">
           <div class="setting-title">Start with Windows</div>
-          <div class="setting-desc">Launch League of Kiffance automatically when you log in, so no game is missed.</div>
+          <div class="setting-desc">Launch VibeCheck.lol automatically when you log in, so no game is missed.</div>
         </div>
         <label class="switch"><input type="checkbox" id="set-autostart"><span class="slider"></span></label>
       </div>
       <div class="setting-row">
         <div class="setting-text">
           <div class="setting-title">Pause rating popups</div>
-          <div class="setting-desc">Keep capturing games, but don't show the "Did you kiff?" popup. Rate later from To Rate.</div>
+          <div class="setting-desc">Keep capturing games, but don't show the "How was that game?" popup. Rate later from To Rate.</div>
         </div>
         <label class="switch"><input type="checkbox" id="set-paused"><span class="slider"></span></label>
       </div>
@@ -142,8 +149,8 @@
     <div class="panel">
       <h2>Your data <span class="hint">everything stays on this PC</span></h2>
       <p class="squad-help">Games and ratings live in
-        <code>%LOCALAPPDATA%\LeagueOfKiffance</code>. Nothing is uploaded unless you sign in
-        to Squad Online.</p>
+        <code>%LOCALAPPDATA%\LeagueOfKiffance</code>. Only your rated games are ever uploaded,
+        and only your mutual League friends running VibeCheck can see them.</p>
     </div>
   </div>
 
@@ -170,8 +177,8 @@
         </label>
         <label>Show as
           <select id="ex-type">
-            <option value="bar">Bars (avg fun)</option>
-            <option value="scatter">Scatter (fun vs. winrate)</option>
+            <option value="bar">Bars (avg vibe)</option>
+            <option value="scatter">Scatter (vibe vs. winrate)</option>
             <option value="table">Table</option>
           </select>
         </label>
@@ -188,6 +195,11 @@
     </div>
   </div>
 </main>
+
+<footer id="legal-footer">
+  VibeCheck.lol isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot
+  Games or anyone officially involved in producing or managing Riot Games properties.
+</footer>
 
 <script src="/static/chart.umd.js"></script>
 <script src="/static/app.js"></script>

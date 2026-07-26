@@ -1,4 +1,4 @@
-"""The one-click 'Did you kiff?' rating popup (PRD F7-F10b).
+"""The one-click 'How was that game?' rating popup (PRD F7-F10b).
 
 Always-on-top, bottom-right, auto-dismisses after 5 minutes, and hide() is
 called the instant a new game starts — it must never be on screen during
@@ -23,13 +23,16 @@ log = logging.getLogger(__name__)
 GRADES_DIR = ASSETS_DIR / "grades"
 IMAGE_SUFFIXES = (".png", ".webp", ".jpg", ".jpeg")
 
-# score, emoji, grade name (two lines for the popup cards)
+# score, emoji, grade name (two lines for the popup cards). The emoji are only
+# a fallback: if the user drops art in assets/grades/<score>.png it wins. The
+# tier art referenced by the brand is Surprised Pikachu / Disappointed Chloe /
+# Blinking Guy / Jeremiah Johnson Nod / Gigachad.
 RATINGS = [
-    (1, "\U0001f6bd", "Absolute\nSkibidi"),  # toilet
+    (1, "\U0001f628", "FF at 15"),  # fearful face
     (2, "\U0001f928", "Who Let\nThem Cook?"),  # face-with-raised-eyebrow
-    (3, "\U0001f9cd‍♂️", "Meh"),  # man standing
-    (4, "\U0001f468‍\U0001f373", "Let Him\nCook!"),  # man cook
-    (5, "\U0001f451", "Maximum\nRizz"),  # crown
+    (3, "\U0001f610", "Meh"),  # neutral face
+    (4, "\U0001f60e", "We Are\nSo Back"),  # smiling face with sunglasses
+    (5, "\U0001f451", "Gigachad"),  # crown
 ]
 
 _BG = "#1e2328"
@@ -115,9 +118,9 @@ class RatingPopup:
         win.overrideredirect(True)  # borderless, chromeless card
         win.protocol("WM_DELETE_WINDOW", self.hide)  # close = pending, not lost
 
-        tk.Label(win, text="Did you kiff?", font=("Segoe UI", 17, "bold"), bg=_BG, fg=_GOLD).pack(
-            padx=26, pady=(16, 2)
-        )
+        tk.Label(
+            win, text="How was that game?", font=("Segoe UI", 17, "bold"), bg=_BG, fg=_GOLD
+        ).pack(padx=26, pady=(16, 2))
         tk.Label(win, text=summary, font=("Segoe UI", 10), bg=_BG, fg=_MUTED, wraplength=360).pack(
             padx=26, pady=(0, 12)
         )

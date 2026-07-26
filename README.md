@@ -1,14 +1,14 @@
 <div align="center">
-<img src="kiffance/assets/logo.png" width="120" alt="League of Kiffance logo">
+<img src="kiffance/assets/logo.png" width="120" alt="VibeCheck.lol logo">
 
-# League of Kiffance
+# VibeCheck.lol
 
-**Winrate is a lie. Did you actually have fun?**
+**Winrate is temporary. The vibes are forever.**
 
 </div>
 
-League of Kiffance sits quietly in your system tray. When a League game ends it
-asks one question — **"Did you kiff?"** — you click a face, and that's it.
+VibeCheck.lol sits quietly in your system tray. When a League game ends it
+asks one question — **"How was that game?"** — you click a face, and that's it.
 Over time it shows you which champions, teammates, and situations you genuinely
 enjoy, as opposed to the ones you merely win with.
 
@@ -113,4 +113,8 @@ py -m venv .venv
 Design and decisions: [PRD.md](PRD.md) · Workflow: [CONTRIBUTING.md](CONTRIBUTING.md) ·
 Releasing: [docs/RELEASE.md](docs/RELEASE.md)
 
-*Not affiliated with or endorsed by Riot Games.*
+---
+
+VibeCheck.lol isn't endorsed by Riot Games and doesn't reflect the views or
+opinions of Riot Games or anyone officially involved in producing or managing
+Riot Games properties.

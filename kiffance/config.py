@@ -2,7 +2,8 @@ import os
 import sys
 from pathlib import Path
 
-APP_NAME = "League of Kiffance"
+APP_NAME = "VibeCheck.lol"
+TAGLINE = "Winrate is temporary. The vibes are forever."
 
 # Where the package's bundled files (web/, assets/) actually live. PyInstaller
 # unpacks them to a temp dir and __file__ no longer points at them, so every
@@ -12,6 +13,9 @@ PACKAGE_DIR = Path(sys._MEIPASS) / "kiffance" if FROZEN else Path(__file__).reso
 WEB_DIR = PACKAGE_DIR / "web"
 ASSETS_DIR = PACKAGE_DIR / "assets"
 
+# The on-disk folder/file names are kept as-is through the VibeCheck.lol rebrand
+# on purpose: renaming them would orphan every game a user has already captured.
+# These paths are internal and effectively invisible to users.
 DATA_DIR = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "LeagueOfKiffance"
 DB_PATH = DATA_DIR / "kiffance.sqlite3"
 LOG_PATH = DATA_DIR / "kiffance.log"

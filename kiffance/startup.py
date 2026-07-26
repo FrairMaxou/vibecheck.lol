@@ -17,7 +17,7 @@ except ImportError:  # non-Windows: the whole feature is a no-op
 log = logging.getLogger(__name__)
 
 _RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
-_VALUE_NAME = "League of Kiffance"
+_VALUE_NAME = "VibeCheck.lol"
 
 
 def _launch_command() -> str:

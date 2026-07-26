@@ -1,16 +1,16 @@
-/* League of Kiffance dashboard.
+/* VibeCheck.lol dashboard.
    All filtering/aggregation is client-side: the dataset is small (one row per
    game) and this keeps the filter bar + explorer instant (PRD F13b/F13c). */
 "use strict";
 
 const MIN_N = 5; // PRD F21: below this, a group is "not enough data yet"
-const EMOJI = { 1: "🚽", 2: "🤨", 3: "🧍‍♂️", 4: "👨‍🍳", 5: "👑" };
+const EMOJI = { 1: "😨", 2: "🤨", 3: "😐", 4: "😎", 5: "👑" };
 const GRADES = {
-  1: "Absolute Skibidi",
+  1: "FF at 15",
   2: "Who Let Them Cook?",
   3: "Meh",
-  4: "Let Him Cook!",
-  5: "Maximum Rizz",
+  4: "We Are So Back",
+  5: "Gigachad",
 };
 /* Chart mark colors — validated (dataviz six checks) against surface #1e2328:
    lightness band ok, chroma ok, CVD dE 19.7, normal dE 21.8, contrast 4.65:1.
@@ -41,11 +41,14 @@ const state = {
 
 /* ---------------- data ---------------- */
 
+async function fetchJSON(path) {
+  const r = await fetch(path);
+  if (!r.ok) throw new Error(`${path} → ${r.status}`);
+  return r.json();
+}
+
 async function loadData() {
-  const [games, tags] = await Promise.all([
-    fetch("/api/games").then((r) => r.json()),
-    fetch("/api/tags").then((r) => r.json()),
-  ]);
+  const [games, tags] = await Promise.all([fetchJSON("/api/games"), fetchJSON("/api/tags")]);
   ALL = games.games.map(enrich);
   ALL_TAGS = tags.tags;
 }
@@ -152,7 +155,7 @@ function funBarChart(id, rows, { horizontal = false, fixedOrder = null } = {}) {
         label: (c) => {
           const r = rows[c.dataIndex];
           const tag = r.n < MIN_N ? " · not enough data yet" : "";
-          return ` avg fun ${r.avgFun.toFixed(2)} ${EMOJI[Math.round(r.avgFun)]} · ${r.n} rated game${r.n > 1 ? "s" : ""}${tag}`;
+          return ` avg vibe ${r.avgFun.toFixed(2)} ${EMOJI[Math.round(r.avgFun)]} · ${r.n} rated game${r.n > 1 ? "s" : ""}${tag}`;
         },
       } } },
     },
@@ -175,13 +178,13 @@ function funScatterChart(id, rows) {
       maintainAspectRatio: false,
       scales: {
         x: { min: 0, max: 100, title: { display: true, text: "winrate %" } },
-        y: { min: 1, max: 5, title: { display: true, text: "avg fun" }, ticks: { callback: (v) => EMOJI[v] || v } },
+        y: { min: 1, max: 5, title: { display: true, text: "avg vibe" }, ticks: { callback: (v) => EMOJI[v] || v } },
       },
       plugins: { tooltip: { callbacks: {
         label: (c) => {
           const r = c.raw.r;
           const tag = r.n < MIN_N ? " · not enough data yet" : "";
-          return ` ${r.key}: fun ${r.avgFun.toFixed(2)}, winrate ${r.winrate.toFixed(0)}% (${r.n} rated)${tag}`;
+          return ` ${r.key}: vibe ${r.avgFun.toFixed(2)}, winrate ${r.winrate.toFixed(0)}% (${r.n} rated)${tag}`;
         },
       } } },
     },
@@ -194,7 +197,7 @@ function renderHeader(games) {
   const rated = games.filter((g) => g.rated);
   document.getElementById("header-stats").innerHTML =
     `<b>${games.length}</b> games · <b>${rated.length}</b> rated` +
-    (rated.length ? ` · avg fun <b>${(rated.reduce((s, g) => s + g.fun_score, 0) / rated.length).toFixed(2)}</b>` : "");
+    (rated.length ? ` · avg vibe <b>${(rated.reduce((s, g) => s + g.fun_score, 0) / rated.length).toFixed(2)}</b>` : "");
   const banner = document.getElementById("low-data-banner");
   const totalRated = ALL.filter((g) => g.rated).length;
   if (totalRated < MIN_N) {
@@ -212,9 +215,9 @@ function renderOverview(games) {
   const facts = [];
   if (rated.length) {
     const avg = rated.reduce((s, g) => s + g.fun_score, 0) / rated.length;
-    facts.push(card("Kiff-o-meter", `${avg.toFixed(2)} <span class="emoji">${EMOJI[Math.round(avg)]}</span>`, `${GRADES[Math.round(avg)]} · ${rated.length} rated games`, true));
+    facts.push(card("Vibe-o-meter", `${avg.toFixed(2)} <span class="emoji">${EMOJI[Math.round(avg)]}</span>`, `${GRADES[Math.round(avg)]} · ${rated.length} rated games`, true));
   } else {
-    facts.push(card("Kiff-o-meter", "—", "no rated games in this filter (rookie numbers)"));
+    facts.push(card("Vibe-o-meter", "—", "no rated games in this filter (rookie numbers)"));
   }
   const champs = aggregate(games, (g) => g.champion).filter((r) => r.avgFun != null);
   const bigChamps = champs.filter((r) => r.n >= MIN_N).sort((a, b) => b.avgFun - a.avgFun);
@@ -230,10 +233,10 @@ function renderOverview(games) {
   facts.push(withP.length >= MIN_N && solo.length >= MIN_N
     ? card("Squad buff",
         `${(withP.reduce((s, g) => s + g.fun_score, 0) / withP.length).toFixed(2)} vs ${(solo.reduce((s, g) => s + g.fun_score, 0) / solo.length).toFixed(2)}`,
-        `with the squad vs. solo queue suffering (${withP.length}/${solo.length} games)`, true)
+        `with the squad vs. solo queue despair (${withP.length}/${solo.length} games)`, true)
     : card("Squad buff", "…", "not enough data yet (play more with & without the squad)"));
   const cov = games.length ? Math.round((100 * rated.length) / games.filter((g) => !g.is_remake).length) : 0;
-  facts.push(card("Homework done", `${cov}%`, "of games rated — aim for 90%, don't leave games on read"));
+  facts.push(card("No games left on read", `${cov}%`, "of games rated — aim for 90%, don't leave games on read"));
   document.getElementById("fun-facts").innerHTML = facts.join("");
 
   // trend: rolling average (window 5) over rated games in chronological order
@@ -293,11 +296,63 @@ function renderSquad(games) {
         label: (c) => {
           const r = data[c.dataIndex];
           const tag = r.n < MIN_N ? " · not enough data yet" : "";
-          return ` avg fun ${r.avgFun.toFixed(2)} · ${r.n} rated games${tag}`;
+          return ` avg vibe ${r.avgFun.toFixed(2)} · ${r.n} rated games${tag}`;
         },
       } } },
     },
   });
+  renderCommunityService(games);
+}
+
+/* Community Service (Charity Work): the karma you earn playing with the friend
+   you keep losing with. We don't store teammates' KDA, so the "designated
+   deadweight" is whoever you've eaten the most defeats alongside — the Moral
+   Victory Score is how much of your vibe survived those losses. */
+function renderCommunityService(games) {
+  const host = document.getElementById("community-service");
+  const per = new Map();
+  for (const g of games) {
+    for (const t of g.premades) {
+      const a = per.get(t.puuid) || { name: t.name || "(unknown)", n: 0, losses: 0, funSum: 0, funN: 0 };
+      a.name = t.name || a.name;
+      a.n += 1;
+      if (g.win === 0) a.losses += 1;
+      if (g.rated) { a.funSum += g.fun_score; a.funN += 1; }
+      per.set(t.puuid, a);
+    }
+  }
+  const rows = [...per.values()]
+    .filter((a) => a.n >= MIN_N)
+    .map((a) => ({
+      name: a.name,
+      games: a.n,
+      losses: a.losses,
+      avgVibe: a.funN ? a.funSum / a.funN : null,
+      // Moral Victory Score: how much of a perfect 5 vibe you kept, %.
+      mvs: a.funN ? Math.round((a.funSum / a.funN / 5) * 100) : null,
+    }))
+    .sort((x, y) => y.losses - x.losses);
+
+  if (!rows.length) {
+    host.innerHTML = `<div class="empty-note">Not enough games with any one friend yet (needs ${MIN_N}). Go do some charity work. 🫡</div>`;
+    return;
+  }
+
+  const dw = rows[0]; // designated deadweight = most losses together (affectionately)
+  const insight = dw.avgVibe != null
+    ? `You've eaten <b>${dw.losses}</b> defeat${dw.losses === 1 ? "" : "s"} alongside <b>${escapeAttr(dw.name)}</b> — and still rated those games <b>${dw.avgVibe.toFixed(2)}/5</b>. Mental resilience holding at <b>${dw.mvs}%</b>. You're practically a saint. 😇`
+    : `You've eaten <b>${dw.losses}</b> defeat${dw.losses === 1 ? "" : "s"} alongside <b>${escapeAttr(dw.name)}</b> and haven't rated one. Bottling it up, are we?`;
+
+  host.innerHTML =
+    `<div class="banner">${insight}</div>` +
+    `<table><thead><tr><th>Teammate</th><th class="num">games</th><th class="num">losses</th><th class="num">your avg vibe</th><th class="num">Moral Victory Score</th></tr></thead><tbody>` +
+    rows.map((r) => `<tr>
+      <td>${escapeAttr(r.name)}</td>
+      <td class="num">${r.games}</td>
+      <td class="num">${r.losses}</td>
+      <td class="num">${r.avgVibe != null ? r.avgVibe.toFixed(2) + " " + EMOJI[Math.round(r.avgVibe)] : "—"}</td>
+      <td class="num">${r.mvs != null ? r.mvs + "%" : "—"}</td></tr>`).join("") +
+    "</tbody></table>";
 }
 
 function renderContext(games) {
@@ -341,7 +396,7 @@ function renderExplorer(games) {
     destroyChart("chart-explorer");
     wrap.classList.add("hidden");
     const sorted = rows.slice().sort((a, b) => (b.avgFun ?? 0) - (a.avgFun ?? 0));
-    tableDiv.innerHTML = `<table><thead><tr><th>${dim.replace("_", " ")}</th><th class="num">games</th><th class="num">rated</th><th class="num">avg fun</th><th class="num">winrate</th></tr></thead><tbody>` +
+    tableDiv.innerHTML = `<table><thead><tr><th>${dim.replace("_", " ")}</th><th class="num">games</th><th class="num">rated</th><th class="num">avg vibe</th><th class="num">winrate</th></tr></thead><tbody>` +
       sorted.map((r) => `<tr${r.n < MIN_N ? ' class="low-n"' : ""}><td>${r.key}</td><td class="num">${r.games}</td><td class="num">${r.n}</td><td class="num">${r.avgFun != null ? r.avgFun.toFixed(2) + " " + EMOJI[Math.round(r.avgFun)] : "—"}${r.n < MIN_N && r.n > 0 ? " ·  n<" + MIN_N : ""}</td><td class="num">${r.winrate != null ? r.winrate.toFixed(0) + "%" : "—"}</td></tr>`).join("") +
       "</tbody></table>";
   } else {
@@ -438,8 +493,8 @@ async function renderOnline() {
   // We need the player's in-game identity, which comes from the League client.
   if (!st.identity_ready) {
     body.innerHTML = `
-      <p class="squad-help">Start the League client once while Kiffance is running — that's how
-        we learn your in-game identity and your friends list. Squad Online then turns on
+      <p class="squad-help">Start the League client once while VibeCheck is running — that's how
+        we learn your in-game identity and your friends list. Squad Sync then turns on
         automatically. No account, no invite codes.</p>
       ${st.error ? `<div class="squad-err">${st.error}</div>` : ""}`;
     return;
@@ -448,13 +503,13 @@ async function renderOnline() {
   const friends = st.friend_count || 0;
   const mutual = st.mutual_count || 0;
   body.innerHTML = `
-    <p class="squad-help">Your squad is simply your League friends who also run Kiffance. Everyone
+    <p class="squad-help">Your squad is simply your League friends who also run VibeCheck. Everyone
       syncs automatically — the moment a friend installs it and has you friended back, they show up
       here. Nothing to set up.</p>
     <div class="squad-bar">
       <span>Synced as <b>${escapeAttr(st.display_name || "Summoner")}</b></span>
       <span>· ${friends} League friend${friends === 1 ? "" : "s"}</span>
-      <span>· <b>${mutual}</b> also on Kiffance</span>
+      <span>· <b>${mutual}</b> also on VibeCheck</span>
       <button class="ghost-btn" id="sb-sync">Sync now</button>
     </div>
     ${st.error ? `<div class="squad-err">${st.error}</div>` : ""}
@@ -512,7 +567,7 @@ async function renderSquadStats() {
   }));
   funBarChart("chart-squad-board", rows, { horizontal: true });
 
-  // mutual kiff: games two players both played, matched on riot_match_id
+  // mutual vibes: games two players both played, matched on riot_match_id
   const byMatch = {};
   for (const g of games) (byMatch[g.riot_match_id] ||= []).push(g);
   const pairs = {};
@@ -531,7 +586,7 @@ async function renderSquadStats() {
   }
   const list = Object.values(pairs).sort((x, y) => y.n - x.n);
   document.getElementById("squad-matrix").innerHTML = list.length
-    ? `<table><thead><tr><th>Pair</th><th class="num">shared games</th><th class="num">their kiff</th><th class="num">vs</th><th class="num">their kiff</th></tr></thead><tbody>` +
+    ? `<table><thead><tr><th>Pair</th><th class="num">shared games</th><th class="num">their vibe</th><th class="num">vs</th><th class="num">their vibe</th></tr></thead><tbody>` +
       list.map((p) => `<tr${p.n < MIN_N ? ' class="low-n"' : ""}>
         <td>${escapeAttr(names[p.a] || "?")} &amp; ${escapeAttr(names[p.b] || "?")}</td>
         <td class="num">${p.n}</td>
@@ -702,7 +757,21 @@ function renderAll() {
 }
 
 async function refresh() {
-  await loadData();
+  try {
+    await loadData();
+  } catch (e) {
+    // Graceful offline state: the tray app (our local API) isn't reachable, or
+    // a fetch failed. Show a banner and keep the last-rendered data on screen,
+    // then retry soon so it self-heals when the app comes back.
+    const b = document.getElementById("offline-banner");
+    b.textContent =
+      "⚠ Can't reach VibeCheck on this PC — is the tray app still running? Retrying…";
+    b.classList.remove("hidden");
+    clearTimeout(window.__offlineRetry);
+    window.__offlineRetry = setTimeout(refresh, 5000);
+    return;
+  }
+  document.getElementById("offline-banner").classList.add("hidden");
   buildFilters();
   renderAll();
 }

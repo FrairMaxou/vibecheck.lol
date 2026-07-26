@@ -35,6 +35,26 @@ h1 { font-size: 26px; letter-spacing: .5px; color: var(--gold); }
 }
 .hidden { display: none !important; }
 
+.banner-err {
+  background: linear-gradient(90deg, #3a2020, #1e2328);
+  border-color: #e2725b;
+  color: #f0d6d0;
+}
+
+/* ---------- legal footer (Riot compliance) ---------- */
+#legal-footer {
+  margin-top: 28px;
+  padding: 18px clamp(4px, 2vw, 16px);
+  border-top: 1px solid var(--line);
+  color: var(--ink-3);
+  font-size: 11.5px;
+  line-height: 1.5;
+  text-align: center;
+  max-width: 90ch;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 /* ---------- filters ---------- */
 .filters {
   display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end;
