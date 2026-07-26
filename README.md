@@ -46,7 +46,7 @@ tray icons there.
 - **Click the tray icon** to open your dashboard and see your stats.
 
 The app does **not** start automatically with Windows by default — flip on
-**Start with Windows** in the dashboard's Settings tab if you want it to.
+**Start with Windows** in the profile menu (top-right) if you want it to.
 
 ## What you get
 
@@ -54,21 +54,21 @@ The app does **not** start automatically with Windows by default — flip on
 |---|---|
 | **The Vibe Check** | Your average vibe, certified bangers & yikes, the squad buff, Copium Tracking |
 | **Champions** | The Champion Vibe Tier List, and Vibes vs. Win Rate — the champs you win with but hate |
-| **The Squad** | Whether your friends actually make games better, plus Community Service karma |
-| **Context** | Vibe by queue, role, game length, hour, and day |
+| **The Squad** | Whether your friends make games better, Community Service karma, and comparing vibe with friends who also run VibeCheck |
+| **Context** | Vibe by queue, role, game length, hour, and day — plus a free-form Explorer to slice it any way you like |
 | **Regret Curve** | Which game of the night your vibe falls off a cliff |
 | **Tags** | Label games ("int diff", "clutched it") and see what correlates |
-| **Explorer** | Slice vibe by enemy champion, augment, item, role, hour… |
-| **The Gang** | *(optional)* compare vibe with friends — no signup, no codes |
+| **To Rate** | Games you haven't given a verdict yet |
 
-Every stat shows its sample size, and anything under 5 games is marked
+Settings, the update check, and uninstall live in the **profile menu** at the
+top-right. Every stat shows its sample size, and anything under 5 games is marked
 "not enough data yet" instead of pretending to be meaningful.
 
 ## Playing with friends
 
 No signup, no accounts, no codes — it just works. Your squad is simply **your
 League friends who also run VibeCheck**. Once a friend installs it and you have
-each other friended in-game, you show up in each other's **The Gang** tab
+each other friended in-game, you show up in each other's **The Squad** tab
 automatically.
 
 Then you get a squad leaderboard and the **mutual vibe matrix**: when two of you
