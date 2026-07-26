@@ -265,12 +265,28 @@ class SquadService:
     def _persist_session(self) -> None:
         self.store.set_meta(SESSION_KEY, json.dumps(self.client.session))
 
-    def _ensure_identity(self) -> None:
-        """Guarantee a session + a profile linking this session to our PUUID.
+    @staticmethod
+    def _is_auth_error(exc: SupabaseError) -> bool:
+        msg = str(exc).lower()
+        return "refresh token" in msg or "jwt" in msg or "not signed in" in msg
 
-        Creates the anonymous session lazily on first use, then upserts the
-        profile once per process. Raises SupabaseError (surfaced to the UI) if
-        the backend is missing or we don't yet know who the player is.
+    def _upsert_profile(self, puuid: str) -> None:
+        name = self.store.get_meta(MY_NAME_KEY) or "Summoner"
+        self.client.upsert(
+            "profiles",
+            [{"id": self.client.user_id, "puuid": puuid, "display_name": name}],
+            on_conflict="id",
+        )
+
+    def _ensure_identity(self) -> None:
+        """Guarantee a valid session + a profile linking it to our PUUID.
+
+        Creates the anonymous session lazily, then upserts the profile once per
+        process. If the stored session is unrecoverable (e.g. its refresh token
+        was already used/rotated), it is discarded and a fresh anonymous session
+        is created — otherwise sync would stay broken until the DB is wiped.
+        Raises SupabaseError (surfaced to the UI) if the backend is missing or
+        we don't yet know who the player is.
         """
         if not self.client:
             raise SupabaseError("Squad Online isn't set up on this build.")
@@ -281,16 +297,21 @@ class SquadService:
             )
         if not self.client.logged_in:
             self.client.sign_in_anonymous()
-            self._persist_session()
             self._profile_synced = False
         if not self._profile_synced:
-            name = self.store.get_meta(MY_NAME_KEY) or "Summoner"
-            self.client.upsert(
-                "profiles",
-                [{"id": self.client.user_id, "puuid": puuid, "display_name": name}],
-                on_conflict="id",
-            )
+            try:
+                self._upsert_profile(puuid)
+            except SupabaseError as exc:
+                if not self._is_auth_error(exc):
+                    raise
+                log.info("Anonymous session invalid (%s); re-authenticating", exc)
+                self.client.sign_out()
+                self.client.sign_in_anonymous()
+                self._upsert_profile(puuid)
             self._profile_synced = True
+        # Persist now so any token the refresh flow rotated during the upsert is
+        # saved — otherwise the next launch reloads a stale (already-used) token.
+        self._persist_session()
 
     def status(self) -> dict:
         """Lightweight state for the Squad Online tab."""
@@ -357,6 +378,7 @@ class SquadService:
                 len(to_add),
                 len(existing - current),
             )
+            self._persist_session()
 
     # -- sync --------------------------------------------------------
 
@@ -389,6 +411,7 @@ class SquadService:
             ]
             self.client.upsert("shared_games", rows, on_conflict="puuid,riot_match_id")
             log.info("Synced %d rated games to the squad backend", len(rows))
+            self._persist_session()
             return len(rows)
 
     def sync_all(self, friend_puuids: list) -> None:
@@ -411,6 +434,7 @@ class SquadService:
             "shared_games",
             {"select": "puuid,riot_match_id,played_at,queue_type,champion,win,fun_score"},
         )
+        self._persist_session()
         return {
             "me": self.my_puuid,
             "players": {p["puuid"]: p.get("display_name") or "Summoner" for p in profiles},
