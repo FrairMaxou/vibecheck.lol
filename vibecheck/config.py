@@ -9,7 +9,7 @@ TAGLINE = "Winrate is temporary. The vibes are forever."
 # unpacks them to a temp dir and __file__ no longer points at them, so every
 # lookup of bundled data must go through this.
 FROZEN = getattr(sys, "frozen", False)
-PACKAGE_DIR = Path(sys._MEIPASS) / "kiffance" if FROZEN else Path(__file__).resolve().parent
+PACKAGE_DIR = Path(sys._MEIPASS) / "vibecheck" if FROZEN else Path(__file__).resolve().parent
 WEB_DIR = PACKAGE_DIR / "web"
 ASSETS_DIR = PACKAGE_DIR / "assets"
 
@@ -58,7 +58,7 @@ QUEUE_TYPE_TO_ID = {
 
 DASHBOARD_HOST = "127.0.0.1"  # PRD §6b N4: localhost only, never 0.0.0.0
 # Overridable so a port clash (or a second instance) doesn't need a code change.
-DASHBOARD_PORT = int(os.environ.get("KIFFANCE_PORT", "8577"))
+DASHBOARD_PORT = int(os.environ.get("VIBECHECK_PORT", "8577"))
 
 # Default quick-tags seeded on first run (F9). User-editable afterwards.
 DEFAULT_TAGS = [

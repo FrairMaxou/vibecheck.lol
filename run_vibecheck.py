@@ -1,9 +1,9 @@
 """PyInstaller entry point.
 
-A frozen build is a single executable, so `python -m kiffance.window` isn't
+A frozen build is a single executable, so `python -m vibecheck.window` isn't
 available to open the dashboard window — the exe has to relaunch *itself* with
-a flag instead. This script is that dispatcher; `kiffance/__main__.py` still
-handles the plain `python -m kiffance` path for development.
+a flag instead. This script is that dispatcher; `vibecheck/__main__.py` still
+handles the plain `python -m vibecheck` path for development.
 """
 
 import multiprocessing
@@ -14,15 +14,15 @@ WINDOW_FLAG = "--window"
 
 def main() -> None:
     if WINDOW_FLAG in sys.argv:
-        from kiffance.config import DASHBOARD_HOST, DASHBOARD_PORT
-        from kiffance.window import open_window
+        from vibecheck.config import DASHBOARD_HOST, DASHBOARD_PORT
+        from vibecheck.window import open_window
 
         args = [a for a in sys.argv[1:] if a != WINDOW_FLAG]
         url = args[0] if args else f"http://{DASHBOARD_HOST}:{DASHBOARD_PORT}"
         open_window(url)
         return
 
-    from kiffance.app import main as app_main
+    from vibecheck.app import main as app_main
 
     app_main()
 

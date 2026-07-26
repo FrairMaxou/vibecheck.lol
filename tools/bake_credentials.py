@@ -2,7 +2,7 @@
 
 Reads the Supabase config already saved on this machine
 (%LOCALAPPDATA%\\LeagueOfKiffance\\supabase.json) and writes
-kiffance/_bundled.py, which PyInstaller then includes so shipped builds point
+vibecheck/_bundled.py, which PyInstaller then includes so shipped builds point
 at the shared project with no setup screen for friends.
 
 `_bundled.py` is gitignored — the publishable key never enters the repo. CI
@@ -18,9 +18,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from kiffance.sync import CONFIG_PATH
+from vibecheck.sync import CONFIG_PATH
 
-BUNDLED = Path(__file__).resolve().parent.parent / "kiffance" / "_bundled.py"
+BUNDLED = Path(__file__).resolve().parent.parent / "vibecheck" / "_bundled.py"
 
 
 def main() -> None:

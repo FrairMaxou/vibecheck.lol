@@ -1,5 +1,5 @@
 <div align="center">
-<img src="kiffance/assets/logo.png" width="120" alt="VibeCheck.lol logo">
+<img src="vibecheck/assets/logo.png" width="120" alt="VibeCheck.lol logo">
 
 # VibeCheck.lol
 
@@ -92,7 +92,7 @@ probably crashed; see the log at
 If it was closed, it catches up the next time it starts — as long as the game
 still appears in your client's match history.
 
-**"Port already in use"?** Another program has port 8577. Set `KIFFANCE_PORT`
+**"Port already in use"?** Another program has port 8577. Set `VIBECHECK_PORT`
 to a free port and relaunch.
 
 **Want to start fresh?** Quit from the tray, then delete (or move)
@@ -105,9 +105,9 @@ to a free port and relaunch.
 ```powershell
 py -m venv .venv
 .venv\Scripts\pip install -r requirements.txt -r requirements-dev.txt
-.venv\Scripts\python -m kiffance              # run from source
+.venv\Scripts\python -m vibecheck              # run from source
 .venv\Scripts\python tests\smoke_test.py      # tests (no League needed)
-.venv\Scripts\pyinstaller kiffance.spec --noconfirm   # build the exe
+.venv\Scripts\pyinstaller vibecheck.spec --noconfirm   # build the exe
 ```
 
 Design and decisions: [PRD.md](PRD.md) · Workflow: [CONTRIBUTING.md](CONTRIBUTING.md) ·

@@ -23,13 +23,13 @@ _VALUE_NAME = "VibeCheck.lol"
 def _launch_command() -> str:
     """The command Windows should run at login.
 
-    Frozen build: the exe itself. Source checkout: pythonw -m kiffance so it
+    Frozen build: the exe itself. Source checkout: pythonw -m vibecheck so it
     starts silently (no console window).
     """
     if getattr(sys, "frozen", False):
         return f'"{sys.executable}"'
     pythonw = sys.executable.replace("python.exe", "pythonw.exe")
-    return f'"{pythonw}" -m kiffance'
+    return f'"{pythonw}" -m vibecheck'
 
 
 def is_enabled() -> bool:

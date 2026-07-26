@@ -16,8 +16,8 @@ import uvicorn
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from kiffance.dashboard import create_app
-from kiffance.store import GameStore
+from vibecheck.dashboard import create_app
+from vibecheck.store import GameStore
 
 random.seed(42)
 
@@ -37,7 +37,7 @@ QUEUES = [(450, "ARAM"), (420, "Ranked Solo/Duo"), (400, "Normal Draft"), (1700,
 
 
 def main():
-    tmp = Path(tempfile.mkdtemp(prefix="kiffance-dev-"))
+    tmp = Path(tempfile.mkdtemp(prefix="vibecheck-dev-"))
     store = GameStore(tmp / "dev.sqlite3")
     when = datetime.now() - timedelta(days=30)
     game_id = 100000

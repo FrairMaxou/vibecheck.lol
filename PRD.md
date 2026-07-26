@@ -45,7 +45,7 @@ Stats sites (op.gg, u.gg, League client) tell you how well you played. None of t
 1. As a player, when my game ends, I want a small prompt asking if I had fun, so I can answer in one click while the memory is fresh.
 2. As a player, I want the tool to record my champion, role, result, KDA, queue, duration, and lobby teammates automatically, so I never fill in anything.
 3. As a player, I want to see which champions I actually enjoy, so I can pick for fun and not just winrate.
-4. As a player, I want to see how playing with specific friends affects my fun, so I know who my "kiffance enablers" are.
+4. As a player, I want to see how playing with specific friends affects my fun, so I know who my "vibecheck enablers" are.
 5. As a player, I want to see fun trends by time of day, day of week, session length, and win/loss, so I can spot when I should just stop playing.
 6. As a player, if I miss or dismiss the prompt (e.g. instant-queued into the next game), I want to rate pending games later from the dashboard.
 7. As a player, I want the tool to start with Windows and sit quietly in the system tray, so I never think about launching it.
@@ -86,9 +86,9 @@ Stats sites (op.gg, u.gg, League client) tell you how well you played. None of t
 | F13b | **Global filter bar on every view:** date range, queue/mode, champion, role, teammate, win/loss, session. Filters combine, apply to all charts and fun-facts simultaneously, and persist while navigating. | Must |
 | F13d | **Auto-surfaced insights (planned).** Explorer (F13c) makes the user do the digging — feedback 2026-07-20 is that it feels buried and manual. An insight engine should scan every dimension (champion, enemy faced, augment, item, tag, teammate, hour, session index) for notable fun differences above the sample-size floor and present them as ranked plain-language cards on the main tab. Explorer remains the power-user drill-down, not the primary path to insight. | Must |
 | F13c | **Free exploration:** an "explorer" view where the user picks the grouping dimension themselves (fun by champion / teammate / queue / role / day / hour / game-number-in-session / win-loss) and the display style (bar, line, scatter, table) — the canned views (F14–F18) are curated shortcuts, not the only way in. | Must |
-| F14 | **Champion kiffance:** avg fun per champion (min. games threshold), fun vs. winrate scatter ("fun but losing" / "winning but miserable" quadrants). | Must |
-| F15 | **Squad kiffance:** avg fun when playing with each recurring premade teammate vs. solo. | Must |
-| F16 | **Context kiffance:** fun by role, queue type, win/loss, game duration bucket, time of day, day of week. | Must |
+| F14 | **Champion vibecheck:** avg fun per champion (min. games threshold), fun vs. winrate scatter ("fun but losing" / "winning but miserable" quadrants). | Must |
+| F15 | **Squad vibecheck:** avg fun when playing with each recurring premade teammate vs. solo. | Must |
+| F16 | **Context vibecheck:** fun by role, queue type, win/loss, game duration bucket, time of day, day of week. | Must |
 | F17 | **Session analysis:** fun by game number within a session (a session = games separated by < 1h) — the "when should I stop?" chart. | Should |
 | F18 | **Trend line:** rolling average fun over time. | Should |
 | F19 | Headline "fun facts" cards in plain language ("Average fun with Alex: 4.1 ⭐ — solo: 2.9 ⭐"), regenerated live as data comes in. | Should |
@@ -100,7 +100,7 @@ Stats sites (op.gg, u.gg, League client) tell you how well you played. None of t
 | ID | Requirement | Priority |
 |----|-------------|----------|
 | F22 | Runs as a Windows system-tray app; tray menu: open dashboard, pause prompts, quit. | Must |
-| F23 | Manual launch by default, with a settings checkbox to enable "start with Windows" for users who want set-and-forget. *(Done 2026-07-25: first-run Yes/No prompt + a "Start with Windows" checkbox in the tray menu; per-user HKCU Run key via kiffance/startup.py.)* | Should |
+| F23 | Manual launch by default, with a settings checkbox to enable "start with Windows" for users who want set-and-forget. *(Done 2026-07-25: first-run Yes/No prompt + a "Start with Windows" checkbox in the tray menu; per-user HKCU Run key via vibecheck/startup.py.)* | Should |
 | F24 | Works whether the tool is started before or after the League client. Reconnects automatically if the client restarts. | Must |
 
 ---
@@ -209,7 +209,7 @@ Net risk assessment: passive post-game LCU reads are what the entire companion-a
 Tray app, LCU connection, game-end detection, data capture to SQLite, basic rating popup (1–5, no tags). **Exit criterion:** play 3 games, all 3 recorded and rated with zero manual steps besides the rating click.
 
 ### Phase 2 — Insights v1
-Dashboard with the global filter bar and explorer view (F13b/F13c), champion kiffance, squad kiffance, context breakdowns (F13–F16, F21), pending-ratings page (F11).
+Dashboard with the global filter bar and explorer view (F13b/F13c), champion vibecheck, squad vibecheck, context breakdowns (F13–F16, F21), pending-ratings page (F11).
 
 ### Phase 3 — Delight
 Tags, fun-facts cards, session analysis, trends, remake handling, missed-game recovery (F5, F6, F9, F17–F19). *(Tags/notes done 2026-07-20: dashboard-based — the popup stays one-click; tag/note any game, default tag set seeded and user-editable, "Tags" tab with per-tag fun breakdown.)*
@@ -310,7 +310,7 @@ RLS helpers `my_puuid()` and `is_mutual(other)` (both `security definer`) drive 
 | F30 | Privacy: only non-skipped, non-remake rated games sync; visibility is strictly mutual-friend-scoped; losing the friend link (either side) revokes access on the next sync. |
 
 ### Distribution model (revised 2026-07-26)
-**One Supabase project, owned by the maintainer, shared by all players.** End users never create an account, never run SQL, never enter a key, and never share a code — a friend's flow is download → run → play. Squad Online populates itself from mutual friends. Released builds bake the project URL + **publishable** key into `kiffance/_bundled.py` at build time from CI secrets (gitignored, never in the repo). Credential resolution: local config file (self-host/dev) → bundled defaults (releases) → env vars. The key-entry form only appears when none are present, i.e. a source checkout or a self-hoster.
+**One Supabase project, owned by the maintainer, shared by all players.** End users never create an account, never run SQL, never enter a key, and never share a code — a friend's flow is download → run → play. Squad Online populates itself from mutual friends. Released builds bake the project URL + **publishable** key into `vibecheck/_bundled.py` at build time from CI secrets (gitignored, never in the repo). Credential resolution: local config file (self-host/dev) → bundled defaults (releases) → env vars. The key-entry form only appears when none are present, i.e. a source checkout or a self-hoster.
 
 **Why shipping the publishable key is safe:** it is designed to be embedded in clients and is visible in every Supabase web app's JavaScript. Data is protected by the RLS policies in `supabase/schema.sql`, not by key secrecy — every table denies by default and exposes rows only to their owner or squad-mates. The **service_role/secret key is never shipped, committed, or used by this app**. The publishable key is kept out of the repo purely to avoid bots discovering the endpoint and burning free-tier quota. Full procedure and abuse mitigations: [docs/RELEASE.md](docs/RELEASE.md).
 
@@ -337,7 +337,7 @@ Planned analysis dimensions to extract from the retained raw payloads:
 
 Target look & feel: a polished native desktop app like Blitz or u.gg, not "a browser tab." Our Phase 2 choice (web dashboard served on localhost) was made partly for this — the frontend is already decoupled HTML/CSS/JS, so shelling it into a native window is additive, not a rewrite.
 
-- **Native window — DONE 2026-07-20 (`pywebview` + Edge WebView2).** "Open dashboard" now launches a real app window instead of a browser tab. Implementation note: the window runs as its **own process** (`python -m kiffance.window`) because pywebview must own its process's main thread and the tray app's main thread belongs to Tk (the popup); it also means the window costs nothing while closed. Falls back to the default browser if a webview can't be created. **Footprint caveat:** §6b's <100 MB target applies to the resident tray process; the window process is Chromium-backed (~95 MB while open) and transient by design. *Still to polish: frameless custom chrome + window icon.* Electron (what Blitz uses) remains the higher-ceiling alternative but adds a full JS/Node stack; adopt only if pywebview proves limiting.
+- **Native window — DONE 2026-07-20 (`pywebview` + Edge WebView2).** "Open dashboard" now launches a real app window instead of a browser tab. Implementation note: the window runs as its **own process** (`python -m vibecheck.window`) because pywebview must own its process's main thread and the tray app's main thread belongs to Tk (the popup); it also means the window costs nothing while closed. Falls back to the default browser if a webview can't be created. **Footprint caveat:** §6b's <100 MB target applies to the resident tray process; the window process is Chromium-backed (~95 MB while open) and transient by design. *Still to polish: frameless custom chrome + window icon.* Electron (what Blitz uses) remains the higher-ceiling alternative but adds a full JS/Node stack; adopt only if pywebview proves limiting.
 - **Must be a download, not a web app** — the LCU is local to each player's PC, so no website can drive capture. Online = a **landing/download page** + the social backend (§12); the capture app itself is always a local download (this is exactly the Blitz model, and matches the Phase 4 single-exe release).
 - **Login is optional** — the summoner name + PUUID come from the local LCU, so a player needs **no account** to use the app and see their own fun stats. Accounts (§12) unlock only the shared/social features. Never gate local use behind login.
 - Fits the hard constraints: still LCU-only, still lightweight, still single local process (§6a/§6b).

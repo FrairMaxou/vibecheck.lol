@@ -22,18 +22,18 @@ self-hoster pointing at their own project. Shipped builds never show it.
 
 ## Baking in the credentials
 
-The release build generates `kiffance/_bundled.py` (gitignored):
+The release build generates `vibecheck/_bundled.py` (gitignored):
 
 ```python
 SUPABASE_URL = "https://<project>.supabase.co"
 SUPABASE_KEY = "sb_publishable_..."
 ```
 
-Credential resolution order (`kiffance/sync.py: load_config`):
+Credential resolution order (`vibecheck/sync.py: load_config`):
 
 1. `%LOCALAPPDATA%\LeagueOfKiffance\supabase.json` — self-host / dev override
-2. `kiffance/_bundled.py` — what shipped builds use
-3. `KIFFANCE_SUPABASE_URL` / `KIFFANCE_SUPABASE_KEY` env vars — CI / scripts
+2. `vibecheck/_bundled.py` — what shipped builds use
+3. `VIBECHECK_SUPABASE_URL` / `VIBECHECK_SUPABASE_KEY` env vars — CI / scripts
 
 In CI, store the two values as GitHub Actions **secrets** and write the module
 in the build job:
@@ -41,8 +41,8 @@ in the build job:
 ```yaml
 - name: Bake backend credentials
   run: |
-    echo "SUPABASE_URL = '${{ secrets.SUPABASE_URL }}'" > kiffance/_bundled.py
-    echo "SUPABASE_KEY = '${{ secrets.SUPABASE_PUBLISHABLE_KEY }}'" >> kiffance/_bundled.py
+    echo "SUPABASE_URL = '${{ secrets.SUPABASE_URL }}'" > vibecheck/_bundled.py
+    echo "SUPABASE_KEY = '${{ secrets.SUPABASE_PUBLISHABLE_KEY }}'" >> vibecheck/_bundled.py
 ```
 
 ## Which key — and why this is safe

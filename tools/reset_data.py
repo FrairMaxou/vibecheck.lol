@@ -14,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from kiffance.config import DATA_DIR, DB_PATH, LOG_PATH
+from vibecheck.config import DATA_DIR, DB_PATH, LOG_PATH
 
 
 def main():
@@ -35,7 +35,7 @@ def main():
             print("Quit the app first (tray icon -> Quit), then run this again.")
             return
 
-    print("\nDone. Start the app again (start-kiffance.bat) for a fresh database.")
+    print("\nDone. Start the app again (start-vibecheck.bat) for a fresh database.")
     print(f"Old data is safe in: {backup_dir}")
 
 

@@ -16,14 +16,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from kiffance import capture, lcu
-from kiffance.app import (
+from vibecheck import capture, lcu
+from vibecheck.app import (
     ASSETS_AUGMENTS_KEY,
     ASSETS_CHAMPS_KEY,
     ASSETS_ITEMS_KEY,
     MY_PUUID_KEY,
 )
-from kiffance.store import GameStore
+from vibecheck.store import GameStore
 
 
 def _int_keys(mapping: dict) -> dict:

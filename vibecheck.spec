@@ -1,20 +1,20 @@
 # PyInstaller spec for VibeCheck.lol.
 #
-# Build:  .venv\Scripts\pyinstaller kiffance.spec --noconfirm
+# Build:  .venv\Scripts\pyinstaller vibecheck.spec --noconfirm
 # Output: dist/VibeCheck.exe  (single file, no console)
 #
-# The bundled data keeps its `kiffance/...` prefix so config.PACKAGE_DIR
+# The bundled data keeps its `vibecheck/...` prefix so config.PACKAGE_DIR
 # resolves identically whether running from source or frozen.
 
 block_cipher = None
 
 a = Analysis(
-    ["run_kiffance.py"],
+    ["run_vibecheck.py"],
     pathex=[],
     binaries=[],
     datas=[
-        ("kiffance/web", "kiffance/web"),
-        ("kiffance/assets", "kiffance/assets"),
+        ("vibecheck/web", "vibecheck/web"),
+        ("vibecheck/assets", "vibecheck/assets"),
     ],
     hiddenimports=[
         # uvicorn resolves these by string at runtime, so PyInstaller's static
@@ -59,5 +59,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon="kiffance/assets/logo.ico",
+    icon="vibecheck/assets/logo.ico",
 )

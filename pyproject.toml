@@ -1,5 +1,5 @@
 [project]
-name = "league-of-kiffance"
+name = "league-of-vibecheck"
 version = "0.1.0"
 description = "Tracks whether you're actually having fun playing League of Legends."
 requires-python = ">=3.10"
@@ -13,7 +13,7 @@ target-version = "py310"
 select = ["E", "F", "W", "I", "B", "UP", "S"]
 ignore = [
     # S501: TLS verification is intentionally disabled for the LCU's
-    # self-signed cert on 127.0.0.1 (see kiffance/lcu.py) — local-only traffic.
+    # self-signed cert on 127.0.0.1 (see vibecheck/lcu.py) — local-only traffic.
     "S501",
 ]
 

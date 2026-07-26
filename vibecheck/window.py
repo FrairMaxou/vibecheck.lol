@@ -9,7 +9,7 @@ Uses the OS Edge WebView2 runtime — no bundled browser. Falls back to the
 default browser if a webview can't be created, so "Open dashboard" always
 does something.
 
-Run: python -m kiffance.window [url]
+Run: python -m vibecheck.window [url]
 """
 
 import logging

@@ -10,8 +10,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from kiffance import capture
-from kiffance.store import GameStore
+from vibecheck import capture
+from vibecheck.store import GameStore
 
 MY_PUUID = "me-1234"
 

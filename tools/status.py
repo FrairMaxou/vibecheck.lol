@@ -9,8 +9,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from kiffance.config import DB_PATH, LOG_PATH
-from kiffance.store import GameStore
+from vibecheck.config import DB_PATH, LOG_PATH
+from vibecheck.store import GameStore
 
 EMOJI = {
     1: "\U0001f6bd",

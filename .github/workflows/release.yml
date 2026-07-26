@@ -32,16 +32,16 @@ jobs:
         if: ${{ secrets.SUPABASE_URL != '' }}
         shell: pwsh
         run: |
-          "SUPABASE_URL = '${{ secrets.SUPABASE_URL }}'"           | Out-File kiffance/_bundled.py -Encoding utf8
-          "SUPABASE_KEY = '${{ secrets.SUPABASE_PUBLISHABLE_KEY }}'" | Out-File kiffance/_bundled.py -Encoding utf8 -Append
+          "SUPABASE_URL = '${{ secrets.SUPABASE_URL }}'"           | Out-File vibecheck/_bundled.py -Encoding utf8
+          "SUPABASE_KEY = '${{ secrets.SUPABASE_PUBLISHABLE_KEY }}'" | Out-File vibecheck/_bundled.py -Encoding utf8 -Append
 
       - name: Build exe
-        run: pyinstaller kiffance.spec --noconfirm
+        run: pyinstaller vibecheck.spec --noconfirm
 
       - name: Smoke-test the exe
         shell: pwsh
         run: |
-          $env:KIFFANCE_PORT = "8590"
+          $env:VIBECHECK_PORT = "8590"
           $p = Start-Process dist/VibeCheck.exe -PassThru
           Start-Sleep -Seconds 20
           if (-not (Get-Process -Id $p.Id -ErrorAction SilentlyContinue)) {

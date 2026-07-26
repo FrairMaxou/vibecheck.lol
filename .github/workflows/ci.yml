@@ -20,7 +20,7 @@ jobs:
       - name: Format check
         run: ruff format --check .
       - name: Compile check
-        run: python -m compileall -q kiffance
+        run: python -m compileall -q vibecheck
       - name: Smoke test
         run: python tests/smoke_test.py
       - name: Dependency vulnerability audit

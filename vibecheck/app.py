@@ -144,11 +144,11 @@ class App:
             log.info("Dashboard window already open")
             return
         # Frozen builds have no `python -m`, so the exe relaunches itself with a
-        # flag that run_kiffance.py routes to the window (see that module).
+        # flag that run_vibecheck.py routes to the window (see that module).
         argv = (
             [sys.executable, "--window", self._dashboard_url]
             if FROZEN
-            else [sys.executable, "-m", "kiffance.window", self._dashboard_url]
+            else [sys.executable, "-m", "vibecheck.window", self._dashboard_url]
         )
         try:
             self._window_proc = subprocess.Popen(argv)  # noqa: S603 - fixed argv, no shell

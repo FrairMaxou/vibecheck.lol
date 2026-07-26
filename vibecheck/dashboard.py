@@ -1,6 +1,6 @@
 """The localhost dashboard server (PRD F13, §6b N4).
 
-FastAPI + a static single-page frontend (kiffance/web). Binds 127.0.0.1 only.
+FastAPI + a static single-page frontend (vibecheck/web). Binds 127.0.0.1 only.
 All data access goes through the GameStore; the frontend does filtering and
 aggregation client-side, which is what makes the filter bar and explorer
 (F13b/F13c) instant.

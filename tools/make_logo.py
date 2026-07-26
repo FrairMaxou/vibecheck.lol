@@ -17,7 +17,7 @@ from PIL import Image, ImageDraw
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-ASSETS = Path(__file__).resolve().parent.parent / "kiffance" / "assets"
+ASSETS = Path(__file__).resolve().parent.parent / "vibecheck" / "assets"
 
 GOLD = (200, 170, 110, 255)  # #c8aa6e
 GOLD_DARK = (120, 90, 40, 255)  # #785a28
