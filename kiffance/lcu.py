@@ -109,6 +109,16 @@ class LcuClient:
         lobby = self.get("/lol-lobby/v2/lobby/members")
         return lobby if isinstance(lobby, list) else []
 
+    def friends(self) -> list:
+        """The logged-in summoner's League friends list.
+
+        Each entry carries a puuid + gameName. This is what powers zero-config
+        squads (§12): your squad is simply the friends who also run Kiffance and
+        list you back (mutual), so no invite codes or accounts are needed.
+        """
+        data = self.get("/lol-chat/v1/friends")
+        return data if isinstance(data, list) else []
+
     def champion_names(self) -> dict:
         """championId -> name, from the client's static asset data."""
         summary = self.get("/lol-game-data/assets/v1/champion-summary.json")

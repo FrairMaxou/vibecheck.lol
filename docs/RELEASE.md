@@ -3,16 +3,22 @@
 ## The backend model (PRD §12)
 
 There is **one** Supabase project, owned by the maintainer, shared by everyone.
-Players never create a Supabase account, never run SQL, and never enter a key.
-A friend's whole experience is:
+Players never create an account, never run SQL, never enter a key, and never
+share a code. A friend's whole experience is:
 
 1. download the app
-2. create an account (e-mail + password) in the Squad Online tab
-3. join a squad with an invite code
+2. run it and play
 
-The key-entry form only appears when the app has **no** bundled credentials —
-i.e. a source checkout or a self-hoster pointing at their own project. Shipped
-builds never show it.
+Squad Online populates itself: the app derives identity from the in-game PUUID,
+signs in anonymously behind the scenes, and forms the squad from **mutual League
+friends** who also run Kiffance (see PRD §12). The key-entry form only appears
+when the app has **no** bundled credentials — i.e. a source checkout or a
+self-hoster pointing at their own project. Shipped builds never show it.
+
+> **Project setup (maintainer, once):** in the Supabase dashboard, enable
+> **Authentication → Sign In / Providers → Allow anonymous sign-ins**, and run
+> `supabase/schema.sql`. Without anonymous sign-ins, Squad Online can't create
+> the silent session and will surface a 422 in the tab.
 
 ## Baking in the credentials
 
@@ -61,17 +67,21 @@ Because anyone with the key can reach the project's API:
 
 - **Keep RLS on for every table.** Re-run `schema.sql` after any schema change;
   it is idempotent and safe to re-run.
-- **Leave e-mail confirmation enabled** in production so signups aren't trivially
-  automated (it can be off while testing with friends).
+- **Anonymous sign-ins are enabled by design** (they're what make onboarding
+  zero-config). RLS is the only guard, so every table must deny by default and
+  expose rows solely to the owner PUUID and its mutual friends.
 - **Watch usage** in the Supabase dashboard; rotate the publishable key if it is
   ever abused (rotation invalidates old builds, so ship a new release with it).
-- Squad membership is invite-code gated, so a stranger with an account still
-  sees nothing belonging to anyone else.
+- Visibility is **mutual-friend gated**: a stranger who spins up an anonymous
+  session and claims a PUUID still sees nothing unless that PUUID's real owner
+  lists them back as a friend. The only thing at stake is fun scores — soft
+  security is the accepted trade-off (PRD §12).
 
 ## Pre-release checklist
 
 - [ ] `schema.sql` re-run against the production project (idempotent)
+- [ ] **Anonymous sign-ins enabled** in the project (Authentication → Sign In / Providers)
 - [ ] `_bundled.py` generated from CI secrets, **not** committed
 - [ ] `git grep` finds no `sb_secret`, no `service_role`, no JWT in the repo
 - [ ] Fresh-machine smoke test: install → capture a game → rate → open dashboard
-- [ ] Squad Online shows the login form directly (no key prompt)
+- [ ] Squad Online shows "start League once" (no key prompt); after a client connect it shows "Synced as …"

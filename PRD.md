@@ -277,39 +277,40 @@ The social component **matters long-term**: the goal is that friends can see the
 
 ---
 
-## 12. Social — Tier 3: shared squad backend (in progress, decided 2026-07-20)
+## 12. Social — zero-config squads from the friends list (revised 2026-07-26)
 
-Local capture stays exactly as-is. This adds an **opt-in** layer: log in, join a squad, and your *rated* games sync to a shared backend so the squad can see leaderboards and the mutual-fun matrix. Off by default — a player who never logs in is unaffected and fully local.
+Local capture stays exactly as-is. This adds a **zero-config** shared layer: with no signup and no invite codes, your *rated* games sync to a shared backend and your squad — **your League friends who also run Kiffance** — see leaderboards and the mutual-fun matrix. A player whose backend isn't configured is unaffected and fully local.
+
+> **History:** an earlier revision (2026-07-20) used full email/password accounts + squads joined by invite code. That was replaced on 2026-07-26 to remove all onboarding friction: the LCU already knows who you are (PUUID) and who your friends are (`/lol-chat/v1/friends`), so accounts and codes were redundant. The squad forms itself.
 
 ### Decisions
 | Question | Decision |
 |----------|----------|
-| Backend | **Supabase** — managed Postgres + built-in Auth + Row-Level Security + auto REST. Free tier covers a squad; near-zero ops. |
-| Identity | **Full accounts** via Supabase Auth (email/password). On first sync the app links `auth.uid ↔ PUUID ↔ display name`. |
-| Grouping | **Squads** with **invite codes**: one member creates a squad and shares a code; friends paste it to join. |
-| Privacy | **Opt-in and squad-scoped.** Only rated, non-skipped games sync. RLS makes a player's shared games visible **only** to members of squads they share. A per-game "don't share" flag is available. |
+| Backend | **Supabase** — managed Postgres + Row-Level Security + auto REST. Free tier covers a squad; near-zero ops. |
+| Identity | **The in-game PUUID.** Auth is a **silent Supabase anonymous session** (no email/password) used only to satisfy RLS. On first sync the app links `auth.uid → PUUID → display name`. |
+| Grouping | **Mutual League friends.** Your squad = friends from the LCU friends list who also run Kiffance and list you back. The mutual friend link replaces the invite code as the consent gate. No "create squad" step. |
+| Privacy | Only rated, non-skipped, non-remake games sync. RLS makes your shared games visible **only** to your mutual friends. Un-friending someone (or their un-friending you) drops the mutual link and revokes visibility on the next sync. |
+| Security posture | **Soft, by design.** A client can only assert its own logged-in PUUID from the LCU, but the backend can't cryptographically prove it — acceptable, because the only "secret" is how fun a game felt. Real accounts would be the upgrade path if that ever changed. |
 
 ### Backend schema (Supabase / Postgres)
-- `profiles` — `id` (= auth.uid), `puuid`, `display_name`. Maps account ↔ in-game identity.
-- `squads` — `id`, `name`, `owner_id`, `created_at`.
-- `squad_members` — `squad_id`, `user_id`, `role`, `joined_at`.
-- `squad_invites` — `code`, `squad_id`, `created_by`, `expires_at`.
-- `shared_games` — one row per player per game: `user_id`, `riot_match_id`, `played_at`, `queue_type`, `champion`, `role`, `win`, `kills/deaths/assists`, `duration_seconds`, `fun_score`, `synced_at`. **`riot_match_id` is the join key** — same value for all players in a game — so two squad members' ratings of the same game line up for the mutual-fun matrix.
+- `profiles` — `id` (= auth.uid), `puuid`, `display_name`. Maps the anonymous session ↔ in-game identity. `puuid` is intentionally **not** unique (a recreated anonymous session for the same PUUID is harmless; `my_puuid()` only reads the caller's own row).
+- `friend_links` — `owner_puuid`, `friend_puuid`. Directed "owner lists friend" edges; a squad relationship is a **mutual** pair of edges.
+- `shared_games` — one row per player per game, keyed on `(puuid, riot_match_id)`: `played_at`, `queue_type`, `champion`, `role`, `win`, `kills/deaths/assists`, `duration_seconds`, `fun_score`, `synced_at`. **`riot_match_id` is the join key** — same value for all players in a game — so two mutual friends' ratings of the same game line up for the mutual-fun matrix.
 
-RLS: a user reads `shared_games`/`profiles` only for users co-membered in a squad; writes only their own rows. `service_role` key is never shipped; the **anon key is public-by-design** (RLS is the guard) and lives in a gitignored local config, not the repo.
+RLS helpers `my_puuid()` and `is_mutual(other)` (both `security definer`) drive the policies: you read `shared_games`/`profiles` for yourself and any mutual friend; you write only your own PUUID's rows and own friend edges. `service_role` key is never shipped; the **publishable/anon key is public-by-design** (RLS is the guard). Requires "Allow anonymous sign-ins" enabled in the Supabase project.
 
 ### App changes
 | ID | Requirement |
 |----|-------------|
-| F25 | Opt-in account login (email/password) from a dashboard "Squad" settings page. Sync is disabled until logged in. |
-| F26 | Create a squad / join by invite code. |
-| F27 | Background sync worker: push the user's rated, non-skipped games to `shared_games` (behind the game-store interface, §11 constraint 1). Async HTTP, honors §6a/§6b. |
-| F28 | **Squad leaderboard** — avg fun per member (this week / all-time), with sample sizes (F21). |
-| F29 | **Mutual-fun matrix** — for games two members both played (matched on `riot_match_id`), show each pair's two fun scores: "you rated it 4.5, Alex rated it 2.8." |
-| F30 | Privacy: sync opt-in; only non-skipped rated games; per-game "don't share"; leaving a squad removes your visibility to it. |
+| F25 | **No login UI.** On client connect the app silently creates/reuses an anonymous session and upserts its profile (`auth.uid → PUUID → name`). |
+| F26 | **Auto-squad:** on each client connect, mirror the LCU friends list into `friend_links` (add new, remove dropped). Squad membership is the mutual intersection — nothing to create or join. |
+| F27 | Background sync worker: push the user's rated, non-skipped, non-remake games to `shared_games` (behind the game-store interface, §11 constraint 1). Async HTTP, honors §6a/§6b. Runs on connect and after each rating. |
+| F28 | **Squad leaderboard** — avg fun per mutual friend, with sample sizes (F21). |
+| F29 | **Mutual-fun matrix** — for games two mutual friends both played (matched on `riot_match_id`), show each pair's two fun scores: "you rated it 4.5, Alex rated it 2.8." |
+| F30 | Privacy: only non-skipped, non-remake rated games sync; visibility is strictly mutual-friend-scoped; losing the friend link (either side) revokes access on the next sync. |
 
-### Distribution model (decided 2026-07-20)
-**One Supabase project, owned by the maintainer, shared by all players.** End users never create a Supabase account, never run SQL, and never enter a key — a friend's flow is download → create an app account → join a squad with an invite code. Released builds bake the project URL + **publishable** key into `kiffance/_bundled.py` at build time from CI secrets (gitignored, never in the repo). Credential resolution: local config file (self-host/dev) → bundled defaults (releases) → env vars. The key-entry form only appears when none are present, i.e. a source checkout or a self-hoster.
+### Distribution model (revised 2026-07-26)
+**One Supabase project, owned by the maintainer, shared by all players.** End users never create an account, never run SQL, never enter a key, and never share a code — a friend's flow is download → run → play. Squad Online populates itself from mutual friends. Released builds bake the project URL + **publishable** key into `kiffance/_bundled.py` at build time from CI secrets (gitignored, never in the repo). Credential resolution: local config file (self-host/dev) → bundled defaults (releases) → env vars. The key-entry form only appears when none are present, i.e. a source checkout or a self-hoster.
 
 **Why shipping the publishable key is safe:** it is designed to be embedded in clients and is visible in every Supabase web app's JavaScript. Data is protected by the RLS policies in `supabase/schema.sql`, not by key secrecy — every table denies by default and exposes rows only to their owner or squad-mates. The **service_role/secret key is never shipped, committed, or used by this app**. The publishable key is kept out of the repo purely to avoid bots discovering the endpoint and burning free-tier quota. Full procedure and abuse mitigations: [docs/RELEASE.md](docs/RELEASE.md).
 

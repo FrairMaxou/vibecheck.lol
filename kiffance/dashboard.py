@@ -43,24 +43,6 @@ class SquadConfigIn(BaseModel):
     anon_key: str
 
 
-class LoginIn(BaseModel):
-    email: str
-    password: str
-    create: bool = False
-
-
-class SquadNameIn(BaseModel):
-    name: str
-
-
-class InviteIn(BaseModel):
-    squad_id: str
-
-
-class JoinIn(BaseModel):
-    code: str
-
-
 class SettingsIn(BaseModel):
     autostart: bool | None = None
     paused: bool | None = None
@@ -89,7 +71,7 @@ def create_app(
 
     def _auto_sync() -> None:
         """Push rated games to the backend in the background after a rating."""
-        if not squad.logged_in:
+        if not squad.configured:
             return
 
         def worker():
@@ -152,8 +134,10 @@ def create_app(
         return {"ok": True}
 
     # ---------------- squad / social (§12) ----------------
-    # Opt-in: with no config these all report "not set up" and nothing leaves
-    # the machine. Bound to localhost, so credentials stay on this PC.
+    # Zero-config: released builds bundle the backend, identity is the in-game
+    # PUUID, and the squad is your mutual League friends. No login, no codes.
+    # With no backend configured these report "not set up" and nothing leaves
+    # the machine. Bound to localhost, so any credentials stay on this PC.
 
     def _guard(fn):
         try:
@@ -166,39 +150,20 @@ def create_app(
         try:
             return squad.status()
         except SupabaseError as exc:
-            return {"configured": squad.configured, "logged_in": False, "error": str(exc)}
+            return {"configured": squad.configured, "identity_ready": False, "error": str(exc)}
 
     @app.post("/api/squad/config")
     def squad_config(body: SquadConfigIn):
+        # Advanced / self-host only — released builds never hit this.
         return _guard(lambda: squad.configure(body.url, body.anon_key))
-
-    @app.post("/api/squad/login")
-    def squad_login(body: LoginIn):
-        return _guard(lambda: squad.sign_in(body.email, body.password, body.create))
-
-    @app.post("/api/squad/logout")
-    def squad_logout():
-        return _guard(squad.sign_out)
-
-    @app.post("/api/squad/create")
-    def squad_create(body: SquadNameIn):
-        return _guard(lambda: {"squad": squad.create_squad(body.name)})
-
-    @app.post("/api/squad/invite")
-    def squad_invite(body: InviteIn):
-        return _guard(lambda: {"code": squad.create_invite(body.squad_id)})
-
-    @app.post("/api/squad/join")
-    def squad_join(body: JoinIn):
-        return _guard(lambda: {"squad_id": squad.join_squad(body.code)})
 
     @app.post("/api/squad/push")
     def squad_push():
         return _guard(lambda: {"synced": squad.push()})
 
-    @app.get("/api/squad/{squad_id}/data")
-    def squad_data(squad_id: str):
-        return _guard(lambda: squad.squad_games(squad_id))
+    @app.get("/api/squad/data")
+    def squad_data():
+        return _guard(squad.friends_games)
 
     return app
 

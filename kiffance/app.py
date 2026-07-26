@@ -193,6 +193,7 @@ class App:
             "Connected to League client (summoner: %s)",
             summoner.get("gameName") or summoner.get("displayName", "?"),
         )
+        self._sync_friends()  # zero-config squads (§12): mirror the friends list
 
         # Catch games that ended while we weren't listening (F6): a game still on
         # its stats screen, or finished games missed entirely (app not running,
@@ -247,6 +248,28 @@ class App:
             self.store.set_meta(ASSETS_CHAMPS_KEY, json.dumps(self._champ_names))
         self._assets = {"items": items, "augments": augments}
         log.info("Asset maps loaded: %d items, %d augments", len(items), len(augments))
+
+    def _sync_friends(self) -> None:
+        """Push my League friends list + rated games to the backend (§12).
+
+        Runs in the background so the watcher can go straight to blocking on the
+        gameflow socket. No-op if Squad Online isn't configured. The friends
+        list is what forms squads (mutual friends), so we refresh it on every
+        client connect.
+        """
+        if not self.squad.configured or not self._client:
+            return
+        client = self._client
+
+        def worker():
+            try:
+                friends = client.friends()
+                puuids = [f.get("puuid") for f in friends if f.get("puuid")]
+                self.squad.sync_all(puuids)
+            except Exception:
+                log.warning("Friends sync failed (will retry next connect)", exc_info=True)
+
+        threading.Thread(target=worker, name="friends-sync", daemon=True).start()
 
     def _capture_premades(self) -> None:
         members = self._client.lobby_members() if self._client else []
@@ -438,10 +461,12 @@ class App:
     def _auto_sync(self) -> None:
         """Push rated games to the squad backend in the background (§12).
 
-        No-op unless the user is signed in. Runs off the UI thread and never
-        raises into it — a backend hiccup must not disturb rating.
+        No-op unless a backend is configured. push() creates the silent
+        anonymous identity on first use — there is no login step. Runs off the
+        UI thread and never raises into it: a backend hiccup must not disturb
+        rating.
         """
-        if not self.squad.logged_in:
+        if not self.squad.configured:
             return
 
         def worker():

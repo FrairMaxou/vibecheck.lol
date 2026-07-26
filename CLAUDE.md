@@ -42,7 +42,7 @@ League of Kiffance: a personal Windows tray tool that detects the end of each Le
 - **Tracked queues:** ALL queues are captured, including Arena and rotating modes. `QUEUE_NAMES` in config.py only provides friendly labels; unknown queue ids fall back to the payload's raw queue name. Never reintroduce capture-time filtering — mode filtering belongs in the dashboard.
 - **UI language:** English. Tags/notes are Phase 3, not Phase 1.
 - **Startup:** manual launch by default; opt-in "start with Windows" checkbox.
-- **Social:** v1 is fully local per player (GitHub distribution). No hosted backend, no webhooks.
+- **Social (PRD §12, revised 2026-07-26):** zero-config squads. Identity is the in-game PUUID; auth is a *silent Supabase anonymous session* (no accounts, no email/password). Your squad = League friends (from the LCU `/lol-chat/v1/friends` list) who also run Kiffance and list you back — *mutual* friend links replace invite codes. No "create squad"/"join by code" flow. Local capture works with no backend at all. Never reintroduce accounts or invite codes without an explicit decision change here + in the PRD.
 
 ## Hard constraints — never violate (PRD §6a, §6b, §11)
 

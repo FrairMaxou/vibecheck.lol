@@ -387,7 +387,7 @@ async function renderSettings() {
 
 /* ---------------- squad online (§12) ---------------- */
 
-let SQUAD = { status: null, activeSquad: null };
+let SQUAD = { status: null };
 
 async function api(path, body) {
   const res = await fetch(path, body
@@ -410,100 +410,66 @@ async function renderOnline() {
     return;
   }
 
+  // Advanced / self-host: no backend bundled into this build.
   if (!st.configured) {
     body.innerHTML = `
       <p class="squad-help"><b>Advanced / self-host setup.</b> Released builds already point at
-        the shared backend — you'd normally go straight to signing in. You're seeing this because
-        this build has no bundled backend (a source checkout, or you're running your own).<br><br>
+        the shared backend, so this normally just works with nothing to fill in. You're seeing
+        this because this build has no bundled backend (a source checkout, or your own project).<br><br>
         Create a free project at <b>supabase.com</b>, run <code>supabase/schema.sql</code> in its
-        SQL editor, then paste the project URL and <b>publishable</b> key below
-        (Project Settings → API). Never paste the secret / service_role key.</p>
+        SQL editor, enable anonymous sign-ins, then paste the project URL and <b>publishable</b>
+        key below (Project Settings → API). Never paste the secret / service_role key.</p>
       <div class="squad-form">
         <input id="sb-url" placeholder="https://xxxx.supabase.co">
-        <input id="sb-key" placeholder="anon public key">
+        <input id="sb-key" placeholder="publishable / anon key">
         <button class="primary-btn" id="sb-save">Save</button>
-      </div>`;
+      </div>
+      <div id="sb-msg" class="squad-msg"></div>`;
     document.getElementById("sb-save").addEventListener("click", async (e) => {
-      await guard(e.target, () => api("/api/squad/config", {
+      const ok = await guard(e.target, () => api("/api/squad/config", {
         url: document.getElementById("sb-url").value.trim(),
         anon_key: document.getElementById("sb-key").value.trim(),
       }));
-      renderOnline();
+      if (ok) renderOnline();
     });
     return;
   }
 
-  if (!st.logged_in) {
+  // We need the player's in-game identity, which comes from the League client.
+  if (!st.identity_ready) {
     body.innerHTML = `
-      <p class="squad-help">Sign in to sync your kiff scores with your squad. Your games stay
-        local until you do.</p>
-      <div class="squad-form">
-        <input id="sb-email" type="email" placeholder="e-mail" autocomplete="username">
-        <input id="sb-pass" type="password" placeholder="password" autocomplete="current-password">
-        <button class="primary-btn" id="sb-login">Sign in</button>
-        <button class="ghost-btn" id="sb-signup">Create account</button>
-      </div>
+      <p class="squad-help">Start the League client once while Kiffance is running — that's how
+        we learn your in-game identity and your friends list. Squad Online then turns on
+        automatically. No account, no invite codes.</p>
       ${st.error ? `<div class="squad-err">${st.error}</div>` : ""}`;
-    const doAuth = (create) => async (e) => {
-      await guard(e.target, () => api("/api/squad/login", {
-        email: document.getElementById("sb-email").value.trim(),
-        password: document.getElementById("sb-pass").value,
-        create,
-      }));
-      renderOnline();
-    };
-    document.getElementById("sb-login").addEventListener("click", doAuth(false));
-    document.getElementById("sb-signup").addEventListener("click", doAuth(true));
     return;
   }
 
-  const squads = st.squads || [];
-  SQUAD.activeSquad = SQUAD.activeSquad && squads.some((s) => s.id === SQUAD.activeSquad)
-    ? SQUAD.activeSquad : (squads[0] || {}).id;
+  const friends = st.friend_count || 0;
+  const mutual = st.mutual_count || 0;
   body.innerHTML = `
+    <p class="squad-help">Your squad is simply your League friends who also run Kiffance. Everyone
+      syncs automatically — the moment a friend installs it and has you friended back, they show up
+      here. Nothing to set up.</p>
     <div class="squad-bar">
-      <span>Signed in as <b>${st.email || "?"}</b></span>
-      <button class="ghost-btn" id="sb-sync">Sync my games</button>
-      <button class="ghost-btn" id="sb-logout">Sign out</button>
+      <span>Synced as <b>${escapeAttr(st.display_name || "Summoner")}</b></span>
+      <span>· ${friends} League friend${friends === 1 ? "" : "s"}</span>
+      <span>· <b>${mutual}</b> also on Kiffance</span>
+      <button class="ghost-btn" id="sb-sync">Sync now</button>
     </div>
-    <div class="squad-form">
-      ${squads.length ? `<select id="sb-squad">${squads.map((s) =>
-        `<option value="${s.id}"${s.id === SQUAD.activeSquad ? " selected" : ""}>${s.name}</option>`).join("")}</select>
-        <button class="ghost-btn" id="sb-invite">Get invite code</button>` : ""}
-      <input id="sb-new" placeholder="new squad name">
-      <button class="ghost-btn" id="sb-create">Create</button>
-      <input id="sb-code" placeholder="invite code" maxlength="12">
-      <button class="ghost-btn" id="sb-join">Join</button>
-    </div>
+    ${st.error ? `<div class="squad-err">${st.error}</div>` : ""}
     <div id="sb-msg" class="squad-msg"></div>`;
 
-  const msg = (t) => { document.getElementById("sb-msg").textContent = t; };
-  document.getElementById("sb-logout").addEventListener("click", async (e) => {
-    await guard(e.target, () => api("/api/squad/logout")); SQUAD.activeSquad = null; renderOnline();
-  });
   document.getElementById("sb-sync").addEventListener("click", async (e) => {
     const r = await guard(e.target, () => api("/api/squad/push"));
-    if (r) { msg(`Synced ${r.synced} rated games.`); renderSquadStats(); }
+    if (r) {
+      const m = document.getElementById("sb-msg");
+      if (m) m.textContent = `Synced ${r.synced} rated games.`;
+      renderSquadStats();
+    }
   });
-  document.getElementById("sb-create").addEventListener("click", async (e) => {
-    const name = document.getElementById("sb-new").value.trim();
-    if (!name) return;
-    if (await guard(e.target, () => api("/api/squad/create", { name }))) renderOnline();
-  });
-  document.getElementById("sb-join").addEventListener("click", async (e) => {
-    const code = document.getElementById("sb-code").value.trim();
-    if (!code) return;
-    if (await guard(e.target, () => api("/api/squad/join", { code }))) renderOnline();
-  });
-  const inviteBtn = document.getElementById("sb-invite");
-  if (inviteBtn) inviteBtn.addEventListener("click", async (e) => {
-    const r = await guard(e.target, () => api("/api/squad/invite", { squad_id: SQUAD.activeSquad }));
-    if (r) msg(`Invite code: ${r.code} — share it with your squad.`);
-  });
-  const sel = document.getElementById("sb-squad");
-  if (sel) sel.addEventListener("change", () => { SQUAD.activeSquad = sel.value; renderSquadStats(); });
 
-  if (SQUAD.activeSquad) renderSquadStats();
+  renderSquadStats();
 }
 
 async function guard(btn, fn) {
@@ -512,9 +478,8 @@ async function guard(btn, fn) {
   try {
     return await fn();
   } catch (e) {
-    document.getElementById("sb-msg")
-      ? (document.getElementById("sb-msg").textContent = e.message)
-      : alert(e.message);
+    const m = document.getElementById("sb-msg");
+    if (m) m.textContent = e.message; else alert(e.message);
     return null;
   } finally {
     btn.disabled = false; btn.textContent = old;
@@ -526,7 +491,7 @@ async function renderSquadStats() {
   const matrixPanel = document.getElementById("squad-matrix-panel");
   let data;
   try {
-    data = await api(`/api/squad/${SQUAD.activeSquad}/data`);
+    data = await api("/api/squad/data");
   } catch {
     return;
   }
@@ -536,10 +501,10 @@ async function renderSquadStats() {
   boardPanel.classList.remove("hidden");
   matrixPanel.classList.remove("hidden");
 
-  // leaderboard: average fun per member
+  // leaderboard: average fun per player (keyed on puuid)
   const per = {};
   for (const g of games) {
-    const a = (per[g.user_id] ||= { sum: 0, n: 0 });
+    const a = (per[g.puuid] ||= { sum: 0, n: 0 });
     a.sum += g.fun_score; a.n += 1;
   }
   const rows = Object.entries(per).map(([id, a]) => ({
@@ -547,8 +512,7 @@ async function renderSquadStats() {
   }));
   funBarChart("chart-squad-board", rows, { horizontal: true });
 
-  // mutual kiff: games two members both played, matched on riot_match_id
-  const me = Object.keys(per).find((id) => id === (SQUAD.status.user_id || id));
+  // mutual kiff: games two players both played, matched on riot_match_id
   const byMatch = {};
   for (const g of games) (byMatch[g.riot_match_id] ||= []).push(g);
   const pairs = {};
@@ -557,9 +521,9 @@ async function renderSquadStats() {
     for (let i = 0; i < group.length; i++)
       for (let j = i + 1; j < group.length; j++) {
         const [a, b] = [group[i], group[j]];
-        const key = [a.user_id, b.user_id].sort().join("|");
-        const p = (pairs[key] ||= { a: a.user_id, b: b.user_id, sa: 0, sb: 0, n: 0 });
-        const flip = p.a !== a.user_id;
+        const key = [a.puuid, b.puuid].sort().join("|");
+        const p = (pairs[key] ||= { a: a.puuid, b: b.puuid, sa: 0, sb: 0, n: 0 });
+        const flip = p.a !== a.puuid;
         p.sa += flip ? b.fun_score : a.fun_score;
         p.sb += flip ? a.fun_score : b.fun_score;
         p.n += 1;
@@ -569,7 +533,7 @@ async function renderSquadStats() {
   document.getElementById("squad-matrix").innerHTML = list.length
     ? `<table><thead><tr><th>Pair</th><th class="num">shared games</th><th class="num">their kiff</th><th class="num">vs</th><th class="num">their kiff</th></tr></thead><tbody>` +
       list.map((p) => `<tr${p.n < MIN_N ? ' class="low-n"' : ""}>
-        <td>${names[p.a] || "?"} &amp; ${names[p.b] || "?"}</td>
+        <td>${escapeAttr(names[p.a] || "?")} &amp; ${escapeAttr(names[p.b] || "?")}</td>
         <td class="num">${p.n}</td>
         <td class="num">${(p.sa / p.n).toFixed(2)} ${EMOJI[Math.round(p.sa / p.n)]}</td>
         <td class="num">·</td>

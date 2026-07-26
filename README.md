@@ -59,15 +59,17 @@ Every stat shows its sample size, and anything under 5 games is marked
 
 ## Playing with friends
 
-Entirely optional and off unless you sign in.
-
-1. Dashboard → **Squad Online** → create an account
-2. Someone creates a squad and shares the invite code
-3. Everyone else pastes the code
+No signup, no accounts, no codes — it just works. Your squad is simply **your
+League friends who also run Kiffance**. Once a friend installs it and you have
+each other friended in-game, you show up in each other's **Squad Online** tab
+automatically.
 
 Then you get a squad leaderboard and the **mutual kiff matrix**: when two of you
 played the *same* game, it shows both ratings side by side. You rated it 5/5,
 they rated it 2/5 — that's the argument settled with data.
+
+*(Nothing about your games is shared with anyone who isn't a mutual League
+friend also running the app.)*
 
 ## Is this safe? Will I get banned?
 
@@ -76,8 +78,9 @@ apps like Blitz and Porofessor use. It never touches the game process, never
 shows anything during a game, never automates input, and gives no competitive
 advantage whatsoever. It literally just asks whether you had fun.
 
-Your data stays **on your PC** in `%LOCALAPPDATA%\LeagueOfKiffance\`. Nothing is
-uploaded unless you deliberately sign in to Squad Online.
+Your data stays **on your PC** in `%LOCALAPPDATA%\LeagueOfKiffance\`. Only your
+*rated* games sync to Squad Online, and they're visible only to mutual League
+friends who also run the app — never to anyone else.
 
 ## Troubleshooting
 
