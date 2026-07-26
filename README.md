@@ -107,21 +107,6 @@ to a free port and relaunch.
 
 ---
 
-## For developers
-
-```powershell
-py -m venv .venv
-.venv\Scripts\pip install -r requirements.txt -r requirements-dev.txt
-.venv\Scripts\python -m vibecheck              # run from source
-.venv\Scripts\python tests\smoke_test.py      # tests (no League needed)
-.venv\Scripts\pyinstaller vibecheck.spec --noconfirm   # build the exe
-```
-
-Design and decisions: [PRD.md](PRD.md) · Workflow: [CONTRIBUTING.md](CONTRIBUTING.md) ·
-Releasing: [docs/RELEASE.md](docs/RELEASE.md)
-
----
-
 <div align="center">
 <sub>VibeCheck.lol isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot
 Games or anyone officially involved in producing or managing Riot Games properties. Riot Games,
