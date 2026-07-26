@@ -15,6 +15,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from . import startup
 from .config import DASHBOARD_HOST, DASHBOARD_PORT, WEB_DIR
 from .store import GameStore
 from .sync import SquadService, SupabaseError
@@ -60,9 +61,25 @@ class JoinIn(BaseModel):
     code: str
 
 
-def create_app(store: GameStore, squad: SquadService | None = None) -> FastAPI:
+class SettingsIn(BaseModel):
+    autostart: bool | None = None
+    paused: bool | None = None
+
+
+def create_app(
+    store: GameStore, squad: SquadService | None = None, controls: dict | None = None
+) -> FastAPI:
     app = FastAPI(title="League of Kiffance", docs_url=None, redoc_url=None, openapi_url=None)
     squad = squad or SquadService(store)
+    controls = controls or {}
+
+    def _settings() -> dict:
+        is_paused = controls.get("is_paused")
+        return {
+            "autostart": startup.is_enabled(),
+            "paused": bool(is_paused()) if is_paused else False,
+            "autostart_supported": startup.winreg is not None,
+        }
 
     # Binding to 127.0.0.1 stops remote access, but not DNS rebinding: an
     # attacker's domain can resolve to 127.0.0.1, at which point the browser
@@ -107,6 +124,18 @@ def create_app(store: GameStore, squad: SquadService | None = None) -> FastAPI:
         )
         _auto_sync()
         return {"ok": True}
+
+    @app.get("/api/settings")
+    def get_settings():
+        return _settings()
+
+    @app.post("/api/settings")
+    def update_settings(body: SettingsIn):
+        if body.autostart is not None:
+            startup.set_enabled(body.autostart)
+        if body.paused is not None and controls.get("set_paused"):
+            controls["set_paused"](body.paused)
+        return _settings()
 
     @app.get("/api/tags")
     def tags():
@@ -174,10 +203,12 @@ def create_app(store: GameStore, squad: SquadService | None = None) -> FastAPI:
     return app
 
 
-def start_dashboard(store: GameStore, squad: SquadService | None = None) -> str:
+def start_dashboard(
+    store: GameStore, squad: SquadService | None = None, controls: dict | None = None
+) -> str:
     """Start the server in a daemon thread; returns the dashboard URL."""
     config = uvicorn.Config(
-        create_app(store, squad),
+        create_app(store, squad, controls),
         host=DASHBOARD_HOST,
         port=DASHBOARD_PORT,
         log_level="warning",

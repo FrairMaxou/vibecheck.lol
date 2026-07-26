@@ -352,6 +352,39 @@ function renderExplorer(games) {
   }
 }
 
+/* ---------------- settings ---------------- */
+
+async function renderSettings() {
+  const msg = document.getElementById("settings-msg");
+  const autostart = document.getElementById("set-autostart");
+  const paused = document.getElementById("set-paused");
+  let s;
+  try {
+    s = await api("/api/settings");
+  } catch (e) {
+    msg.textContent = "Couldn't load settings: " + e.message;
+    return;
+  }
+  autostart.checked = !!s.autostart;
+  autostart.disabled = !s.autostart_supported;
+  paused.checked = !!s.paused;
+
+  const save = async (body, label) => {
+    try {
+      const r = await api("/api/settings", body);
+      autostart.checked = !!r.autostart;
+      paused.checked = !!r.paused;
+      msg.textContent = label;
+    } catch (e) {
+      msg.textContent = "Couldn't save: " + e.message;
+    }
+  };
+  autostart.onchange = () =>
+    save({ autostart: autostart.checked }, autostart.checked ? "Will start with Windows." : "Won't start with Windows.");
+  paused.onchange = () =>
+    save({ paused: paused.checked }, paused.checked ? "Rating popups paused." : "Rating popups on.");
+}
+
 /* ---------------- squad online (§12) ---------------- */
 
 let SQUAD = { status: null, activeSquad: null };
@@ -700,6 +733,7 @@ function renderAll() {
   if (t === "sessions") renderSessions(games);
   if (t === "tags") renderTags(games);
   if (t === "online") renderOnline();
+  if (t === "settings") renderSettings();
   if (t === "explorer") renderExplorer(games);
 }
 

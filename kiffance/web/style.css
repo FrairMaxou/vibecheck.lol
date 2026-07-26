@@ -127,6 +127,27 @@ th { color: var(--ink-2); font-weight: 600; font-size: 12px; text-transform: upp
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 tr.low-n td { color: var(--ink-3); }
 
+/* ---------- settings ---------- */
+.setting-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 24px;
+  padding: 14px 4px; border-bottom: 1px solid var(--line);
+}
+.setting-text { max-width: 70ch; }
+.setting-title { font-size: 14px; color: var(--ink); font-weight: 600; }
+.setting-desc { font-size: 12.5px; color: var(--ink-2); margin-top: 3px; }
+.switch { position: relative; display: inline-block; width: 46px; height: 26px; flex: none; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider {
+  position: absolute; inset: 0; cursor: pointer; background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: 26px; transition: 0.15s;
+}
+.slider::before {
+  content: ""; position: absolute; height: 18px; width: 18px; left: 3px; bottom: 3px;
+  background: var(--ink-2); border-radius: 50%; transition: 0.15s;
+}
+.switch input:checked + .slider { background: var(--gold); border-color: var(--gold); }
+.switch input:checked + .slider::before { transform: translateX(20px); background: #1e2328; }
+
 /* ---------- squad online ---------- */
 .squad-help { color: var(--ink-2); font-size: 13px; margin-bottom: 12px; max-width: 70ch; }
 .squad-help code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }

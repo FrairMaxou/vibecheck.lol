@@ -82,15 +82,17 @@ class App:
         # One shared squad service: the dashboard drives login/squads, and the
         # rating path uses the same instance to auto-sync in the background.
         self.squad = SquadService(self.store)
-        self._dashboard_url = start_dashboard(self.store, self.squad)
+        # Bridge so the dashboard's Settings page can read/change app-level state
+        # (this runs in the same process — the server is a daemon thread here).
+        controls = {
+            "is_paused": lambda: self.paused,
+            "set_paused": self._set_paused,
+        }
+        self._dashboard_url = start_dashboard(self.store, self.squad, controls)
         self._window_proc: subprocess.Popen | None = None
         self._tray = build_tray(
-            is_paused=lambda: self.paused,
-            toggle_paused=self._toggle_paused,
             on_quit=self.stop,
             on_open_dashboard=self._open_dashboard,
-            is_autostart=startup.is_enabled,
-            toggle_autostart=lambda: startup.set_enabled(not startup.is_enabled()),
         )
 
     # ---------------- lifecycle ----------------
@@ -113,8 +115,7 @@ class App:
             want = messagebox.askyesno(
                 APP_NAME,
                 "Launch League of Kiffance automatically when Windows starts?\n\n"
-                "You can change this anytime from the tray icon menu "
-                '("Start with Windows").',
+                "You can change this anytime in the dashboard's Settings tab.",
                 parent=self._root,
             )
             startup.set_enabled(bool(want))
@@ -133,8 +134,8 @@ class App:
         # Quit Tk from its own thread.
         self._root.after(0, self._root.quit)
 
-    def _toggle_paused(self) -> None:
-        self.paused = not self.paused
+    def _set_paused(self, value: bool) -> None:
+        self.paused = bool(value)
         log.info("Prompts %s", "paused" if self.paused else "resumed")
 
     def _open_dashboard(self) -> None:

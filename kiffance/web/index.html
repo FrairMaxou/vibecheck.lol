@@ -44,6 +44,7 @@
   <button data-tab="sessions">Regret Curve</button>
   <button data-tab="tags">Tags</button>
   <button data-tab="online">Squad Online</button>
+  <button data-tab="settings">Settings</button>
   <button data-tab="explorer">Explorer</button>
   <button data-tab="pending">To Rate <span id="pending-badge" class="badge hidden"></span></button>
 </nav>
@@ -116,6 +117,33 @@
     <div class="panel hidden" id="squad-matrix-panel">
       <h2>Mutual kiff <span class="hint">same game, two very different opinions</span></h2>
       <div id="squad-matrix"></div>
+    </div>
+  </div>
+
+  <div id="tab-settings" class="tab hidden">
+    <div class="panel">
+      <h2>Settings <span class="hint">how the app behaves on your machine</span></h2>
+      <div class="setting-row">
+        <div class="setting-text">
+          <div class="setting-title">Start with Windows</div>
+          <div class="setting-desc">Launch League of Kiffance automatically when you log in, so no game is missed.</div>
+        </div>
+        <label class="switch"><input type="checkbox" id="set-autostart"><span class="slider"></span></label>
+      </div>
+      <div class="setting-row">
+        <div class="setting-text">
+          <div class="setting-title">Pause rating popups</div>
+          <div class="setting-desc">Keep capturing games, but don't show the "Did you kiff?" popup. Rate later from To Rate.</div>
+        </div>
+        <label class="switch"><input type="checkbox" id="set-paused"><span class="slider"></span></label>
+      </div>
+      <div id="settings-msg" class="squad-msg"></div>
+    </div>
+    <div class="panel">
+      <h2>Your data <span class="hint">everything stays on this PC</span></h2>
+      <p class="squad-help">Games and ratings live in
+        <code>%LOCALAPPDATA%\LeagueOfKiffance</code>. Nothing is uploaded unless you sign in
+        to Squad Online.</p>
     </div>
   </div>
 
