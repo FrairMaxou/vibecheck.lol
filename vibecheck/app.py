@@ -87,6 +87,7 @@ class App:
         controls = {
             "is_paused": lambda: self.paused,
             "set_paused": self._set_paused,
+            "quit": self.stop,  # lets the dashboard window's close prompt quit the app
         }
         self._dashboard_url = start_dashboard(self.store, self.squad, controls)
         self._window_proc: subprocess.Popen | None = None
@@ -103,6 +104,11 @@ class App:
         threading.Thread(target=self._tray.run, name="tray", daemon=True).start()
         self._root.after(100, self._drain_ui_requests)
         self._root.after(1500, self._maybe_prompt_autostart)  # once, after the tray is up
+        # Show the dashboard on a normal (manual) launch so the user sees the app
+        # rather than a silent tray icon. Skipped when Windows starts us at login
+        # (--autostart), where a window popping up every boot would be annoying.
+        if "--autostart" not in sys.argv:
+            self._root.after(1000, self._open_dashboard)
         self._root.mainloop()
 
     def _maybe_prompt_autostart(self) -> None:

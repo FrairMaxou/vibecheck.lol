@@ -46,6 +46,7 @@ class SquadConfigIn(BaseModel):
 class SettingsIn(BaseModel):
     autostart: bool | None = None
     paused: bool | None = None
+    close_action: str | None = None  # "ask" | "minimize" | "quit"
 
 
 def create_app(
@@ -61,6 +62,7 @@ def create_app(
             "autostart": startup.is_enabled(),
             "paused": bool(is_paused()) if is_paused else False,
             "autostart_supported": startup.winreg is not None,
+            "close_action": store.get_meta("close_action") or "ask",
         }
 
     # Binding to 127.0.0.1 stops remote access, but not DNS rebinding: an
@@ -117,7 +119,20 @@ def create_app(
             startup.set_enabled(body.autostart)
         if body.paused is not None and controls.get("set_paused"):
             controls["set_paused"](body.paused)
+        if body.close_action in ("ask", "minimize", "quit"):
+            store.set_meta("close_action", body.close_action)
         return _settings()
+
+    @app.post("/api/quit")
+    def quit_app():
+        """Shut the whole app down (used by the window's close prompt)."""
+        quit_fn = controls.get("quit")
+        if not quit_fn:
+            return {"ok": True, "quitting": False}
+        # Respond first, then stop — calling it inline would tear down the
+        # server mid-response. A short timer lets this request return cleanly.
+        threading.Timer(0.3, quit_fn).start()
+        return {"ok": True, "quitting": True}
 
     @app.get("/api/tags")
     def tags():

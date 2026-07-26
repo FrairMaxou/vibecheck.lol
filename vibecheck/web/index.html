@@ -144,6 +144,17 @@
         </div>
         <label class="switch"><input type="checkbox" id="set-paused"><span class="slider"></span></label>
       </div>
+      <div class="setting-row">
+        <div class="setting-text">
+          <div class="setting-title">When you close the window</div>
+          <div class="setting-desc">What the dashboard window's ✕ does. "Ask" prompts each time. Minimizing keeps VibeCheck running quietly in the tray; Quit shuts it down entirely.</div>
+        </div>
+        <select id="set-close-action" class="setting-select">
+          <option value="ask">Ask every time</option>
+          <option value="minimize">Minimize to tray</option>
+          <option value="quit">Quit the app</option>
+        </select>
+      </div>
       <div id="settings-msg" class="squad-msg"></div>
     </div>
     <div class="panel">

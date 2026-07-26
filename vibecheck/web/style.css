@@ -167,6 +167,10 @@ tr.low-n td { color: var(--ink-3); }
 }
 .switch input:checked + .slider { background: var(--gold); border-color: var(--gold); }
 .switch input:checked + .slider::before { transform: translateX(20px); background: #1e2328; }
+.setting-select {
+  background: var(--surface-2); color: var(--ink); border: 1px solid var(--line);
+  border-radius: 6px; padding: 6px 10px; font: inherit; font-size: 13px; flex: none; min-width: 160px;
+}
 
 /* ---------- squad online ---------- */
 .squad-help { color: var(--ink-2); font-size: 13px; margin-bottom: 12px; max-width: 70ch; }

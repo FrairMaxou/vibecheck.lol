@@ -413,6 +413,7 @@ async function renderSettings() {
   const msg = document.getElementById("settings-msg");
   const autostart = document.getElementById("set-autostart");
   const paused = document.getElementById("set-paused");
+  const closeAction = document.getElementById("set-close-action");
   let s;
   try {
     s = await api("/api/settings");
@@ -423,12 +424,14 @@ async function renderSettings() {
   autostart.checked = !!s.autostart;
   autostart.disabled = !s.autostart_supported;
   paused.checked = !!s.paused;
+  closeAction.value = s.close_action || "ask";
 
   const save = async (body, label) => {
     try {
       const r = await api("/api/settings", body);
       autostart.checked = !!r.autostart;
       paused.checked = !!r.paused;
+      closeAction.value = r.close_action || "ask";
       msg.textContent = label;
     } catch (e) {
       msg.textContent = "Couldn't save: " + e.message;
@@ -438,6 +441,8 @@ async function renderSettings() {
     save({ autostart: autostart.checked }, autostart.checked ? "Will start with Windows." : "Won't start with Windows.");
   paused.onchange = () =>
     save({ paused: paused.checked }, paused.checked ? "Rating popups paused." : "Rating popups on.");
+  const CLOSE_LABELS = { ask: "Will ask when you close the window.", minimize: "Closing minimizes to the tray.", quit: "Closing quits the app." };
+  closeAction.onchange = () => save({ close_action: closeAction.value }, CLOSE_LABELS[closeAction.value]);
 }
 
 /* ---------------- squad online (§12) ---------------- */

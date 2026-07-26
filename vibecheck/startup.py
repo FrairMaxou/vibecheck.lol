@@ -24,12 +24,14 @@ def _launch_command() -> str:
     """The command Windows should run at login.
 
     Frozen build: the exe itself. Source checkout: pythonw -m vibecheck so it
-    starts silently (no console window).
+    starts silently (no console window). The --autostart flag tells the app it
+    was launched at login, so it stays quietly in the tray instead of popping
+    the dashboard window open on every boot.
     """
     if getattr(sys, "frozen", False):
-        return f'"{sys.executable}"'
+        return f'"{sys.executable}" --autostart'
     pythonw = sys.executable.replace("python.exe", "pythonw.exe")
-    return f'"{pythonw}" -m vibecheck'
+    return f'"{pythonw}" -m vibecheck --autostart'
 
 
 def is_enabled() -> bool:

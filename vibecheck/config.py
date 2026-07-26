@@ -4,6 +4,7 @@ from pathlib import Path
 
 APP_NAME = "VibeCheck.lol"
 TAGLINE = "Winrate is temporary. The vibes are forever."
+APP_VERSION = "0.1.0"  # bump per release; also the git tag (vX.Y.Z)
 
 # Where the package's bundled files (web/, assets/) actually live. PyInstaller
 # unpacks them to a temp dir and __file__ no longer points at them, so every
