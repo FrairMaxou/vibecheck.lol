@@ -80,10 +80,12 @@ friend also running the app.)*
 
 ## Is this safe? Will I get banned?
 
-**No.** It only reads the League *client's* own local API — the same mechanism
+**YES.** It only reads the League *client's* own local API — the same mechanism
 apps like Blitz and Porofessor use. It never touches the game process, never
 shows anything during a game, never automates input, and gives no competitive
 advantage whatsoever. It literally just asks whether you had fun.
+
+**You will not get banned**
 
 Your data stays **on your PC** in `%LOCALAPPDATA%\LeagueOfKiffance\`. Only your
 *rated* games sync to The Gang, and they're visible only to mutual League
