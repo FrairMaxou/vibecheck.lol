@@ -1,20 +1,26 @@
 <div align="center">
-<img src="vibecheck/assets/logo.png" width="120" alt="VibeCheck.lol logo">
-
-# VibeCheck.lol
+<img src="vibecheck/assets/logo-horizontal.png" width="400" alt="VibeCheck.lol">
 
 **Winrate is temporary. The vibes are forever.**
 
+*Did you actually have fun though? The data knows.*
+
 </div>
 
-VibeCheck.lol sits quietly in your system tray. When a League game ends it
-asks one question — **"How was that game?"** — you click a face, and that's it.
-Over time it shows you which champions, teammates, and situations you genuinely
-enjoy, as opposed to the ones you merely win with.
+---
+
+VibeCheck.lol sits quietly in your system tray. When a League game ends it asks
+one question — **"How was that game?"** — you click a face, and that's it. Over
+time it shows you which champions, teammates, and situations you genuinely enjoy,
+as opposed to the ones you merely win with.
 
 Because winning Yasuo games while being miserable is still being miserable.
 
----
+The rating scale, one tap:
+
+| 😨 | 🤨 | 😐 | 😎 | 👑 |
+|----|----|----|----|----|
+| FF at 15 | Who Let Them Cook? | Meh | We Are So Back | Gigachad |
 
 ## Install (2 minutes, no technical knowledge needed)
 
@@ -39,20 +45,21 @@ tray icons there.
 - Miss it? Nothing is lost — the game waits in **To Rate** in the dashboard.
 - **Click the tray icon** to open your dashboard and see your stats.
 
-The app does **not** start automatically with Windows. After a reboot,
-double-click it again.
+The app does **not** start automatically with Windows by default — flip on
+**Start with Windows** in the dashboard's Settings tab if you want it to.
 
 ## What you get
 
-| | |
+| Tab | What it shows |
 |---|---|
-| **The Vibe Check** | Your average kiff, best and worst champions, squad effect |
-| **Champions** | Fun vs. winrate — find the champs you win with but hate |
-| **The Squad** | Whether your friends actually make games better |
-| **Regret Curve** | Which game of the night your fun falls off a cliff |
+| **The Vibe Check** | Your average vibe, certified bangers & yikes, the squad buff, Copium Tracking |
+| **Champions** | The Champion Vibe Tier List, and Vibes vs. Win Rate — the champs you win with but hate |
+| **The Squad** | Whether your friends actually make games better, plus Community Service karma |
+| **Context** | Vibe by queue, role, game length, hour, and day |
+| **Regret Curve** | Which game of the night your vibe falls off a cliff |
 | **Tags** | Label games ("int diff", "clutched it") and see what correlates |
-| **Explorer** | Slice fun by enemy champion, augment, item, role, hour… |
-| **Squad Online** | *(optional)* compare kiff scores with friends |
+| **Explorer** | Slice vibe by enemy champion, augment, item, role, hour… |
+| **The Gang** | *(optional)* compare vibe with friends — no signup, no codes |
 
 Every stat shows its sample size, and anything under 5 games is marked
 "not enough data yet" instead of pretending to be meaningful.
@@ -61,10 +68,10 @@ Every stat shows its sample size, and anything under 5 games is marked
 
 No signup, no accounts, no codes — it just works. Your squad is simply **your
 League friends who also run VibeCheck**. Once a friend installs it and you have
-each other friended in-game, you show up in each other's **Squad Online** tab
+each other friended in-game, you show up in each other's **The Gang** tab
 automatically.
 
-Then you get a squad leaderboard and the **mutual kiff matrix**: when two of you
+Then you get a squad leaderboard and the **mutual vibe matrix**: when two of you
 played the *same* game, it shows both ratings side by side. You rated it 5/5,
 they rated it 2/5 — that's the argument settled with data.
 
@@ -79,7 +86,7 @@ shows anything during a game, never automates input, and gives no competitive
 advantage whatsoever. It literally just asks whether you had fun.
 
 Your data stays **on your PC** in `%LOCALAPPDATA%\LeagueOfKiffance\`. Only your
-*rated* games sync to Squad Online, and they're visible only to mutual League
+*rated* games sync to The Gang, and they're visible only to mutual League
 friends who also run the app — never to anyone else.
 
 ## Troubleshooting
@@ -115,7 +122,8 @@ Releasing: [docs/RELEASE.md](docs/RELEASE.md)
 
 ---
 
-VibeCheck.lol isn't endorsed by Riot Games and doesn't reflect the views or
-opinions of Riot Games or anyone officially involved in producing or managing
-Riot Games properties. Riot Games, and all associated properties are trademarks
-or registered trademarks of Riot Games, Inc.
+<div align="center">
+<sub>VibeCheck.lol isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot
+Games or anyone officially involved in producing or managing Riot Games properties. Riot Games,
+and all associated properties are trademarks or registered trademarks of Riot Games, Inc.</sub>
+</div>
