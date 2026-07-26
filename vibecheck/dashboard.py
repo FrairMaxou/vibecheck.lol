@@ -126,6 +126,13 @@ def create_app(
     def games():
         return {"games": store.games_with_details()}
 
+    @app.get("/api/rev")
+    def rev():
+        """Cheap poll target: the dashboard only re-fetches /api/games when this
+        changes, instead of blindly refreshing on a timer (which caused a visible
+        flash and made freshly-rated games sit in "To Rate" until the next tick)."""
+        return {"rev": store.data_revision()}
+
     @app.post("/api/games/{game_id}/rating")
     def rate(game_id: int, body: RatingIn):
         if not body.skipped and (body.score is None or not 1 <= body.score <= 5):
@@ -135,7 +142,9 @@ def create_app(
             "Dashboard rating: game %d -> %s", game_id, "skipped" if body.skipped else body.score
         )
         _auto_sync()
-        return {"ok": True}
+        # Hand back the new rev so the frontend's optimistic update can adopt it
+        # directly instead of triggering a second, redundant full re-fetch.
+        return {"ok": True, "rev": store.data_revision()}
 
     @app.get("/api/settings")
     def get_settings():

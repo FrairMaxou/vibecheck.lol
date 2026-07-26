@@ -31,6 +31,7 @@ Chart.defaults.animation.duration = 250;
 
 let ALL = []; // enriched games
 let ALL_TAGS = []; // known tag labels (for suggestion chips)
+let lastRev = null; // server data_rev as of the last successful full refresh
 const charts = {}; // canvas id -> Chart instance
 const state = {
   tab: "overview",
@@ -665,10 +666,22 @@ function tagEditorHTML(g) {
 }
 
 async function postTags(id, tags) {
+  // The chip/row UI already reflects the change (classList.toggle below), so no
+  // re-render here — that would rebuild the DOM mid-edit and drop focus/typing
+  // in this or any other open tag-editor. The aggregate tag chart catches up on
+  // the next data_rev poll.
+  const game = ALL.find((g) => g.id === Number(id));
+  if (game) game.tags = tags;
   await fetch(`/api/games/${id}/tags`, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tags }),
   });
-  await refresh();
+}
+
+// Re-sync list views once the user is done editing a tag/note field, so a
+// change made elsewhere (e.g. a game finishing) that arrived while they were
+// typing gets picked up instead of staying stale indefinitely.
+function scheduleCatchUpRender() {
+  setTimeout(renderAll, 0);
 }
 
 function wireTagEditors(root) {
@@ -680,14 +693,18 @@ function wireTagEditors(root) {
     );
     const add = ed.querySelector(".tag-add");
     add.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && add.value.trim()) postTags(id, [...activeTags(), add.value.trim()]);
+      if (e.key === "Enter" && add.value.trim()) { postTags(id, [...activeTags(), add.value.trim()]); add.value = ""; }
     });
+    add.addEventListener("blur", scheduleCatchUpRender);
     const note = ed.querySelector(".note");
-    note.addEventListener("change", () =>
+    note.addEventListener("change", () => {
+      const game = ALL.find((g) => g.id === Number(id));
+      if (game) game.note = note.value;
       fetch(`/api/games/${id}/note`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ note: note.value }),
-      }),
-    );
+      });
+    });
+    note.addEventListener("blur", scheduleCatchUpRender);
   });
 }
 
@@ -727,12 +744,34 @@ function renderPending() {
     </div>`).join("");
   list.querySelectorAll(".rate-btns button").forEach((btn) => {
     btn.addEventListener("click", async () => {
-      const id = btn.closest(".pending-row").dataset.id;
-      const body = btn.dataset.skip ? { skipped: true } : { score: Number(btn.dataset.score) };
-      await fetch(`/api/games/${id}/rating`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-      });
-      await refresh();
+      const id = Number(btn.closest(".pending-row").dataset.id);
+      const game = ALL.find((g) => g.id === id);
+      if (!game) return;
+      const skipped = !!btn.dataset.skip;
+      const score = skipped ? null : Number(btn.dataset.score);
+      const prev = { fun_score: game.fun_score, skipped: game.skipped, rated: game.rated, pending: game.pending };
+      // Optimistic: reflect the rating immediately so the row leaves To Rate
+      // right away instead of waiting on the next poll tick.
+      game.fun_score = score;
+      game.skipped = skipped;
+      game.rated = game.fun_score != null && !game.skipped;
+      game.pending = game.fun_score == null && !game.skipped && !game.is_remake;
+      renderAll();
+      try {
+        const r = await fetch(`/api/games/${id}/rating`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(skipped ? { skipped: true } : { score }),
+        });
+        if (!r.ok) throw new Error(`save failed (${r.status})`);
+        const { rev } = await r.json();
+        // Adopt the server's new rev so the next poll sees "nothing changed"
+        // instead of re-fetching and re-rendering everything a second time.
+        lastRev = rev;
+      } catch (e) {
+        Object.assign(game, prev);
+        renderAll();
+        alert("Couldn't save that rating — try again.\n" + e.message);
+      }
     });
   });
   wireTagEditors(list);
@@ -793,39 +832,59 @@ function buildFilters() {
 
 /* ---------------- shell ---------------- */
 
+// True while the user has an active edit (a tag-add or note field) focused
+// inside the given list container — used to skip rebuilding that list's DOM
+// out from under them when a background change triggers a re-render.
+function isEditingWithin(containerId) {
+  const el = document.activeElement;
+  return !!(el && el.closest && el.closest(`#${containerId} .tag-editor`));
+}
+
 function renderAll() {
   const games = filtered();
   document.getElementById("f-count").textContent =
     games.length === ALL.length ? "" : `${games.length} of ${ALL.length} games match`;
   renderHeader(games);
-  renderPending();
+  if (!isEditingWithin("pending-list")) renderPending();
   const t = state.tab;
   if (t === "overview") renderOverview(games);
   if (t === "champions") renderChampions(games);
   if (t === "squad") { renderSquad(games); renderOnline(); } // local squad + online gang
   if (t === "context") { renderContext(games); renderExplorer(games); } // canned + free explore
   if (t === "sessions") renderSessions(games);
-  if (t === "tags") renderTags(games);
+  if (t === "tags" && !isEditingWithin("tags-games")) renderTags(games);
 }
 
 async function refresh() {
+  await loadData();
+  document.getElementById("offline-banner").classList.add("hidden");
+  buildFilters();
+  renderAll();
+}
+
+// Poll a cheap revision counter instead of blindly refetching everything on a
+// timer — that used to cause a visible flash every 60s (every chart destroyed
+// and rebuilt, every list re-rendered) whether or not anything had actually
+// changed, and left freshly-rated games sitting in "To Rate" until the next
+// tick. Now: idle page = zero re-renders; a real change (a game captured, a
+// rating saved anywhere, including the desktop popup) shows up within ~3s.
+async function pollRev() {
   try {
-    await loadData();
+    const { rev } = await fetchJSON("/api/rev");
+    document.getElementById("offline-banner").classList.add("hidden");
+    if (rev !== lastRev) {
+      lastRev = rev;
+      await refresh();
+    }
   } catch (e) {
-    // Graceful offline state: the tray app (our local API) isn't reachable, or
-    // a fetch failed. Show a banner and keep the last-rendered data on screen,
-    // then retry soon so it self-heals when the app comes back.
+    // Graceful offline state: the tray app (our local API) isn't reachable.
+    // Keep the last-rendered data on screen and keep polling — it self-heals
+    // when the app comes back, with no need for a separate retry timer.
     const b = document.getElementById("offline-banner");
     b.textContent =
       "⚠ Can't reach VibeCheck on this PC — is the tray app still running? Retrying…";
     b.classList.remove("hidden");
-    clearTimeout(window.__offlineRetry);
-    window.__offlineRetry = setTimeout(refresh, 5000);
-    return;
   }
-  document.getElementById("offline-banner").classList.add("hidden");
-  buildFilters();
-  renderAll();
 }
 
 document.querySelectorAll("#tabs button").forEach((btn) => {
@@ -853,5 +912,5 @@ document.addEventListener("click", (e) => {
 document.getElementById("pm-uninstall").addEventListener("click", doUninstall);
 
 loadProfile();
-refresh();
-setInterval(refresh, 60_000); // live-ish: new games appear without a manual reload
+pollRev(); // initial load — lastRev starts null so this always does a full refresh
+setInterval(pollRev, 3000);

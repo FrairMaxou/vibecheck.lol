@@ -111,6 +111,21 @@ class GameStore:
         with self._lock:
             self._db.close()
 
+    def _bump_rev(self) -> None:
+        """Mark the dataset as changed. Call only from inside a `with self._lock,
+        self._db:` block already held by the caller (see every write method below) —
+        the dashboard polls data_revision() to know when a re-fetch is worth doing.
+        """
+        self._db.execute(
+            "INSERT INTO meta (key, value) VALUES ('data_rev', '1') "
+            "ON CONFLICT(key) DO UPDATE SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT)"
+        )
+
+    def data_revision(self) -> int:
+        with self._lock:
+            row = self._db.execute("SELECT value FROM meta WHERE key = 'data_rev'").fetchone()
+        return int(row["value"]) if row else 0
+
     def insert_game(self, game: dict, teammates: list) -> int | None:
         """Insert a captured game; returns its id, or None if already stored.
 
@@ -166,6 +181,7 @@ class GameStore:
                     for t in teammates
                 ],
             )
+            self._bump_rev()
             return game_id
 
     def set_rating(self, game_id: int, fun_score: int | None, skipped: bool = False) -> None:
@@ -178,6 +194,7 @@ class GameStore:
                        rated_at=excluded.rated_at""",
                 (game_id, fun_score, int(skipped), datetime.now().isoformat(timespec="seconds")),
             )
+            self._bump_rev()
 
     def pending_games(self) -> list:
         """Games not yet rated or skipped (PRD F11).
@@ -218,6 +235,7 @@ class GameStore:
                     self._db.execute(
                         "INSERT INTO game_tags (game_id, tag_id) VALUES (?,?)", (game_id, tag_id)
                     )
+            self._bump_rev()
 
     def set_note(self, game_id: int, note: str) -> None:
         """Attach a free-text note without disturbing the fun score."""
@@ -227,6 +245,7 @@ class GameStore:
                    ON CONFLICT(game_id) DO UPDATE SET note=excluded.note""",
                 (game_id, note),
             )
+            self._bump_rev()
 
     def get_meta(self, key: str, default: str | None = None) -> str | None:
         with self._lock:
@@ -248,10 +267,12 @@ class GameStore:
             self._db.execute("DELETE FROM game_teammates WHERE game_id = ?", (game_id,))
             self._db.execute("DELETE FROM ratings WHERE game_id = ?", (game_id,))
             self._db.execute("DELETE FROM games WHERE id = ?", (game_id,))
+            self._bump_rev()
 
     def update_queue_type(self, game_id: int, queue_type: str) -> None:
         with self._lock, self._db:
             self._db.execute("UPDATE games SET queue_type = ? WHERE id = ?", (queue_type, game_id))
+            self._bump_rev()
 
     def has_game(self, riot_match_id: str) -> bool:
         with self._lock:
@@ -339,6 +360,7 @@ class GameStore:
                     game_id,
                 ),
             )
+            self._bump_rev()
 
     def games_with_raw(self) -> list:
         """(id, raw_payload) for every game — the backfill's input."""
