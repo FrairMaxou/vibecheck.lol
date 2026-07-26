@@ -195,11 +195,17 @@ function funScatterChart(id, rows) {
 
 function renderHeader(games) {
   const rated = games.filter((g) => g.rated);
-  document.getElementById("header-stats").innerHTML =
+  const avg = rated.length ? rated.reduce((s, g) => s + g.fun_score, 0) / rated.length : null;
+  document.getElementById("pm-stats").innerHTML =
     `<b>${games.length}</b> games · <b>${rated.length}</b> rated` +
-    (rated.length ? ` · avg vibe <b>${(rated.reduce((s, g) => s + g.fun_score, 0) / rated.length).toFixed(2)}</b>` : "");
+    (avg != null ? ` · avg vibe <b>${avg.toFixed(2)}</b>` : "");
+  // The profile button shows the overall (unfiltered) vibe as an identity stat.
+  const allRated = ALL.filter((g) => g.rated);
+  const allAvg = allRated.length ? allRated.reduce((s, g) => s + g.fun_score, 0) / allRated.length : null;
+  document.getElementById("profile-vibe").textContent =
+    allAvg != null ? `avg vibe ${allAvg.toFixed(2)} ${EMOJI[Math.round(allAvg)]}` : "no ratings yet";
   const banner = document.getElementById("low-data-banner");
-  const totalRated = ALL.filter((g) => g.rated).length;
+  const totalRated = allRated.length;
   if (totalRated < MIN_N) {
     banner.textContent = `The vibes are still buffering — ${totalRated}/${MIN_N} rated games until the insights unlock. Go feed the machine. 🎮`;
     banner.classList.remove("hidden");
@@ -391,7 +397,7 @@ function renderExplorer(games) {
   const type = document.getElementById("ex-type").value;
   const rows = aggregate(games, DIMS[dim]);
   const tableDiv = document.getElementById("explorer-table");
-  const wrap = document.querySelector("#tab-explorer .chart-wrap");
+  const wrap = document.getElementById("explorer-wrap");
   if (type === "table") {
     destroyChart("chart-explorer");
     wrap.classList.add("hidden");
@@ -443,6 +449,50 @@ async function renderSettings() {
     save({ paused: paused.checked }, paused.checked ? "Rating popups paused." : "Rating popups on.");
   const CLOSE_LABELS = { ask: "Will ask when you close the window.", minimize: "Closing minimizes to the tray.", quit: "Closing quits the app." };
   closeAction.onchange = () => save({ close_action: closeAction.value }, CLOSE_LABELS[closeAction.value]);
+}
+
+/* ---------------- profile menu (settings / update / uninstall) ---------------- */
+
+function toggleProfileMenu(forceOpen) {
+  const menu = document.getElementById("profile-menu");
+  const open = forceOpen ?? menu.classList.contains("hidden");
+  menu.classList.toggle("hidden", !open);
+  if (open) { renderSettings(); checkUpdate(); }
+}
+
+async function loadProfile() {
+  try {
+    const s = await api("/api/settings");
+    const name = s.summoner_name || "Summoner";
+    document.getElementById("profile-name").textContent = name;
+    document.getElementById("pm-name").textContent = name;
+  } catch { /* offline — keep the default label */ }
+}
+
+async function checkUpdate() {
+  const body = document.getElementById("update-body");
+  try {
+    const u = await api("/api/update");
+    body.innerHTML = u.update_available
+      ? `New version <b>v${escapeAttr(u.latest)}</b> is out (you're on v${escapeAttr(u.current)}). ` +
+        `<a class="pm-update-cta primary-btn" href="${escapeAttr(u.url)}" target="_blank" rel="noopener">Download</a>`
+      : `You're on <b>v${escapeAttr(u.current)}</b> — up to date. 🎉`;
+  } catch {
+    body.textContent = "Couldn't check for updates right now.";
+  }
+}
+
+async function doUninstall() {
+  const msg = document.getElementById("uninstall-msg");
+  if (!confirm("Uninstall VibeCheck?\n\nThis turns off start-with-Windows. You'll then quit from the tray and delete the app yourself.")) return;
+  try {
+    const r = await api("/api/uninstall", {});
+    msg.innerHTML =
+      `Removed from Windows startup. To finish: quit from the tray (right-click → Quit), delete ` +
+      `<b>VibeCheck.exe</b>, and — if you want your history gone too — delete <code>${escapeAttr(r.data_dir)}</code>.`;
+  } catch (e) {
+    msg.textContent = "Couldn't complete uninstall: " + e.message;
+  }
 }
 
 /* ---------------- squad online (§12) ---------------- */
@@ -752,13 +802,10 @@ function renderAll() {
   const t = state.tab;
   if (t === "overview") renderOverview(games);
   if (t === "champions") renderChampions(games);
-  if (t === "squad") renderSquad(games);
-  if (t === "context") renderContext(games);
+  if (t === "squad") { renderSquad(games); renderOnline(); } // local squad + online gang
+  if (t === "context") { renderContext(games); renderExplorer(games); } // canned + free explore
   if (t === "sessions") renderSessions(games);
   if (t === "tags") renderTags(games);
-  if (t === "online") renderOnline();
-  if (t === "settings") renderSettings();
-  if (t === "explorer") renderExplorer(games);
 }
 
 async function refresh() {
@@ -794,5 +841,17 @@ document.querySelectorAll("#tabs button").forEach((btn) => {
 document.getElementById("ex-dim").addEventListener("change", renderAll);
 document.getElementById("ex-type").addEventListener("change", renderAll);
 
+// Profile menu (top-right): open/close, outside-click to dismiss, uninstall.
+document.getElementById("profile-btn").addEventListener("click", (e) => {
+  e.stopPropagation();
+  toggleProfileMenu();
+});
+document.addEventListener("click", (e) => {
+  const menu = document.getElementById("profile-menu");
+  if (!menu.classList.contains("hidden") && !e.target.closest(".profile")) menu.classList.add("hidden");
+});
+document.getElementById("pm-uninstall").addEventListener("click", doUninstall);
+
+loadProfile();
 refresh();
 setInterval(refresh, 60_000); // live-ish: new games appear without a manual reload

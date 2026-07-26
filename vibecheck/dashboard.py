@@ -6,8 +6,10 @@ aggregation client-side, which is what makes the filter bar and explorer
 (F13b/F13c) instant.
 """
 
+import json
 import logging
 import threading
+import urllib.request
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
@@ -16,13 +18,37 @@ from pydantic import BaseModel
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from . import startup
-from .config import APP_NAME, DASHBOARD_HOST, DASHBOARD_PORT, WEB_DIR
+from .config import (
+    APP_NAME,
+    APP_VERSION,
+    DASHBOARD_HOST,
+    DASHBOARD_PORT,
+    DATA_DIR,
+    RELEASES_LATEST_API,
+    RELEASES_PAGE,
+    WEB_DIR,
+)
 from .store import GameStore
 from .sync import SquadService, SupabaseError
 
 log = logging.getLogger(__name__)
 
 STATIC_FILES = {"app.js", "style.css", "chart.umd.js"}
+
+
+def _is_newer(a: str, b: str) -> bool:
+    """True if dotted version a is newer than b (e.g. '0.2.0' > '0.1.9')."""
+
+    def parts(v: str) -> list[int]:
+        out = []
+        for p in v.split("."):
+            digits = "".join(ch for ch in p if ch.isdigit())
+            out.append(int(digits) if digits else 0)
+        return out
+
+    pa, pb = parts(a), parts(b)
+    n = max(len(pa), len(pb))
+    return pa + [0] * (n - len(pa)) > pb + [0] * (n - len(pb))
 
 
 class RatingIn(BaseModel):
@@ -63,6 +89,8 @@ def create_app(
             "paused": bool(is_paused()) if is_paused else False,
             "autostart_supported": startup.winreg is not None,
             "close_action": store.get_meta("close_action") or "ask",
+            "summoner_name": store.get_meta("my_summoner_name"),
+            "version": APP_VERSION,
         }
 
     # Binding to 127.0.0.1 stops remote access, but not DNS rebinding: an
@@ -133,6 +161,39 @@ def create_app(
         # server mid-response. A short timer lets this request return cleanly.
         threading.Timer(0.3, quit_fn).start()
         return {"ok": True, "quitting": True}
+
+    @app.get("/api/update")
+    def check_update():
+        """Best-effort 'is a newer release out?' check against public releases.
+
+        Returns update_available=False on any failure (private repo → 404,
+        offline, rate-limited), so it never nags when it can't be sure.
+        """
+        try:
+            req = urllib.request.Request(  # noqa: S310 - fixed https GitHub URL
+                RELEASES_LATEST_API, headers={"Accept": "application/vnd.github+json"}
+            )
+            with urllib.request.urlopen(req, timeout=6) as resp:  # noqa: S310 - fixed https GitHub URL
+                latest = (json.load(resp).get("tag_name") or "").lstrip("v")
+        except Exception:
+            return {"current": APP_VERSION, "latest": None, "update_available": False}
+        return {
+            "current": APP_VERSION,
+            "latest": latest or None,
+            "update_available": bool(latest) and _is_newer(latest, APP_VERSION),
+            "url": RELEASES_PAGE,
+        }
+
+    @app.post("/api/uninstall")
+    def uninstall():
+        """Remove the start-with-Windows entry; report what to delete manually.
+
+        A portable single-exe can't delete its own running file, so the only
+        persistent trace we own is the autostart registry key — we clear that
+        and hand back the paths for the user to remove.
+        """
+        startup.set_enabled(False)
+        return {"ok": True, "data_dir": str(DATA_DIR)}
 
     @app.get("/api/tags")
     def tags():

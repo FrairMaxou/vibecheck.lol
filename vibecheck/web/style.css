@@ -19,11 +19,50 @@ body {
   padding: 20px clamp(12px, 4vw, 48px) 60px;
 }
 
-header { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
 h1 { font-size: 26px; letter-spacing: .5px; color: var(--gold); }
 .subtitle { color: var(--ink-2); font-size: 13px; }
-.header-stats { color: var(--ink-2); font-size: 13px; }
-.header-stats b { color: var(--ink); font-size: 16px; }
+
+/* ---------- profile menu (top-right) ---------- */
+.profile { position: relative; }
+.profile-btn {
+  display: flex; align-items: center; gap: 10px; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 999px;
+  padding: 5px 12px 5px 6px; color: var(--ink); font: inherit;
+}
+.profile-btn:hover { border-color: var(--gold); }
+.profile-avatar {
+  width: 30px; height: 30px; border-radius: 50%; background: var(--surface-2);
+  display: grid; place-items: center; font-size: 17px; flex: none;
+}
+.profile-id { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.15; }
+#profile-name { font-size: 13px; font-weight: 600; }
+.profile-vibe { font-size: 12px; color: var(--ink-2); }
+.profile-btn .chev { color: var(--ink-2); font-size: 12px; }
+
+.profile-menu {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 40; width: 340px;
+  max-height: 78vh; overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0,0,0,.55);
+}
+.pm-head { padding: 16px 16px 12px; border-bottom: 1px solid var(--line); }
+.pm-name { font-size: 16px; font-weight: 700; color: var(--ink); }
+.pm-stats { font-size: 12.5px; color: var(--ink-2); margin-top: 3px; }
+.pm-stats b { color: var(--ink); }
+.pm-section { padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.pm-section:last-child { border-bottom: none; }
+.pm-title { font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--ink-3); margin-bottom: 8px; }
+.pm-muted { font-size: 12.5px; color: var(--ink-2); line-height: 1.5; }
+.pm-muted code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+.pm-section .setting-row { padding: 10px 0; }
+.pm-section .setting-row:first-of-type { padding-top: 2px; }
+.pm-update-cta { display: inline-block; margin-top: 6px; }
+.danger-btn {
+  margin-top: 10px; background: transparent; border: 1px solid #e2725b; color: #e2725b;
+  border-radius: 6px; padding: 6px 12px; cursor: pointer; font: inherit; font-size: 13px;
+}
+.danger-btn:hover { background: #e2725b; color: #1e2328; }
 
 .banner {
   background: linear-gradient(90deg, #2a2415, #1e2328);

@@ -13,7 +13,65 @@
     <h1>VibeCheck.lol</h1>
     <p class="subtitle">Winrate is temporary. The vibes are forever.</p>
   </div>
-  <div id="header-stats" class="header-stats"></div>
+  <div class="profile">
+    <button id="profile-btn" class="profile-btn" aria-haspopup="true">
+      <span class="profile-avatar">🤩</span>
+      <span class="profile-id">
+        <span id="profile-name">Summoner</span>
+        <span id="profile-vibe" class="profile-vibe"></span>
+      </span>
+      <span class="chev">▾</span>
+    </button>
+    <div id="profile-menu" class="profile-menu hidden">
+      <div class="pm-head">
+        <div class="pm-name" id="pm-name">Summoner</div>
+        <div class="pm-stats" id="pm-stats"></div>
+      </div>
+
+      <div class="pm-section">
+        <div class="pm-title">Version</div>
+        <div id="update-body" class="pm-muted">Checking for updates…</div>
+      </div>
+
+      <div class="pm-section">
+        <div class="pm-title">Settings</div>
+        <div class="setting-row">
+          <div class="setting-text">
+            <div class="setting-title">Start with Windows</div>
+            <div class="setting-desc">Launch automatically at login so no game is missed.</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="set-autostart"><span class="slider"></span></label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-text">
+            <div class="setting-title">Pause rating popups</div>
+            <div class="setting-desc">Keep capturing games, but hide the "How was that game?" popup. Rate later from To Rate.</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="set-paused"><span class="slider"></span></label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-text">
+            <div class="setting-title">When you close the window</div>
+            <div class="setting-desc">"Ask" prompts each time. Minimize keeps VibeCheck in the tray; Quit shuts it down.</div>
+          </div>
+          <select id="set-close-action" class="setting-select">
+            <option value="ask">Ask every time</option>
+            <option value="minimize">Minimize to tray</option>
+            <option value="quit">Quit the app</option>
+          </select>
+        </div>
+        <div id="settings-msg" class="squad-msg"></div>
+      </div>
+
+      <div class="pm-section">
+        <div class="pm-title">Your data</div>
+        <p class="pm-muted">Games live in <code>%LOCALAPPDATA%\LeagueOfKiffance</code>. Only rated games
+          sync, and only your mutual League friends can see them.</p>
+        <button id="pm-uninstall" class="danger-btn">Uninstall VibeCheck…</button>
+        <div id="uninstall-msg" class="squad-msg"></div>
+      </div>
+    </div>
+  </div>
 </header>
 
 <div id="offline-banner" class="banner banner-err hidden"></div>
@@ -44,9 +102,6 @@
   <button data-tab="context">Context</button>
   <button data-tab="sessions">Regret Curve</button>
   <button data-tab="tags">Tags</button>
-  <button data-tab="online">The Gang</button>
-  <button data-tab="settings">Settings</button>
-  <button data-tab="explorer">Explorer</button>
   <button data-tab="pending">To Rate <span id="pending-badge" class="badge hidden"></span></button>
 </nav>
 
@@ -72,7 +127,7 @@
 
   <div id="tab-squad" class="tab hidden">
     <div class="panel">
-      <h2>Squad Buff Check <span class="hint">fun with the gang vs. solo queue despair</span></h2>
+      <h2>Squad Buff Check <span class="hint">vibe with the gang vs. solo queue despair</span></h2>
       <div class="chart-wrap tall"><canvas id="chart-squad"></canvas></div>
     </div>
     <div class="panel">
@@ -81,38 +136,6 @@
         Track the karma points you rack up for playing with the designated deadweight.</p>
       <div id="community-service"></div>
     </div>
-  </div>
-
-  <div id="tab-context" class="tab hidden">
-    <div class="grid-2">
-      <div class="panel"><h2>By queue</h2><div class="chart-wrap"><canvas id="chart-ctx-queue"></canvas></div></div>
-      <div class="panel"><h2>By role</h2><div class="chart-wrap"><canvas id="chart-ctx-role"></canvas></div></div>
-      <div class="panel"><h2>Win vs. loss</h2><div class="chart-wrap"><canvas id="chart-ctx-result"></canvas></div></div>
-      <div class="panel"><h2>By game length</h2><div class="chart-wrap"><canvas id="chart-ctx-duration"></canvas></div></div>
-      <div class="panel"><h2>By hour of day</h2><div class="chart-wrap"><canvas id="chart-ctx-hour"></canvas></div></div>
-      <div class="panel"><h2>By day of week</h2><div class="chart-wrap"><canvas id="chart-ctx-weekday"></canvas></div></div>
-    </div>
-  </div>
-
-  <div id="tab-sessions" class="tab hidden">
-    <div class="panel">
-      <h2>The "one more game" regret curve <span class="hint">fun by game number in a session — find where the vibe dies and log off there</span></h2>
-      <div class="chart-wrap"><canvas id="chart-sessions"></canvas></div>
-    </div>
-  </div>
-
-  <div id="tab-tags" class="tab hidden">
-    <div class="panel">
-      <h2>Tag energy <span class="hint">average vibe per tag — what actually makes a game good</span></h2>
-      <div class="chart-wrap"><canvas id="chart-tags"></canvas></div>
-    </div>
-    <div class="panel">
-      <h2>Tag your games <span class="hint">slap labels on any game (and a note if you're feeling verbose)</span></h2>
-      <div id="tags-games"></div>
-    </div>
-  </div>
-
-  <div id="tab-online" class="tab hidden">
     <div class="panel">
       <h2>Squad Sync <span class="hint">your League friends who also run VibeCheck — no signup, no codes</span></h2>
       <div id="squad-body"></div>
@@ -127,46 +150,17 @@
     </div>
   </div>
 
-  <div id="tab-settings" class="tab hidden">
-    <div class="panel">
-      <h2>Settings <span class="hint">how the app behaves on your machine</span></h2>
-      <div class="setting-row">
-        <div class="setting-text">
-          <div class="setting-title">Start with Windows</div>
-          <div class="setting-desc">Launch VibeCheck.lol automatically when you log in, so no game is missed.</div>
-        </div>
-        <label class="switch"><input type="checkbox" id="set-autostart"><span class="slider"></span></label>
-      </div>
-      <div class="setting-row">
-        <div class="setting-text">
-          <div class="setting-title">Pause rating popups</div>
-          <div class="setting-desc">Keep capturing games, but don't show the "How was that game?" popup. Rate later from To Rate.</div>
-        </div>
-        <label class="switch"><input type="checkbox" id="set-paused"><span class="slider"></span></label>
-      </div>
-      <div class="setting-row">
-        <div class="setting-text">
-          <div class="setting-title">When you close the window</div>
-          <div class="setting-desc">What the dashboard window's ✕ does. "Ask" prompts each time. Minimizing keeps VibeCheck running quietly in the tray; Quit shuts it down entirely.</div>
-        </div>
-        <select id="set-close-action" class="setting-select">
-          <option value="ask">Ask every time</option>
-          <option value="minimize">Minimize to tray</option>
-          <option value="quit">Quit the app</option>
-        </select>
-      </div>
-      <div id="settings-msg" class="squad-msg"></div>
+  <div id="tab-context" class="tab hidden">
+    <div class="grid-2">
+      <div class="panel"><h2>By queue</h2><div class="chart-wrap"><canvas id="chart-ctx-queue"></canvas></div></div>
+      <div class="panel"><h2>By role</h2><div class="chart-wrap"><canvas id="chart-ctx-role"></canvas></div></div>
+      <div class="panel"><h2>Win vs. loss</h2><div class="chart-wrap"><canvas id="chart-ctx-result"></canvas></div></div>
+      <div class="panel"><h2>By game length</h2><div class="chart-wrap"><canvas id="chart-ctx-duration"></canvas></div></div>
+      <div class="panel"><h2>By hour of day</h2><div class="chart-wrap"><canvas id="chart-ctx-hour"></canvas></div></div>
+      <div class="panel"><h2>By day of week</h2><div class="chart-wrap"><canvas id="chart-ctx-weekday"></canvas></div></div>
     </div>
     <div class="panel">
-      <h2>Your data <span class="hint">everything stays on this PC</span></h2>
-      <p class="squad-help">Games and ratings live in
-        <code>%LOCALAPPDATA%\LeagueOfKiffance</code>. Only your rated games are ever uploaded,
-        and only your mutual League friends running VibeCheck can see them.</p>
-    </div>
-  </div>
-
-  <div id="tab-explorer" class="tab hidden">
-    <div class="panel">
+      <h2>Explore it yourself <span class="hint">slice your vibe by any dimension, your way</span></h2>
       <div class="explorer-controls">
         <label>Group by
           <select id="ex-dim">
@@ -194,8 +188,26 @@
           </select>
         </label>
       </div>
-      <div class="chart-wrap tall"><canvas id="chart-explorer"></canvas></div>
+      <div class="chart-wrap tall" id="explorer-wrap"><canvas id="chart-explorer"></canvas></div>
       <div id="explorer-table"></div>
+    </div>
+  </div>
+
+  <div id="tab-sessions" class="tab hidden">
+    <div class="panel">
+      <h2>The "one more game" regret curve <span class="hint">vibe by game number in a session — find where it dies and log off there</span></h2>
+      <div class="chart-wrap"><canvas id="chart-sessions"></canvas></div>
+    </div>
+  </div>
+
+  <div id="tab-tags" class="tab hidden">
+    <div class="panel">
+      <h2>Tag energy <span class="hint">average vibe per tag — what actually makes a game good</span></h2>
+      <div class="chart-wrap"><canvas id="chart-tags"></canvas></div>
+    </div>
+    <div class="panel">
+      <h2>Tag your games <span class="hint">slap labels on any game (and a note if you're feeling verbose)</span></h2>
+      <div id="tags-games"></div>
     </div>
   </div>
 

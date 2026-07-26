@@ -6,6 +6,13 @@ APP_NAME = "VibeCheck.lol"
 TAGLINE = "Winrate is temporary. The vibes are forever."
 APP_VERSION = "0.1.0"  # bump per release; also the git tag (vX.Y.Z)
 
+# Where the in-app "update available" check looks. Must point at whichever repo
+# hosts the PUBLIC releases (this repo if open-sourced, or a separate public
+# releases repo). Returns 404 while the repo is private — the check then just
+# reports "up to date" and never nags.
+RELEASES_LATEST_API = "https://api.github.com/repos/FrairMaxou/vibecheck.lol/releases/latest"
+RELEASES_PAGE = "https://github.com/FrairMaxou/vibecheck.lol/releases/latest"
+
 # Where the package's bundled files (web/, assets/) actually live. PyInstaller
 # unpacks them to a temp dir and __file__ no longer points at them, so every
 # lookup of bundled data must go through this.
