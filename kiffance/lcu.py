@@ -156,7 +156,16 @@ class GameflowEvents:
             on_open=self._subscribe,
             on_message=self._handle_message,
         )
-        self._ws.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE})
+        # ping_interval is essential for a long-running tray app: without it a
+        # half-open socket (client sleep, network blip) is never detected, so
+        # run_forever blocks forever on a dead connection and games played after
+        # go uncaptured. With it, a missed pong closes the socket, run_forever
+        # returns, and the watcher reconnects.
+        self._ws.run_forever(
+            sslopt={"cert_reqs": ssl.CERT_NONE},
+            ping_interval=30,
+            ping_timeout=10,
+        )
 
     def stop(self) -> None:
         self._stopped.set()

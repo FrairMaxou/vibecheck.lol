@@ -464,6 +464,34 @@ def _install_crash_logging() -> None:
     threading.excepthook = log_thread_uncaught
 
 
+def _acquire_single_instance() -> bool:
+    """True if this is the only instance; False if one is already running.
+
+    Uses a Windows named mutex — the OS frees it when the process dies, so
+    there's no stale-lock problem after a crash. Two instances would fight over
+    the port and DB and double every popup, which is exactly the confusion a
+    user hits when they double-launch the exe.
+    """
+    try:
+        import ctypes
+
+        # use_last_error=True so ctypes.get_last_error() reflects CreateMutexW's
+        # error directly — plain windll.kernel32.GetLastError() can read a stale
+        # value because ctypes makes its own intervening Windows calls.
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.CreateMutexW(None, False, "Local\\LeagueOfKiffance_singleton")
+        already = ctypes.get_last_error() == 183  # ERROR_ALREADY_EXISTS
+        if already:
+            message = (
+                "League of Kiffance is already running.\n"
+                "Check your system tray (the ^ arrow by the clock)."
+            )
+            ctypes.windll.user32.MessageBoxW(None, message, "League of Kiffance", 0x40)
+        return not already
+    except Exception:
+        return True  # non-Windows / no ctypes: don't block startup
+
+
 def main() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     # Under pythonw there is no console, so sys.stderr is None — a StreamHandler
@@ -478,4 +506,7 @@ def main() -> None:
         handlers=handlers,
     )
     _install_crash_logging()
+    if not _acquire_single_instance():
+        log.warning("Another instance is already running; exiting")
+        return
     App().run()
