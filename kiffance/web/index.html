@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VibeCheck.lol</title>
+<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤩</text></svg>">
+</head>
+<body data-palette="#b28328,#2f9ac0" data-mode="dark">
+<header>
+  <div class="title-block">
+    <h1>VibeCheck.lol</h1>
+    <p class="subtitle">Winrate is temporary. The vibes are forever.</p>
+  </div>
+  <div id="header-stats" class="header-stats"></div>
+</header>
+
+<div id="offline-banner" class="banner banner-err hidden"></div>
+<div id="low-data-banner" class="banner hidden"></div>
+
+<section id="filters" class="filters">
+  <div class="filter-group">
+    <label>From</label>
+    <input type="date" id="f-from">
+  </div>
+  <div class="filter-group">
+    <label>To</label>
+    <input type="date" id="f-to">
+  </div>
+  <div class="filter-group"><label>Queue</label><div id="f-queue"></div></div>
+  <div class="filter-group"><label>Champion</label><div id="f-champion"></div></div>
+  <div class="filter-group"><label>Role</label><div id="f-role"></div></div>
+  <div class="filter-group"><label>Teammate</label><div id="f-teammate"></div></div>
+  <div class="filter-group"><label>Result</label><div id="f-result"></div></div>
+  <button id="f-clear" class="ghost-btn">Clear filters</button>
+  <span id="f-count" class="filter-count"></span>
+</section>
+
+<nav id="tabs">
+  <button data-tab="overview" class="active">The Vibe Check</button>
+  <button data-tab="champions">Champions</button>
+  <button data-tab="squad">The Squad</button>
+  <button data-tab="context">Context</button>
+  <button data-tab="sessions">Regret Curve</button>
+  <button data-tab="tags">Tags</button>
+  <button data-tab="online">The Gang</button>
+  <button data-tab="settings">Settings</button>
+  <button data-tab="explorer">Explorer</button>
+  <button data-tab="pending">To Rate <span id="pending-badge" class="badge hidden"></span></button>
+</nav>
+
+<main>
+  <div id="tab-overview" class="tab">
+    <div id="fun-facts" class="cards"></div>
+    <div class="panel">
+      <h2>Copium Tracking <span class="hint">rolling average of your last 5 ratings — are we healing or coping?</span></h2>
+      <div class="chart-wrap"><canvas id="chart-trend"></canvas></div>
+    </div>
+  </div>
+
+  <div id="tab-champions" class="tab hidden">
+    <div class="panel">
+      <h2>Champion Vibe Tier List <span class="hint">who sparks joy, who sparks tilt</span></h2>
+      <div class="chart-wrap tall"><canvas id="chart-champ-fun"></canvas></div>
+    </div>
+    <div class="panel">
+      <h2>Vibes vs. Win Rate <span class="hint">top-left: fun but bad · bottom-right: winning and miserable (pure copium)</span></h2>
+      <div class="chart-wrap"><canvas id="chart-champ-scatter"></canvas></div>
+    </div>
+  </div>
+
+  <div id="tab-squad" class="tab hidden">
+    <div class="panel">
+      <h2>Squad Buff Check <span class="hint">fun with the gang vs. solo queue despair</span></h2>
+      <div class="chart-wrap tall"><canvas id="chart-squad"></canvas></div>
+    </div>
+    <div class="panel">
+      <h2>Community Service <span class="hint">a.k.a. Charity Work</span></h2>
+      <p class="squad-help">We all have that one friend who goes 0/10, but we love them anyway.
+        Track the karma points you rack up for playing with the designated deadweight.</p>
+      <div id="community-service"></div>
+    </div>
+  </div>
+
+  <div id="tab-context" class="tab hidden">
+    <div class="grid-2">
+      <div class="panel"><h2>By queue</h2><div class="chart-wrap"><canvas id="chart-ctx-queue"></canvas></div></div>
+      <div class="panel"><h2>By role</h2><div class="chart-wrap"><canvas id="chart-ctx-role"></canvas></div></div>
+      <div class="panel"><h2>Win vs. loss</h2><div class="chart-wrap"><canvas id="chart-ctx-result"></canvas></div></div>
+      <div class="panel"><h2>By game length</h2><div class="chart-wrap"><canvas id="chart-ctx-duration"></canvas></div></div>
+      <div class="panel"><h2>By hour of day</h2><div class="chart-wrap"><canvas id="chart-ctx-hour"></canvas></div></div>
+      <div class="panel"><h2>By day of week</h2><div class="chart-wrap"><canvas id="chart-ctx-weekday"></canvas></div></div>
+    </div>
+  </div>
+
+  <div id="tab-sessions" class="tab hidden">
+    <div class="panel">
+      <h2>The "one more game" regret curve <span class="hint">fun by game number in a session — find where the vibe dies and log off there</span></h2>
+      <div class="chart-wrap"><canvas id="chart-sessions"></canvas></div>
+    </div>
+  </div>
+
+  <div id="tab-tags" class="tab hidden">
+    <div class="panel">
+      <h2>Tag energy <span class="hint">average vibe per tag — what actually makes a game good</span></h2>
+      <div class="chart-wrap"><canvas id="chart-tags"></canvas></div>
+    </div>
+    <div class="panel">
+      <h2>Tag your games <span class="hint">slap labels on any game (and a note if you're feeling verbose)</span></h2>
+      <div id="tags-games"></div>
+    </div>
+  </div>
+
+  <div id="tab-online" class="tab hidden">
+    <div class="panel">
+      <h2>Squad Sync <span class="hint">your League friends who also run VibeCheck — no signup, no codes</span></h2>
+      <div id="squad-body"></div>
+    </div>
+    <div class="panel hidden" id="squad-board-panel">
+      <h2>Flex Queue Survivors <span class="hint">who's actually enjoying this game</span></h2>
+      <div class="chart-wrap"><canvas id="chart-squad-board"></canvas></div>
+    </div>
+    <div class="panel hidden" id="squad-matrix-panel">
+      <h2>Mutual vibes <span class="hint">same game, two very different opinions</span></h2>
+      <div id="squad-matrix"></div>
+    </div>
+  </div>
+
+  <div id="tab-settings" class="tab hidden">
+    <div class="panel">
+      <h2>Settings <span class="hint">how the app behaves on your machine</span></h2>
+      <div class="setting-row">
+        <div class="setting-text">
+          <div class="setting-title">Start with Windows</div>
+          <div class="setting-desc">Launch VibeCheck.lol automatically when you log in, so no game is missed.</div>
+        </div>
+        <label class="switch"><input type="checkbox" id="set-autostart"><span class="slider"></span></label>
+      </div>
+      <div class="setting-row">
+        <div class="setting-text">
+          <div class="setting-title">Pause rating popups</div>
+          <div class="setting-desc">Keep capturing games, but don't show the "How was that game?" popup. Rate later from To Rate.</div>
+        </div>
+        <label class="switch"><input type="checkbox" id="set-paused"><span class="slider"></span></label>
+      </div>
+      <div id="settings-msg" class="squad-msg"></div>
+    </div>
+    <div class="panel">
+      <h2>Your data <span class="hint">everything stays on this PC</span></h2>
+      <p class="squad-help">Games and ratings live in
+        <code>%LOCALAPPDATA%\LeagueOfKiffance</code>. Only your rated games are ever uploaded,
+        and only your mutual League friends running VibeCheck can see them.</p>
+    </div>
+  </div>
+
+  <div id="tab-explorer" class="tab hidden">
+    <div class="panel">
+      <div class="explorer-controls">
+        <label>Group by
+          <select id="ex-dim">
+            <option value="champion">Champion</option>
+            <option value="enemy">Enemy champion faced</option>
+            <option value="augment">Augment</option>
+            <option value="item">Item built</option>
+            <option value="tag">Tag</option>
+            <option value="teammate">Teammate</option>
+            <option value="queue_type">Queue</option>
+            <option value="role">Role</option>
+            <option value="result">Win / Loss</option>
+            <option value="weekday">Day of week</option>
+            <option value="hour">Hour of day</option>
+            <option value="session_index">Game # in session</option>
+            <option value="duration_bucket">Game length</option>
+            <option value="month">Month</option>
+          </select>
+        </label>
+        <label>Show as
+          <select id="ex-type">
+            <option value="bar">Bars (avg vibe)</option>
+            <option value="scatter">Scatter (vibe vs. winrate)</option>
+            <option value="table">Table</option>
+          </select>
+        </label>
+      </div>
+      <div class="chart-wrap tall"><canvas id="chart-explorer"></canvas></div>
+      <div id="explorer-table"></div>
+    </div>
+  </div>
+
+  <div id="tab-pending" class="tab hidden">
+    <div class="panel">
+      <h2>Games left on read <span class="hint">give them a verdict before you forget how they felt</span></h2>
+      <div id="pending-list"></div>
+    </div>
+  </div>
+</main>
+
+<footer id="legal-footer">
+  VibeCheck.lol isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot
+  Games or anyone officially involved in producing or managing Riot Games properties. Riot Games,
+  and all associated properties are trademarks or registered trademarks of Riot Games, Inc.
+</footer>
+
+<script src="/static/chart.umd.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>
