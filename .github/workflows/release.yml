@@ -54,7 +54,7 @@ jobs:
           Stop-Process -Id $p.Id -Force
           Write-Host "exe smoke test passed"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: LeagueOfKiffance
           path: dist/LeagueOfKiffance.exe
