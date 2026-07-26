@@ -688,9 +688,12 @@ function wireTagEditors(root) {
   root.querySelectorAll(".tag-editor").forEach((ed) => {
     const id = ed.dataset.id;
     const activeTags = () => [...ed.querySelectorAll(".chip.on")].map((c) => c.dataset.tag);
-    ed.querySelectorAll(".chip").forEach((c) =>
-      c.addEventListener("click", () => { c.classList.toggle("on"); postTags(id, activeTags()); }),
-    );
+    ed.querySelectorAll(".chip").forEach((c) => {
+      c.addEventListener("click", () => { c.classList.toggle("on"); postTags(id, activeTags()); });
+      // A clicked chip keeps focus, which suppresses re-renders for this list;
+      // catch up once focus leaves so the tag chart isn't left stale.
+      c.addEventListener("blur", scheduleCatchUpRender);
+    });
     const add = ed.querySelector(".tag-add");
     add.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && add.value.trim()) { postTags(id, [...activeTags(), add.value.trim()]); add.value = ""; }
@@ -766,7 +769,10 @@ function renderPending() {
         const { rev } = await r.json();
         // Adopt the server's new rev so the next poll sees "nothing changed"
         // instead of re-fetching and re-rendering everything a second time.
-        lastRev = rev;
+        // Only when it's exactly one ahead, though: anything else means another
+        // write landed too (e.g. the popup rated a game), and that one still
+        // needs fetching — so leave lastRev alone and let the poll catch it.
+        if (rev === lastRev + 1) lastRev = rev;
       } catch (e) {
         Object.assign(game, prev);
         renderAll();
@@ -871,11 +877,14 @@ async function refresh() {
 async function pollRev() {
   try {
     const { rev } = await fetchJSON("/api/rev");
-    document.getElementById("offline-banner").classList.add("hidden");
     if (rev !== lastRev) {
-      lastRev = rev;
+      // Only record the rev once the data behind it is actually on screen —
+      // otherwise a refresh that fails half-way would leave us believing we're
+      // up to date and we'd never retry.
       await refresh();
+      lastRev = rev;
     }
+    document.getElementById("offline-banner").classList.add("hidden");
   } catch (e) {
     // Graceful offline state: the tray app (our local API) isn't reachable.
     // Keep the last-rendered data on screen and keep polling — it self-heals
