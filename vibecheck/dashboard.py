@@ -17,14 +17,16 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from . import startup, updater
+from . import startup, updater, whatsnew
 from .config import (
     APP_NAME,
     APP_VERSION,
     DASHBOARD_HOST,
     DASHBOARD_PORT,
     DATA_DIR,
+    DISCORD_INVITE_URL,
     WEB_DIR,
+    feedback_form_url,
 )
 from .store import GameStore
 from .sync import SquadService, SupabaseError
@@ -35,6 +37,7 @@ STATIC_FILES = {"app.js", "style.css", "chart.umd.js"}
 
 UPDATE_CACHE_KEY = "update_check"
 UPDATE_CACHE_SECONDS = 6 * 3600  # unauthenticated GitHub allows 60 req/h per IP
+LAST_SEEN_VERSION_KEY = "last_seen_version"  # drives the once-per-update notes
 
 
 class RatingIn(BaseModel):
@@ -78,6 +81,10 @@ def create_app(
             "close_action": store.get_meta("close_action") or "ask",
             "summoner_name": store.get_meta("my_summoner_name"),
             "version": APP_VERSION,
+            "discord_url": DISCORD_INVITE_URL,
+            # Empty until a form exists — the UI hides the entry rather than
+            # offering a link that goes nowhere.
+            "feedback_url": feedback_form_url(),
         }
 
     # Binding to 127.0.0.1 stops remote access, but not DNS rebinding: an
@@ -218,6 +225,26 @@ def create_app(
         """
         startup.set_enabled(False)
         return {"ok": True, "data_dir": str(DATA_DIR)}
+
+    @app.get("/api/whats-new")
+    def whats_new():
+        """The "what changed" notes, shown once after an update.
+
+        Deliberately silent on a fresh install: someone opening VibeCheck for
+        the first time has nothing to catch up on. That first run just records
+        the current version so the *next* update is the one that speaks up.
+        """
+        seen = store.get_meta(LAST_SEEN_VERSION_KEY)
+        if seen is None:
+            store.set_meta(LAST_SEEN_VERSION_KEY, APP_VERSION)
+            return {"version": APP_VERSION, "notes": [], "show": False}
+        notes = whatsnew.notes_for(APP_VERSION)
+        return {"version": APP_VERSION, "notes": notes, "show": bool(notes) and seen != APP_VERSION}
+
+    @app.post("/api/whats-new/seen")
+    def whats_new_seen():
+        store.set_meta(LAST_SEEN_VERSION_KEY, APP_VERSION)
+        return {"ok": True}
 
     @app.get("/api/tags")
     def tags():

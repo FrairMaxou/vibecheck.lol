@@ -13,6 +13,27 @@ APP_VERSION = "0.1.2"  # bump per release; also the git tag (vX.Y.Z)
 RELEASES_LATEST_API = "https://api.github.com/repos/FrairMaxou/vibecheck.lol/releases/latest"
 RELEASES_PAGE = "https://github.com/FrairMaxou/vibecheck.lol/releases/latest"
 
+# Where users can reach us. These are baked into each build and can't be changed
+# after release, so the Discord invite MUST be set to "never expire" — an
+# expiring invite becomes a dead link for everyone still on that version.
+DISCORD_INVITE_URL = "https://discord.gg/qKju9Njzz"
+# Google Form for structured feedback. Empty = the menu entry is simply hidden,
+# so shipping before the form exists is safe.
+FEEDBACK_FORM_URL = ""
+# From the form's "Get pre-filled link" (looks like "entry.123456789"). With it
+# set, the running version rides along so every report says which build it came
+# from; without it the form still opens, just without the version filled in.
+FEEDBACK_FORM_VERSION_ENTRY = ""
+
+
+def feedback_form_url() -> str:
+    """The feedback form, with the running version pre-filled when configured."""
+    if not FEEDBACK_FORM_URL or not FEEDBACK_FORM_VERSION_ENTRY:
+        return FEEDBACK_FORM_URL
+    sep = "&" if "?" in FEEDBACK_FORM_URL else "?"
+    return f"{FEEDBACK_FORM_URL}{sep}usp=pp_url&{FEEDBACK_FORM_VERSION_ENTRY}=v{APP_VERSION}"
+
+
 # Where the package's bundled files (web/, assets/) actually live. PyInstaller
 # unpacks them to a temp dir and __file__ no longer points at them, so every
 # lookup of bundled data must go through this.

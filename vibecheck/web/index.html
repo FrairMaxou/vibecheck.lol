@@ -68,6 +68,15 @@
       </div>
 
       <div class="pm-section">
+        <div class="pm-title">Feedback</div>
+        <p class="pm-muted">Found a bug, or want something added? Tell me — it genuinely shapes what gets built.</p>
+        <div class="pm-links">
+          <a id="pm-discord" class="pm-link" href="#" target="_blank" rel="noopener">💬 Join the Discord</a>
+          <a id="pm-feedback" class="pm-link hidden" href="#" target="_blank" rel="noopener">📝 Send feedback</a>
+        </div>
+      </div>
+
+      <div class="pm-section">
         <div class="pm-title">Your data</div>
         <p class="pm-muted">Games live in <code>%LOCALAPPDATA%\LeagueOfKiffance</code>. Only rated games
           sync, and only your mutual League friends can see them.</p>
@@ -77,6 +86,15 @@
     </div>
   </div>
 </header>
+
+<div id="whatsnew" class="modal-backdrop hidden">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="whatsnew-title">
+    <h2 id="whatsnew-title">What's new ✨</h2>
+    <p class="modal-sub" id="whatsnew-version"></p>
+    <ul id="whatsnew-list"></ul>
+    <button id="whatsnew-ok" class="primary-btn">Got it</button>
+  </div>
+</div>
 
 <div id="offline-banner" class="banner banner-err hidden"></div>
 <div id="update-banner" class="banner banner-update hidden"></div>
