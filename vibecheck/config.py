@@ -16,7 +16,7 @@ RELEASES_PAGE = "https://github.com/FrairMaxou/vibecheck.lol/releases/latest"
 # Where users can reach us. These are baked into each build and can't be changed
 # after release, so the Discord invite MUST be set to "never expire" — an
 # expiring invite becomes a dead link for everyone still on that version.
-DISCORD_INVITE_URL = "https://discord.gg/qKju9Njzz"
+DISCORD_INVITE_URL = "https://discord.gg/SnE9Yj8cSh"  # verified: never expires
 # Google Form for structured feedback. Empty = the menu entry is simply hidden,
 # so shipping before the form exists is safe.
 FEEDBACK_FORM_URL = ""

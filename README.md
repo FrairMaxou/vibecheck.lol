@@ -95,10 +95,10 @@ friends who also run the app — never to anyone else.
 
 Bugs, ideas, or just want to compare vibes with other people who track theirs:
 
-- **[Join the Discord](https://discord.gg/qKju9Njzz)** — the fastest way to reach
+- **[Join the Discord](https://discord.gg/SnE9Yj8cSh)** — the fastest way to reach
   me, and where new features get argued about before they exist.
 
-Both are also linked in the app, under the **profile menu** at the top-right.
+It's also linked inside the app, under the **profile menu** at the top-right.
 
 ## Troubleshooting
 
