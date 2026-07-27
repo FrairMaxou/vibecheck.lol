@@ -20,7 +20,7 @@ import webbrowser
 from datetime import datetime, timedelta
 from tkinter import messagebox
 
-from . import capture, lcu, startup, updater
+from . import capture, lcu, startup, telemetry, updater
 from .config import (
     APP_NAME,
     CATCHUP_FIRST_RUN_HOURS,
@@ -109,7 +109,25 @@ class App:
         # (--autostart), where a window popping up every boot would be annoying.
         if "--autostart" not in sys.argv:
             self._root.after(1000, self._open_dashboard)
+        self._start_usage_ping()
         self._root.mainloop()
+
+    def _start_usage_ping(self) -> None:
+        """Anonymous usage ping, well after startup so it competes with nothing.
+
+        Entirely best-effort: it is opt-out, never raises, and the app neither
+        waits for it nor cares whether it succeeded.
+        """
+
+        def worker():
+            if self._stopping.wait(60):
+                return  # quit before the delay elapsed
+            try:
+                telemetry.ping(self.store)
+            except Exception:
+                log.debug("Usage ping failed", exc_info=True)
+
+        threading.Thread(target=worker, name="usage-ping", daemon=True).start()
 
     def _maybe_prompt_autostart(self) -> None:
         """First-run only: offer launch-at-login (F23). Tray toggle changes it later."""

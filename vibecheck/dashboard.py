@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from . import startup, updater, whatsnew
+from . import startup, telemetry, updater, whatsnew
 from .config import (
     APP_NAME,
     APP_VERSION,
@@ -38,6 +38,7 @@ STATIC_FILES = {"app.js", "style.css", "chart.umd.js"}
 UPDATE_CACHE_KEY = "update_check"
 UPDATE_CACHE_SECONDS = 6 * 3600  # unauthenticated GitHub allows 60 req/h per IP
 LAST_SEEN_VERSION_KEY = "last_seen_version"  # drives the once-per-update notes
+TELEMETRY_NOTICE_KEY = "telemetry_notice_seen"
 
 
 class RatingIn(BaseModel):
@@ -62,6 +63,7 @@ class SettingsIn(BaseModel):
     autostart: bool | None = None
     paused: bool | None = None
     close_action: str | None = None  # "ask" | "minimize" | "quit"
+    telemetry: bool | None = None
 
 
 def create_app(
@@ -85,6 +87,9 @@ def create_app(
             # Empty until a form exists — the UI hides the entry rather than
             # offering a link that goes nowhere.
             "feedback_url": feedback_form_url(),
+            "telemetry": telemetry.is_enabled(store),
+            # Drives the one-time "here's what we collect" notice.
+            "telemetry_notice_seen": store.get_meta(TELEMETRY_NOTICE_KEY) == "1",
         }
 
     # Binding to 127.0.0.1 stops remote access, but not DNS rebinding: an
@@ -152,7 +157,15 @@ def create_app(
             controls["set_paused"](body.paused)
         if body.close_action in ("ask", "minimize", "quit"):
             store.set_meta("close_action", body.close_action)
+        if body.telemetry is not None:
+            telemetry.set_enabled(store, body.telemetry)
         return _settings()
+
+    @app.post("/api/telemetry/notice-seen")
+    def telemetry_notice_seen():
+        """Acknowledge the one-time disclosure of what usage stats we collect."""
+        store.set_meta(TELEMETRY_NOTICE_KEY, "1")
+        return {"ok": True}
 
     @app.post("/api/quit")
     def quit_app():
