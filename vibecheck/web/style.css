@@ -80,6 +80,32 @@ h1 { font-size: 26px; letter-spacing: .5px; color: var(--gold); }
   color: #f0d6d0;
 }
 
+.banner-update { display: flex; align-items: center; gap: 10px; }
+.banner-update b { color: var(--gold); }
+.link-btn {
+  background: none; border: none; padding: 0; cursor: pointer; font: inherit;
+  color: var(--gold); text-decoration: underline; margin-left: auto;
+}
+.link-btn.dim { color: var(--ink-2); margin-left: 4px; }
+
+/* ---------- self-update progress ---------- */
+.update-progress {
+  height: 6px; margin-top: 10px; border-radius: 999px;
+  background: var(--surface-2); overflow: hidden;
+}
+.update-progress > div {
+  height: 100%; width: 0%; background: var(--gold);
+  transition: width .2s ease;
+}
+#pm-update-btn { margin-top: 8px; }
+#pm-update-btn:disabled { opacity: .6; cursor: default; }
+/* Unmissable but not loud: a small dot on the avatar when a release is out. */
+.profile-dot {
+  position: absolute; top: 4px; right: 10px;
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--gold); box-shadow: 0 0 0 2px var(--surface);
+}
+
 /* ---------- legal footer (Riot compliance) ---------- */
 #legal-footer {
   margin-top: 28px;

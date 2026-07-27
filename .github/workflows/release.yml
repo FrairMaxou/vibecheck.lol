@@ -60,6 +60,16 @@ jobs:
           Stop-Process -Id $p.Id -Force
           Write-Host "exe smoke test passed"
 
+      # The in-app updater refuses to install a build it can't verify, so this
+      # file is what makes self-update possible at all. Format matches
+      # `sha256sum` so it's checkable by hand too.
+      - name: Publish checksums
+        shell: pwsh
+        run: |
+          $h = (Get-FileHash dist/VibeCheck.exe -Algorithm SHA256).Hash.ToLower()
+          "$h  VibeCheck.exe" | Out-File dist/SHA256SUMS.txt -Encoding ascii
+          Get-Content dist/SHA256SUMS.txt
+
       - uses: actions/upload-artifact@v4
         with:
           name: VibeCheck
@@ -69,7 +79,9 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/VibeCheck.exe
+          files: |
+            dist/VibeCheck.exe
+            dist/SHA256SUMS.txt
           generate_release_notes: true
           body: |
             ## Install
