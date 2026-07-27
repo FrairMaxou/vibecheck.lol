@@ -467,10 +467,44 @@ async function loadProfile() {
     const name = s.summoner_name || "Summoner";
     document.getElementById("profile-name").textContent = name;
     document.getElementById("pm-name").textContent = name;
+    renderFeedbackLinks(s);
   } catch { /* offline — keep the default label */ }
 }
 
 let UPDATE = null; // last /api/update result
+
+/* Once-per-update "here's what changed" note. Deliberately tiny: a few plain
+   sentences and one button — nobody opened VibeCheck to read a changelog. */
+async function showWhatsNew() {
+  try {
+    const w = await api("/api/whats-new");
+    if (!w.show || !w.notes.length) return;
+    document.getElementById("whatsnew-version").textContent = `You're now on v${w.version}`;
+    document.getElementById("whatsnew-list").innerHTML =
+      w.notes.map((n) => `<li>${escapeAttr(n)}</li>`).join("");
+    const modal = document.getElementById("whatsnew");
+    modal.classList.remove("hidden");
+    const dismiss = async () => {
+      modal.classList.add("hidden");
+      try { await api("/api/whats-new/seen", {}); } catch { /* shows again next launch */ }
+    };
+    document.getElementById("whatsnew-ok").addEventListener("click", dismiss);
+    // Clicking the backdrop (but not the card) counts as "got it" too.
+    modal.addEventListener("click", (e) => { if (e.target === modal) dismiss(); });
+  } catch { /* offline — nothing to announce */ }
+}
+
+/* The links are served by the app rather than hardcoded here, so the form URL
+   (and its version pre-fill) can be configured in one place. A link that isn't
+   configured yet is hidden rather than shown broken. */
+function renderFeedbackLinks(s) {
+  const discord = document.getElementById("pm-discord");
+  const feedback = document.getElementById("pm-feedback");
+  discord.classList.toggle("hidden", !s.discord_url);
+  if (s.discord_url) discord.href = s.discord_url;
+  feedback.classList.toggle("hidden", !s.feedback_url);
+  if (s.feedback_url) feedback.href = s.feedback_url;
+}
 
 async function checkUpdate() {
   const body = document.getElementById("update-body");
@@ -1027,5 +1061,6 @@ document.getElementById("pm-update-btn").addEventListener("click", startUpdate);
 
 loadProfile();
 updateBadge();
+showWhatsNew();
 pollRev(); // initial load — lastRev starts null so this always does a full refresh
 setInterval(pollRev, 3000);

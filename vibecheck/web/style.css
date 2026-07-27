@@ -58,6 +58,33 @@ h1 { font-size: 26px; letter-spacing: .5px; color: var(--gold); }
 .pm-section .setting-row { padding: 10px 0; }
 .pm-section .setting-row:first-of-type { padding-top: 2px; }
 .pm-update-cta { display: inline-block; margin-top: 6px; }
+/* ---------- "what's new" modal (once per update) ---------- */
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(0,0,0,.6); display: grid; place-items: center;
+}
+.modal {
+  width: min(420px, calc(100vw - 32px));
+  background: var(--surface); border: 1px solid var(--gold); border-radius: 12px;
+  padding: 22px; box-shadow: 0 18px 48px rgba(0,0,0,.6);
+}
+.modal h2 { font-size: 18px; margin-bottom: 2px; }
+.modal-sub { color: var(--ink-2); font-size: 12.5px; margin-bottom: 14px; }
+.modal ul { list-style: none; margin-bottom: 18px; }
+.modal li {
+  position: relative; padding-left: 18px; margin-bottom: 9px;
+  font-size: 13.5px; line-height: 1.5; color: var(--ink);
+}
+.modal li::before { content: "→"; position: absolute; left: 0; color: var(--gold); }
+.modal .primary-btn { width: 100%; }
+
+.pm-links { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.pm-link {
+  display: block; padding: 7px 10px; border-radius: 6px; font-size: 13px;
+  background: var(--surface-2); border: 1px solid var(--line);
+  color: var(--ink); text-decoration: none;
+}
+.pm-link:hover { border-color: var(--gold); color: var(--gold); }
 .danger-btn {
   margin-top: 10px; background: transparent; border: 1px solid #e2725b; color: #e2725b;
   border-radius: 6px; padding: 6px 12px; cursor: pointer; font: inherit; font-size: 13px;

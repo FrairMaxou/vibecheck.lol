@@ -91,6 +91,15 @@ Your data stays **on your PC** in `%LOCALAPPDATA%\LeagueOfKiffance\`. Only your
 *rated* games sync to The Gang, and they're visible only to mutual League
 friends who also run the app — never to anyone else.
 
+## Community & feedback
+
+Bugs, ideas, or just want to compare vibes with other people who track theirs:
+
+- **[Join the Discord](https://discord.gg/SnE9Yj8cSh)** — the fastest way to reach
+  me, and where new features get argued about before they exist.
+
+It's also linked inside the app, under the **profile menu** at the top-right.
+
 ## Troubleshooting
 
 **No tray icon?** Check the **^** arrow by the clock. Still nothing — the app
