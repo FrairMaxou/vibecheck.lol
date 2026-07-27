@@ -421,6 +421,7 @@ async function renderSettings() {
   const autostart = document.getElementById("set-autostart");
   const paused = document.getElementById("set-paused");
   const closeAction = document.getElementById("set-close-action");
+  const tele = document.getElementById("set-telemetry");
   let s;
   try {
     s = await api("/api/settings");
@@ -432,6 +433,7 @@ async function renderSettings() {
   autostart.disabled = !s.autostart_supported;
   paused.checked = !!s.paused;
   closeAction.value = s.close_action || "ask";
+  tele.checked = !!s.telemetry;
 
   const save = async (body, label) => {
     try {
@@ -439,11 +441,14 @@ async function renderSettings() {
       autostart.checked = !!r.autostart;
       paused.checked = !!r.paused;
       closeAction.value = r.close_action || "ask";
+      tele.checked = !!r.telemetry;
       msg.textContent = label;
     } catch (e) {
       msg.textContent = "Couldn't save: " + e.message;
     }
   };
+  tele.onchange = () =>
+    save({ telemetry: tele.checked }, tele.checked ? "Usage stats on. Thanks!" : "Usage stats off.");
   autostart.onchange = () =>
     save({ autostart: autostart.checked }, autostart.checked ? "Will start with Windows." : "Won't start with Windows.");
   paused.onchange = () =>

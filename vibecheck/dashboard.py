@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from . import startup, updater, whatsnew
+from . import startup, telemetry, updater, whatsnew
 from .config import (
     APP_NAME,
     APP_VERSION,
@@ -62,6 +62,7 @@ class SettingsIn(BaseModel):
     autostart: bool | None = None
     paused: bool | None = None
     close_action: str | None = None  # "ask" | "minimize" | "quit"
+    telemetry: bool | None = None
 
 
 def create_app(
@@ -85,6 +86,7 @@ def create_app(
             # Empty until a form exists — the UI hides the entry rather than
             # offering a link that goes nowhere.
             "feedback_url": feedback_form_url(),
+            "telemetry": telemetry.is_enabled(store),
         }
 
     # Binding to 127.0.0.1 stops remote access, but not DNS rebinding: an
@@ -152,6 +154,8 @@ def create_app(
             controls["set_paused"](body.paused)
         if body.close_action in ("ask", "minimize", "quit"):
             store.set_meta("close_action", body.close_action)
+        if body.telemetry is not None:
+            telemetry.set_enabled(store, body.telemetry)
         return _settings()
 
     @app.post("/api/quit")

@@ -100,6 +100,21 @@ Bugs, ideas, or just want to compare vibes with other people who track theirs:
 
 It's also linked inside the app, under the **profile menu** at the top-right.
 
+## Privacy
+
+Your games live **on your PC**, in `%LOCALAPPDATA%\LeagueOfKiffance\`. Two things
+leave it, and nothing else:
+
+**Rated games → your squad.** Only games you've rated, and only visible to mutual
+League friends who also run VibeCheck.
+
+**Anonymous usage stats.** Once a day: a random ID, the app version, your Windows
+version, and a few counts (games captured, games rated, average vibe) — so I know
+how many people use this and which version to support. No summoner name, no
+match data, nothing tied to your League account.
+
+You can switch it off any time in the **profile menu → Anonymous usage stats**.
+
 ## Troubleshooting
 
 **No tray icon?** Check the **^** arrow by the clock. Still nothing — the app
