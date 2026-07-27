@@ -20,7 +20,7 @@ import webbrowser
 from datetime import datetime, timedelta
 from tkinter import messagebox
 
-from . import capture, lcu, startup
+from . import capture, lcu, startup, updater
 from .config import (
     APP_NAME,
     CATCHUP_FIRST_RUN_HOURS,
@@ -561,7 +561,15 @@ def main() -> None:
         handlers=handlers,
     )
     _install_crash_logging()
+    # Relaunched by the updater: the outgoing build still holds the mutex for a
+    # moment, so wait for it to exit before claiming single-instance ownership.
+    if "--updated-from-pid" in sys.argv:
+        try:
+            updater.wait_for_pid(int(sys.argv[sys.argv.index("--updated-from-pid") + 1]))
+        except (ValueError, IndexError):
+            log.warning("Ignoring malformed --updated-from-pid")
     if not _acquire_single_instance():
         log.warning("Another instance is already running; exiting")
         return
+    updater.cleanup_old()  # drop the previous build once we're the live one
     App().run()

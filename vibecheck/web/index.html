@@ -21,6 +21,7 @@
         <span id="profile-vibe" class="profile-vibe"></span>
       </span>
       <span class="chev">▾</span>
+      <span id="profile-dot" class="profile-dot hidden" title="An update is available"></span>
     </button>
     <div id="profile-menu" class="profile-menu hidden">
       <div class="pm-head">
@@ -31,6 +32,9 @@
       <div class="pm-section">
         <div class="pm-title">Version</div>
         <div id="update-body" class="pm-muted">Checking for updates…</div>
+        <button id="pm-update-btn" class="primary-btn hidden">Update now</button>
+        <div id="update-progress" class="update-progress hidden"><div id="update-bar"></div></div>
+        <div id="update-msg" class="squad-msg"></div>
       </div>
 
       <div class="pm-section">
@@ -75,6 +79,7 @@
 </header>
 
 <div id="offline-banner" class="banner banner-err hidden"></div>
+<div id="update-banner" class="banner banner-update hidden"></div>
 <div id="low-data-banner" class="banner hidden"></div>
 
 <section id="filters" class="filters">

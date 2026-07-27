@@ -9,7 +9,7 @@ aggregation client-side, which is what makes the filter bar and explorer
 import json
 import logging
 import threading
-import urllib.request
+import time
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
@@ -17,15 +17,13 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from . import startup
+from . import startup, updater
 from .config import (
     APP_NAME,
     APP_VERSION,
     DASHBOARD_HOST,
     DASHBOARD_PORT,
     DATA_DIR,
-    RELEASES_LATEST_API,
-    RELEASES_PAGE,
     WEB_DIR,
 )
 from .store import GameStore
@@ -35,20 +33,8 @@ log = logging.getLogger(__name__)
 
 STATIC_FILES = {"app.js", "style.css", "chart.umd.js"}
 
-
-def _is_newer(a: str, b: str) -> bool:
-    """True if dotted version a is newer than b (e.g. '0.2.0' > '0.1.9')."""
-
-    def parts(v: str) -> list[int]:
-        out = []
-        for p in v.split("."):
-            digits = "".join(ch for ch in p if ch.isdigit())
-            out.append(int(digits) if digits else 0)
-        return out
-
-    pa, pb = parts(a), parts(b)
-    n = max(len(pa), len(pb))
-    return pa + [0] * (n - len(pa)) > pb + [0] * (n - len(pb))
+UPDATE_CACHE_KEY = "update_check"
+UPDATE_CACHE_SECONDS = 6 * 3600  # unauthenticated GitHub allows 60 req/h per IP
 
 
 class RatingIn(BaseModel):
@@ -81,6 +67,7 @@ def create_app(
     app = FastAPI(title=APP_NAME, docs_url=None, redoc_url=None, openapi_url=None)
     squad = squad or SquadService(store)
     controls = controls or {}
+    update_job = updater.UpdateJob()
 
     def _settings() -> dict:
         is_paused = controls.get("is_paused")
@@ -171,27 +158,55 @@ def create_app(
         threading.Timer(0.3, quit_fn).start()
         return {"ok": True, "quitting": True}
 
+    def _update_info(force: bool = False) -> dict:
+        """The latest-release check, cached so opening the menu can't hammer
+        GitHub's unauthenticated rate limit."""
+        if not force:
+            try:
+                cached = json.loads(store.get_meta(UPDATE_CACHE_KEY) or "{}")
+                if time.time() - cached.get("at", 0) < UPDATE_CACHE_SECONDS:
+                    return cached["info"]
+            except (ValueError, KeyError, TypeError):
+                pass
+        info = updater.check()
+        store.set_meta(UPDATE_CACHE_KEY, json.dumps({"at": time.time(), "info": info}))
+        return info
+
     @app.get("/api/update")
-    def check_update():
+    def check_update(force: bool = False):
         """Best-effort 'is a newer release out?' check against public releases.
 
-        Returns update_available=False on any failure (private repo → 404,
-        offline, rate-limited), so it never nags when it can't be sure.
+        Reports update_available=False on any failure (offline, rate-limited),
+        so it never nags when it can't be sure.
         """
-        try:
-            req = urllib.request.Request(  # noqa: S310 - fixed https GitHub URL
-                RELEASES_LATEST_API, headers={"Accept": "application/vnd.github+json"}
+        return {**_update_info(force), "job": update_job.snapshot()}
+
+    @app.post("/api/update/install")
+    def install_update():
+        """Download, verify and swap in the new build, then relaunch."""
+        info = _update_info()
+        if not info.get("update_available"):
+            raise HTTPException(409, "already up to date")
+        if not info.get("can_self_update"):
+            raise HTTPException(
+                409, "this build can't update itself — download it from the releases page"
             )
-            with urllib.request.urlopen(req, timeout=6) as resp:  # noqa: S310 - fixed https GitHub URL
-                latest = (json.load(resp).get("tag_name") or "").lstrip("v")
-        except Exception:
-            return {"current": APP_VERSION, "latest": None, "update_available": False}
-        return {
-            "current": APP_VERSION,
-            "latest": latest or None,
-            "update_available": bool(latest) and _is_newer(latest, APP_VERSION),
-            "url": RELEASES_PAGE,
-        }
+        if update_job.running:
+            return {"ok": True, "job": update_job.snapshot()}
+
+        def restart():
+            # The new process is already starting and waits on our PID, so all
+            # that's left is to get out of its way.
+            quit_fn = controls.get("quit")
+            if quit_fn:
+                threading.Timer(0.5, quit_fn).start()
+
+        update_job.start(info, restart)
+        return {"ok": True, "job": update_job.snapshot()}
+
+    @app.get("/api/update/progress")
+    def update_progress():
+        return update_job.snapshot()
 
     @app.post("/api/uninstall")
     def uninstall():

@@ -470,17 +470,121 @@ async function loadProfile() {
   } catch { /* offline — keep the default label */ }
 }
 
+let UPDATE = null; // last /api/update result
+
 async function checkUpdate() {
   const body = document.getElementById("update-body");
+  const btn = document.getElementById("pm-update-btn");
   try {
     const u = await api("/api/update");
-    body.innerHTML = u.update_available
-      ? `New version <b>v${escapeAttr(u.latest)}</b> is out (you're on v${escapeAttr(u.current)}). ` +
-        `<a class="pm-update-cta primary-btn" href="${escapeAttr(u.url)}" target="_blank" rel="noopener">Download</a>`
-      : `You're on <b>v${escapeAttr(u.current)}</b> — up to date. 🎉`;
+    UPDATE = u;
+    if (!u.update_available) {
+      body.innerHTML = `You're on <b>v${escapeAttr(u.current)}</b> — up to date. 🎉`;
+      btn.classList.add("hidden");
+      return;
+    }
+    body.innerHTML =
+      `New version <b>v${escapeAttr(u.latest)}</b> is out (you're on v${escapeAttr(u.current)}).`;
+    if (u.can_self_update) {
+      // One click: download, verify, swap, relaunch — no trip to GitHub.
+      btn.classList.remove("hidden");
+    } else {
+      // Running from source, or a release with no published checksum: we can't
+      // safely replace the binary, so fall back to the manual download.
+      btn.classList.add("hidden");
+      body.innerHTML +=
+        ` <a class="pm-update-cta primary-btn" href="${escapeAttr(u.url)}" target="_blank" rel="noopener">Download</a>`;
+    }
+    if (u.job && u.job.state !== "idle") followUpdate();
   } catch {
     body.textContent = "Couldn't check for updates right now.";
   }
+}
+
+const UPDATE_STATES = {
+  downloading: (p) => `Downloading… ${p}%`,
+  applying: () => "Installing the update…",
+  restarting: () => "Restarting VibeCheck… this window will reconnect on its own.",
+};
+
+async function startUpdate() {
+  const btn = document.getElementById("pm-update-btn");
+  const msg = document.getElementById("update-msg");
+  btn.disabled = true;
+  msg.textContent = "";
+  try {
+    await api("/api/update/install", {});
+    followUpdate();
+  } catch (e) {
+    btn.disabled = false;
+    msg.innerHTML =
+      `Couldn't install the update: ${escapeAttr(e.message)}. ` +
+      `<a href="${escapeAttr((UPDATE && UPDATE.url) || "")}" target="_blank" rel="noopener">Download it manually</a>.`;
+  }
+}
+
+function followUpdate() {
+  const btn = document.getElementById("pm-update-btn");
+  const body = document.getElementById("update-body");
+  const wrap = document.getElementById("update-progress");
+  const bar = document.getElementById("update-bar");
+  const msg = document.getElementById("update-msg");
+  btn.classList.add("hidden");
+  wrap.classList.remove("hidden");
+  clearInterval(window.__updatePoll);
+  window.__updatePoll = setInterval(async () => {
+    let job;
+    try {
+      job = await api("/api/update/progress");
+    } catch {
+      // The app is restarting — losing the connection here is the expected,
+      // successful end of the process, not an error to report.
+      return;
+    }
+    if (job.state === "error") {
+      clearInterval(window.__updatePoll);
+      wrap.classList.add("hidden");
+      btn.classList.remove("hidden");
+      btn.disabled = false;
+      msg.innerHTML =
+        `Update failed: ${escapeAttr(job.error || "unknown error")}. ` +
+        `<a href="${escapeAttr((UPDATE && UPDATE.url) || "")}" target="_blank" rel="noopener">Download it manually</a>.`;
+      return;
+    }
+    const label = UPDATE_STATES[job.state];
+    if (label) body.textContent = label(job.percent || 0);
+    bar.style.width = `${job.percent || 0}%`;
+    if (job.state === "restarting") clearInterval(window.__updatePoll);
+  }, 500);
+}
+
+/* Startup check: a dot on the profile button plus a banner, so an available
+   update is visible without opening the menu. Dismissal is per-version, so the
+   next release speaks up again. */
+async function updateBadge() {
+  try {
+    const u = await api("/api/update");
+    UPDATE = u;
+    if (!u.update_available) return;
+    document.getElementById("profile-dot").classList.remove("hidden");
+    if (localStorage.getItem("dismissedUpdate") === u.latest) return;
+    const b = document.getElementById("update-banner");
+    b.innerHTML =
+      `✨ VibeCheck <b>v${escapeAttr(u.latest)}</b> is out — you're on v${escapeAttr(u.current)}. ` +
+      `<button class="link-btn" id="update-banner-open">${u.can_self_update ? "Update now" : "Get it"}</button>` +
+      `<button class="link-btn dim" id="update-banner-hide">Not now</button>`;
+    b.classList.remove("hidden");
+    document.getElementById("update-banner-open").addEventListener("click", () => {
+      b.classList.add("hidden");
+      toggleProfileMenu(true);
+      if (u.can_self_update) startUpdate();
+      else window.open(u.url, "_blank", "noopener");
+    });
+    document.getElementById("update-banner-hide").addEventListener("click", () => {
+      localStorage.setItem("dismissedUpdate", u.latest);
+      b.classList.add("hidden");
+    });
+  } catch { /* offline — no badge, no nagging */ }
 }
 
 async function doUninstall() {
@@ -919,7 +1023,9 @@ document.addEventListener("click", (e) => {
   if (!menu.classList.contains("hidden") && !e.target.closest(".profile")) menu.classList.add("hidden");
 });
 document.getElementById("pm-uninstall").addEventListener("click", doUninstall);
+document.getElementById("pm-update-btn").addEventListener("click", startUpdate);
 
 loadProfile();
+updateBadge();
 pollRev(); // initial load — lastRev starts null so this always does a full refresh
 setInterval(pollRev, 3000);
