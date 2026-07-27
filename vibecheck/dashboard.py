@@ -38,7 +38,6 @@ STATIC_FILES = {"app.js", "style.css", "chart.umd.js"}
 UPDATE_CACHE_KEY = "update_check"
 UPDATE_CACHE_SECONDS = 6 * 3600  # unauthenticated GitHub allows 60 req/h per IP
 LAST_SEEN_VERSION_KEY = "last_seen_version"  # drives the once-per-update notes
-TELEMETRY_NOTICE_KEY = "telemetry_notice_seen"
 
 
 class RatingIn(BaseModel):
@@ -88,8 +87,6 @@ def create_app(
             # offering a link that goes nowhere.
             "feedback_url": feedback_form_url(),
             "telemetry": telemetry.is_enabled(store),
-            # Drives the one-time "here's what we collect" notice.
-            "telemetry_notice_seen": store.get_meta(TELEMETRY_NOTICE_KEY) == "1",
         }
 
     # Binding to 127.0.0.1 stops remote access, but not DNS rebinding: an
@@ -160,12 +157,6 @@ def create_app(
         if body.telemetry is not None:
             telemetry.set_enabled(store, body.telemetry)
         return _settings()
-
-    @app.post("/api/telemetry/notice-seen")
-    def telemetry_notice_seen():
-        """Acknowledge the one-time disclosure of what usage stats we collect."""
-        store.set_meta(TELEMETRY_NOTICE_KEY, "1")
-        return {"ok": True}
 
     @app.post("/api/quit")
     def quit_app():

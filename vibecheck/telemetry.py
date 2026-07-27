@@ -12,8 +12,10 @@ What is NEVER sent:
     uuid4 with no link to any League account — that is the line between
     telemetry and tracking, and it is not negotiable.
 
-Consent: on by default and disclosed in the README, with a switch in the profile
-menu. When it is off this module makes no network calls at all — see ping().
+Consent: on by default, documented in the README's Privacy section, with a switch
+in the profile menu. When it is off this module makes no network calls at all —
+see ping(). That disclosure is what keeps on-by-default honest, and the source
+being public means it has to be accurate.
 
 Unlike squad sync there is no signed-in session here: the ping goes out as the
 anonymous PostgREST role using only the publishable key. That is deliberate —

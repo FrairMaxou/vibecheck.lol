@@ -448,7 +448,7 @@ async function renderSettings() {
     }
   };
   tele.onchange = () =>
-    save({ telemetry: tele.checked }, tele.checked ? "Thanks — anonymous stats on." : "Anonymous stats off. Nothing is sent.");
+    save({ telemetry: tele.checked }, tele.checked ? "Usage stats on. Thanks!" : "Usage stats off.");
   autostart.onchange = () =>
     save({ autostart: autostart.checked }, autostart.checked ? "Will start with Windows." : "Won't start with Windows.");
   paused.onchange = () =>
@@ -464,33 +464,6 @@ function toggleProfileMenu(forceOpen) {
   const open = forceOpen ?? menu.classList.contains("hidden");
   menu.classList.toggle("hidden", !open);
   if (open) { renderSettings(); checkUpdate(); }
-}
-
-/* Say it out loud, once. Usage stats being on by default is only honest if the
-   user is actually told — quietly enabling them and burying it in a menu is
-   how projects lose trust, especially with the source public. */
-async function telemetryNotice() {
-  try {
-    const s = await api("/api/settings");
-    if (s.telemetry_notice_seen) return;
-    const b = document.getElementById("telemetry-notice");
-    b.innerHTML =
-      `👋 VibeCheck sends <b>anonymous usage stats</b> — a random ID, your version, and a few counts. ` +
-      `Never your name, your friends, or your matches. ` +
-      `<button class="link-btn" id="tn-settings">Turn it off</button>` +
-      `<button class="link-btn dim" id="tn-ok">Got it</button>`;
-    b.classList.remove("hidden");
-    const ack = async () => {
-      b.classList.add("hidden");
-      try { await api("/api/telemetry/notice-seen", {}); } catch { /* shows again next launch */ }
-    };
-    document.getElementById("tn-ok").addEventListener("click", ack);
-    document.getElementById("tn-settings").addEventListener("click", async () => {
-      await ack();
-      toggleProfileMenu(true);
-      document.getElementById("set-telemetry").focus();
-    });
-  } catch { /* offline — the notice waits for a launch that works */ }
 }
 
 async function loadProfile() {
@@ -1094,6 +1067,5 @@ document.getElementById("pm-update-btn").addEventListener("click", startUpdate);
 loadProfile();
 updateBadge();
 showWhatsNew();
-telemetryNotice();
 pollRev(); // initial load — lastRev starts null so this always does a full refresh
 setInterval(pollRev, 3000);

@@ -69,5 +69,5 @@ and only path for these queries.
 ## Turning telemetry off (as a user)
 
 Profile menu → **Anonymous usage stats**. When off, the app makes no telemetry
-network calls at all. This is disclosed in the README and in a one-time notice
-on first launch — on-by-default is only defensible because it's stated plainly.
+network calls at all. It's on by default and documented in the README's Privacy
+section, which is what keeps on-by-default honest.

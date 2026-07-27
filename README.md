@@ -91,7 +91,6 @@ Your data stays **on your PC** in `%LOCALAPPDATA%\LeagueOfKiffance\`. Only your
 *rated* games sync to The Gang, and they're visible only to mutual League
 friends who also run the app — never to anyone else.
 
-<<<<<<< HEAD
 ## Community & feedback
 
 Bugs, ideas, or just want to compare vibes with other people who track theirs:
@@ -100,27 +99,21 @@ Bugs, ideas, or just want to compare vibes with other people who track theirs:
   me, and where new features get argued about before they exist.
 
 It's also linked inside the app, under the **profile menu** at the top-right.
-=======
+
 ## Privacy
 
 Your games live **on your PC**, in `%LOCALAPPDATA%\LeagueOfKiffance\`. Two things
 leave it, and nothing else:
 
-**1. Rated games → your squad.** Only games you've rated, and only visible to
-mutual League friends who also run VibeCheck. Never anyone else.
+**Rated games → your squad.** Only games you've rated, and only visible to mutual
+League friends who also run VibeCheck.
 
-**2. Anonymous usage stats.** Once a day, VibeCheck sends a random ID, the app
-version, your Windows version, and a few counts (games captured, games rated,
-average vibe). That's how I know how many people use this and which version to
-support.
+**Anonymous usage stats.** Once a day: a random ID, the app version, your Windows
+version, and a few counts (games captured, games rated, average vibe) — so I know
+how many people use this and which version to support. No summoner name, no
+match data, nothing tied to your League account.
 
-It contains **no** summoner name, **no** PUUID, **no** match IDs, **no** tags or
-notes — the random ID isn't linked to your League account in any way, so the
-stats can't be traced back to you.
-
-It's on by default. To turn it off: **profile menu → Anonymous usage stats**.
-Off means off — the app makes no such requests at all.
->>>>>>> c62c045 (telemetry: anonymous usage ping + maintainer monitoring queries)
+You can switch it off any time in the **profile menu → Anonymous usage stats**.
 
 ## Troubleshooting
 
