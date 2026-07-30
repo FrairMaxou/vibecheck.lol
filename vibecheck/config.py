@@ -73,6 +73,40 @@ QUEUE_NAMES = {
     1710: "Arena",
     1900: "URF",
     2400: "ARAM Mayhem",  # gameMode "KIWI"
+    # League Classic (patch 26.15, 2026-07-29) — the Season 3 throwback mode.
+    # Internally codenamed "Jade": gameMode "JADE" on its own map (453).
+    4310: "League Classic",  # the matchmade PvP queue (has its own ranked ladder)
+    4320: "League Classic (Co-op vs AI)",
+    3260: "League Classic (Custom)",  # blind pick
+    3262: "League Classic (Custom)",  # draft pick
+    # ARAM: Mayhem Classic-ish — Mayhem augments with the Classic champion pool
+    # and items. gameMode "KIWI_JADE", still on the ARAM map (12).
+    2450: "ARAM Mayhem Classic-ish",
+    3280: "ARAM Mayhem Classic-ish (Custom)",
+    2410: "ARAM Mayhem Tournament",
+    3270: "ARAM Mayhem (Custom)",
+}
+
+# Fallback labels by gameMode, used when a queue id isn't in QUEUE_NAMES above.
+# Riot ships new queue ids for existing modes regularly (League Classic alone
+# added four), so this keeps a brand-new queue readable — "League Classic"
+# rather than a raw "JADE" — with no code change. Only add a mode here when the
+# raw string would be unhelpful or cryptic to a player.
+GAME_MODE_NAMES = {
+    "CLASSIC": "Summoner's Rift",
+    "ARAM": "ARAM",
+    "JADE": "League Classic",
+    "KIWI": "ARAM Mayhem",
+    "KIWI_JADE": "ARAM Mayhem Classic-ish",
+    "CHERRY": "Arena",
+    "SWIFTPLAY": "Swiftplay",
+    "URF": "URF",
+    "BRAWL": "Brawl",
+    "NEXUSBLITZ": "Nexus Blitz",
+    "ONEFORALL": "One for All",
+    "ULTBOOK": "Ultimate Spellbook",
+    "STRAWBERRY": "Swarm",
+    "PRACTICETOOL": "Practice Tool",
 }
 
 # Fallback when the end-of-game payload has no queueId, only a queueType string.

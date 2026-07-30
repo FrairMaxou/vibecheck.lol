@@ -8,7 +8,7 @@ normalize() never raises — worst case it returns a minimal record.
 import logging
 from datetime import datetime, timedelta
 
-from .config import QUEUE_NAMES, QUEUE_TYPE_TO_ID
+from .config import GAME_MODE_NAMES, QUEUE_NAMES, QUEUE_TYPE_TO_ID
 
 log = logging.getLogger(__name__)
 
@@ -80,13 +80,21 @@ def resolve_queue_id(eol: dict) -> int | None:
 def queue_label(queue_id: int | None, payload: dict) -> str:
     """Friendly queue name; never blank.
 
-    Known ids get a label; otherwise fall back to the payload's own queue/mode
-    strings (raw name), and finally to the id itself — so a brand-new mode is
-    always identifiable rather than empty.
+    Resolution order, most specific first:
+      1. a known queue id
+      2. a known gameMode — so a new queue id in a familiar mode still reads as
+         "League Classic" rather than "JADE" (Riot ships new ids routinely;
+         League Classic alone arrived with four)
+      3. the payload's own queue/mode strings, raw
+      4. the id itself
+    A brand-new mode is therefore always identifiable, never empty.
     """
     known = QUEUE_NAMES.get(queue_id)
     if known:
         return known
+    by_mode = GAME_MODE_NAMES.get(str(payload.get("gameMode", "")).upper())
+    if by_mode:
+        return by_mode
     for field in ("queueType", "gameMode"):
         value = payload.get(field)
         if value:
@@ -153,6 +161,14 @@ def normalize(
                     "is_remake": int(_is_remake(stats)),
                 }
             )
+            # Win normally comes from the team's isWinningTeam above. Some
+            # payload shapes only carry it per-player, so fall back to the
+            # player's own stats rather than storing an unknown result.
+            if game["win"] is None:
+                for key in ("WIN", "win"):
+                    if key in stats:
+                        game["win"] = int(bool(stats[key]))
+                        break
             enemy_ids = [
                 p.get("championId")
                 for team in eol.get("teams", [])
