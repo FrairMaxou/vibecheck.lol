@@ -1064,8 +1064,19 @@ document.addEventListener("click", (e) => {
 document.getElementById("pm-uninstall").addEventListener("click", doUninstall);
 document.getElementById("pm-update-btn").addEventListener("click", startUpdate);
 
+/* Deep link from the tray's "Update to vX.Y.Z": open the profile menu straight
+   onto the update instead of making the user hunt for it. The flag is dropped
+   from the URL so a refresh doesn't reopen the menu. */
+function handleUpdateDeepLink() {
+  if (new URLSearchParams(location.search).get("update") !== "1") return;
+  history.replaceState(null, "", location.pathname);
+  toggleProfileMenu(true);
+  document.getElementById("profile-menu").scrollIntoView({ block: "start" });
+}
+
 loadProfile();
 updateBadge();
+handleUpdateDeepLink();
 showWhatsNew();
 pollRev(); // initial load — lastRev starts null so this always does a full refresh
 setInterval(pollRev, 3000);
