@@ -80,6 +80,40 @@ h1 { font-size: 26px; letter-spacing: .5px; color: var(--gold); }
 }
 .modal h2 { font-size: 18px; margin-bottom: 2px; }
 .modal-sub { color: var(--ink-2); font-size: 12.5px; margin-bottom: 14px; }
+
+/* ---------- first-run wizard ---------- */
+/* Wider than the standard modal: five rating buttons plus champion and KDA
+   don't fit in 420px. Capped in height so five games can't push the skip
+   button off a small screen. */
+.onboarding-modal { width: min(560px, calc(100vw - 32px)); }
+.onboarding-list { max-height: 52vh; overflow-y: auto; }
+.onboarding-row {
+  display: flex; align-items: center; gap: 10px; padding: 7px 8px;
+  border-radius: 8px; border: 1px solid transparent;
+}
+.onboarding-row + .onboarding-row { margin-top: 4px; }
+.onboarding-row.rated { border-color: var(--gold); background: var(--bg); }
+.onboarding-row .champ-slot { width: 34px; height: 34px; }
+.onboarding-row .champ-icon { width: 34px; height: 34px; margin: 0; vertical-align: top; }
+.onboarding-meta { flex: 1; min-width: 0; }
+.onboarding-champ { font-size: 13px; color: var(--ink); }
+.onboarding-sub {
+  font-size: 11.5px; color: var(--ink-3);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.onboarding-scores { display: flex; gap: 2px; flex: none; }
+.onboarding-scores button {
+  background: none; border: 1px solid transparent; border-radius: 6px;
+  font-size: 19px; line-height: 1; padding: 4px 5px; cursor: pointer;
+  filter: grayscale(.65); opacity: .75; transition: none;
+}
+.onboarding-scores button:hover { filter: none; opacity: 1; background: var(--surface-hover); }
+/* The chosen one stays lit so a rated row reads at a glance while scrolling. */
+.onboarding-scores button.chosen { filter: none; opacity: 1; border-color: var(--gold); }
+.onboarding-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 14px;
+}
 .modal ul { list-style: none; margin-bottom: 18px; }
 .modal li {
   position: relative; padding-left: 18px; margin-bottom: 9px;

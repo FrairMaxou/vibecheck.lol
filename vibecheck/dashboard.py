@@ -45,6 +45,8 @@ ASSET_FILES = {"logo-horizontal.png", "logo.png", "logo.ico"}
 # every start, so an edit is never masked by a stale cache.
 ASSET_VERSION = APP_VERSION if FROZEN else f"{APP_VERSION}-{int(time.time())}"
 
+ONBOARDING_KEY = "onboarding_state"  # mirrors app.ONBOARDING_KEY
+ONBOARDING_GAMES = 5
 LAST_SEEN_VERSION_KEY = "last_seen_version"  # drives the once-per-update notes
 
 
@@ -190,6 +192,34 @@ def create_app(
                     _warming = False
 
         threading.Thread(target=worker, name="champ-icons", daemon=True).start()
+
+    @app.get("/api/onboarding")
+    def onboarding():
+        """The one-time welcome wizard: rate the games we backfilled on install.
+
+        Shown only while the app has backfilled recent games and the user has
+        neither rated them nor dismissed the wizard. It answers a specific
+        problem — a new install opens on empty charts — so once there's data,
+        or once it's dismissed, it never comes back.
+        """
+        state = store.get_meta(ONBOARDING_KEY) or ""
+        if state != "backfilled":
+            return {"show": False, "games": []}
+        pending = [
+            g
+            for g in store.games_with_details()
+            if g.get("fun_score") is None and not g.get("skipped") and not g.get("is_remake")
+        ]
+        pending.sort(key=lambda g: g.get("played_at") or "", reverse=True)
+        for g in pending:
+            g["classic"] = capture.is_classic(g.get("queue_id"), g.get("queue_type"))
+        return {"show": bool(pending), "games": pending[:ONBOARDING_GAMES]}
+
+    @app.post("/api/onboarding/seen")
+    def onboarding_seen():
+        """Dismissed or finished — either way, don't offer it again."""
+        store.set_meta(ONBOARDING_KEY, "done")
+        return {"ok": True}
 
     @app.get("/api/games")
     def games():

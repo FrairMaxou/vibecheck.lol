@@ -1269,9 +1269,89 @@ function handleUpdateDeepLink() {
   document.getElementById("profile-menu").scrollIntoView({ block: "start" });
 }
 
+/* One-time welcome. A fresh install lands on empty charts with the next game
+   half an hour away, which is a poor reason to close the app and not return —
+   so the last few games are backfilled and offered for rating here.
+   Deliberately not the F7 popup: five popups at a first-time user would be the
+   opposite of a welcome. Always skippable; skipping leaves the games in To Rate,
+   which is where they'd be anyway. */
+async function showOnboarding() {
+  let data;
+  try {
+    data = await api("/api/onboarding");
+  } catch { return; }
+  if (!data.show || !data.games.length) return;
+
+  const host = document.getElementById("onboarding-list");
+  const total = data.games.length;
+  let done = 0;
+
+  const progress = () => {
+    document.getElementById("onboarding-progress").textContent =
+      done ? `${done} of ${total} rated` : `${total} game${total === 1 ? "" : "s"} to rate`;
+  };
+
+  host.innerHTML = data.games.map((g) => {
+    const kda = [g.kills, g.deaths, g.assists].every((v) => v != null)
+      ? `${g.kills}/${g.deaths}/${g.assists}` : "";
+    const result = g.win === 1 ? "Win" : g.win === 0 ? "Loss" : "";
+    // Champion, result and KDA up front: these games are days old, and the
+    // details are what jogs the memory of how one actually felt.
+    const meta = [result, kda, g.queue_type, (g.played_at || "").slice(0, 10)]
+      .filter(Boolean).map(escapeAttr).join(" · ");
+    return `
+      <div class="onboarding-row" data-id="${g.id}">
+        ${champIcon(g.champion, g.classic)}
+        <div class="onboarding-meta">
+          <div class="onboarding-champ">${escapeAttr(g.champion || "Unknown")}</div>
+          <div class="onboarding-sub">${meta}</div>
+        </div>
+        <div class="onboarding-scores">
+          ${[1, 2, 3, 4, 5].map((s) =>
+            `<button data-score="${s}" title="${escapeAttr(GRADES[s])}">${EMOJI[s]}</button>`).join("")}
+        </div>
+      </div>`;
+  }).join("");
+  progress();
+
+  host.querySelectorAll(".onboarding-row").forEach((row) => {
+    row.querySelectorAll("button[data-score]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = Number(row.dataset.id);
+        const score = Number(btn.dataset.score);
+        row.querySelectorAll("button").forEach((b) => b.classList.remove("chosen"));
+        btn.classList.add("chosen");
+        if (!row.classList.contains("rated")) { row.classList.add("rated"); done += 1; progress(); }
+        try {
+          await api(`/api/games/${id}/rating`, { score });
+        } catch {
+          // Roll back the tick rather than claim a rating that didn't save.
+          row.classList.remove("rated"); btn.classList.remove("chosen");
+          done -= 1; progress();
+          return;
+        }
+        // Once everything's rated the wizard has done its job; let the user see
+        // the dashboard it just filled.
+        if (done >= total) setTimeout(closeOnboarding, 550);
+      });
+    });
+  });
+
+  document.getElementById("onboarding-skip").addEventListener("click", closeOnboarding);
+  document.getElementById("onboarding").classList.remove("hidden");
+}
+
+async function closeOnboarding() {
+  document.getElementById("onboarding").classList.add("hidden");
+  try { await api("/api/onboarding/seen", {}); } catch { /* it'll retry next launch */ }
+  lastRev = null; // force a full refresh so the charts show what was just rated
+  refresh();
+}
+
 loadProfile();
 updateBadge();
 handleUpdateDeepLink();
+showOnboarding();
 showWhatsNew();
 pollRev(); // initial load — lastRev starts null so this always does a full refresh
 setInterval(pollRev, 3000);
