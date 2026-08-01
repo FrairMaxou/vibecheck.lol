@@ -9,6 +9,12 @@ A version with no entry here simply shows nothing, which is a fine default.
 """
 
 RELEASE_NOTES = {
+    "0.1.7": [
+        "The rating popup is way smaller — a notification instead of a window "
+        "taking over a third of your screen.",
+        "Fresh installs no longer open on empty charts: VibeCheck grabs your last "
+        "5 games and asks how they went, so there's something to look at on day one.",
+    ],
     "0.1.6": [
         "Champion portraits everywhere — the tier list, the vibes-vs-winrate chart, "
         "To Rate and Tags.",
