@@ -9,6 +9,15 @@ A version with no entry here simply shows nothing, which is a fine default.
 """
 
 RELEASE_NOTES = {
+    "0.1.6": [
+        "Champion portraits everywhere — the tier list, the vibes-vs-winrate chart, "
+        "To Rate and Tags.",
+        "League Classic champions are counted separately from their modern versions. "
+        "Season 3 Jax isn't the same pick, so he gets his own row (and his own art).",
+        "The tier list shows your top 10 with a button for the rest, instead of "
+        "cramming everyone in and hiding half the names.",
+        "The dashboard wears the VibeCheck logo now.",
+    ],
     "0.1.5": [
         "VibeCheck now tells you when a new version is out, even if you never open "
         "the dashboard — look for the tray icon.",
