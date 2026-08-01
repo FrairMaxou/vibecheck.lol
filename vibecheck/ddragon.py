@@ -143,7 +143,21 @@ def manifest(refresh: bool = True) -> dict | None:
         return _manifest
 
 
-def icon_path(name: str) -> Path | None:
+def _key_for(man: dict, name: str, classic: bool) -> str | None:
+    """The CDN key for a champion, preferring its League Classic variant.
+
+    Riot ships separate art for all 60 Classic champions under a `Jade_` key.
+    The fallback to base art matters for the ARAM Mayhem Classic-ish pool,
+    which can include picks outside the 60.
+    """
+    names = man.get("names") or {}
+    key = names.get(_norm(name))
+    if classic and key:
+        return names.get(_norm(f"Jade_{key}")) or key
+    return key
+
+
+def icon_path(name: str, classic: bool = False) -> Path | None:
     """The on-disk icon for a champion, or None if it isn't cached yet.
 
     Purely a disk lookup — no network, so this is safe to call per row while
@@ -152,19 +166,19 @@ def icon_path(name: str) -> Path | None:
     man = manifest(refresh=False)
     if not man:
         return None
-    key = (man.get("names") or {}).get(_norm(name))
+    key = _key_for(man, name, classic)
     if not key:
         return None
     path = ICON_DIR / f"{key}.png"
     return path if path.exists() else None
 
 
-def fetch_icon(name: str) -> Path | None:
+def fetch_icon(name: str, classic: bool = False) -> Path | None:
     """Download one champion's icon if it isn't cached. Returns its path."""
     man = manifest()
     if not man:
         return None
-    key = (man.get("names") or {}).get(_norm(name))
+    key = _key_for(man, name, classic)
     if not key or key in _missing:
         return None
     path = ICON_DIR / f"{key}.png"
@@ -188,18 +202,21 @@ def fetch_icon(name: str) -> Path | None:
         return None
 
 
-def warm(names) -> int:
+def warm(picks) -> int:
     """Pre-download icons for the champions someone actually plays.
+
+    `picks` yields (champion, classic) pairs, so a player who only touches
+    League Classic gets Jade art cached and never pays for the modern set.
 
     Called in the background so the dashboard has icons ready rather than
     404ing its way through the first render. Returns how many were added.
     """
     added = 0
     try:
-        for name in {n for n in names if n}:
-            if icon_path(name):
+        for name, classic in {(n, bool(c)) for n, c in picks if n}:
+            if icon_path(name, classic):
                 continue
-            if fetch_icon(name):
+            if fetch_icon(name, classic):
                 added += 1
         if added:
             log.info("Cached %d champion icon(s)", added)

@@ -125,6 +125,7 @@
     <input type="date" id="f-to">
   </div>
   <div class="filter-group"><label>Queue</label><div id="f-queue"></div></div>
+  <div class="filter-group"><label>Mode</label><div id="f-mode"></div></div>
   <div class="filter-group"><label>Champion</label><div id="f-champion"></div></div>
   <div class="filter-group"><label>Role</label><div id="f-role"></div></div>
   <div class="filter-group"><label>Teammate</label><div id="f-teammate"></div></div>
@@ -154,12 +155,8 @@
 
   <div id="tab-champions" class="tab hidden">
     <div class="panel">
-      <h2>Your Roster <span class="hint">everyone you've picked, best vibes first</span></h2>
-      <div id="champ-roster" class="champ-roster"></div>
-    </div>
-    <div class="panel">
       <h2>Champion Vibe Tier List <span class="hint">who sparks joy, who sparks tilt</span></h2>
-      <div class="chart-wrap tall"><canvas id="chart-champ-fun"></canvas></div>
+      <div id="champ-tiers" class="champ-tiers"></div>
     </div>
     <div class="panel">
       <h2>Vibes vs. Win Rate <span class="hint">top-left: fun but bad · bottom-right: winning and miserable (pure copium)</span></h2>

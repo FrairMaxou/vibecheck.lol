@@ -37,7 +37,7 @@ const state = {
   tab: "overview",
   from: null,
   to: null,
-  sets: { queue: new Set(), champion: new Set(), role: new Set(), teammate: new Set(), result: new Set() },
+  sets: { queue: new Set(), mode: new Set(), champion: new Set(), role: new Set(), teammate: new Set(), result: new Set() },
 };
 
 /* ---------------- data ---------------- */
@@ -63,10 +63,23 @@ function escapeAttr(s) {
    onerror removes the element rather than leaving a broken-image box. alt is
    empty on purpose: the champion name is always right next to it, and a second
    copy is just noise for a screen reader. */
-function champIcon(name) {
+function champIcon(name, classic) {
   if (!name) return "";
-  return `<img class="champ-icon" src="/api/champ-icon/${encodeURIComponent(name)}"` +
-         ` alt="" loading="lazy" onerror="this.remove()">`;
+  const q = classic ? "?classic=1" : "";
+  const cls = classic ? "champ-icon is-classic" : "champ-icon";
+  const tip = classic ? ' title="League Classic"' : "";
+  return `<img class="${cls}" src="/api/champ-icon/${encodeURIComponent(name)}${q}"` +
+         ` alt="" loading="lazy"${tip} onerror="this.remove()">`;
+}
+
+/* League Classic champions share a display name with the modern ones but are a
+   different kit on a different map, so they're counted separately everywhere
+   (tier list, scatter, filters). Suffixing always — rather than only once you
+   own both — keeps the label predictable instead of silently forking a bar in
+   two the day you first pick Classic Jax. */
+function champKey(g) {
+  if (!g.champion) return g.champion;
+  return g.classic ? `${g.champion} (Classic)` : g.champion;
 }
 
 function enrich(g) {
@@ -86,6 +99,10 @@ function enrich(g) {
     month: g.played_at.slice(0, 7),
     session_index: Math.min(g.game_index_in_session || 1, 5) >= 5 ? "5+" : String(g.game_index_in_session || 1),
     result: g.win === 1 ? "Win" : g.win === 0 ? "Loss" : "?",
+    // Raw `champion` stays as-is for the icon lookup; champion_key is what
+    // every aggregate, filter and chart groups on.
+    champion_key: champKey(g),
+    mode_family: g.classic ? "League Classic" : "Modern",
     rated: g.fun_score != null && !g.skipped,
     pending: g.fun_score == null && !g.skipped && !g.is_remake,
     premades: (g.teammates || []).filter((t) => t.was_premade),
@@ -99,7 +116,8 @@ function filtered() {
     if (state.to && g.day > state.to) return false;
     const s = state.sets;
     if (s.queue.size && !s.queue.has(g.queue_type)) return false;
-    if (s.champion.size && !s.champion.has(g.champion)) return false;
+    if (s.mode.size && !s.mode.has(g.mode_family)) return false;
+    if (s.champion.size && !s.champion.has(g.champion_key)) return false;
     if (s.role.size && !s.role.has(g.role || "(unknown)")) return false;
     if (s.result.size && !s.result.has(g.result)) return false;
     if (s.teammate.size && !g.premades.some((t) => s.teammate.has(t.puuid))) return false;
@@ -175,14 +193,47 @@ function funBarChart(id, rows, { horizontal = false, fixedOrder = null } = {}) {
   return rows.length;
 }
 
+/* Decoded <img> objects for Chart.js pointStyle, which needs elements rather
+   than URLs. Cached across renders; a champion whose icon never loads simply
+   stays absent from the map and falls back to a dot. */
+const CHAMP_IMAGES = new Map();
+
+function champImage(key, onLoad) {
+  if (CHAMP_IMAGES.has(key)) return CHAMP_IMAGES.get(key);
+  const { name, classic } = splitChampKey(key);
+  const img = new Image();
+  img.onload = () => onLoad && onLoad();
+  img.onerror = () => CHAMP_IMAGES.set(key, null); // fall back to a plain dot
+  img.src = `/api/champ-icon/${encodeURIComponent(name)}${classic ? "?classic=1" : ""}`;
+  CHAMP_IMAGES.set(key, img);
+  return img;
+}
+
 function funScatterChart(id, rows) {
   destroyChart(id);
   rows = rows.filter((r) => r.avgFun != null && r.winrate != null);
+  // Draw now, upgrade to portraits as they decode: a cold icon cache or an
+  // offline machine must never hold the chart back.
+  let queued = false;
+  const rerender = () => {
+    if (queued) return;
+    queued = true;
+    setTimeout(() => { if (charts[id]) funScatterChart(id, rows); }, 120);
+  };
+  const sized = (r) => {
+    const img = champImage(r.key, rerender);
+    if (!img || !img.complete || !img.naturalWidth) return null;
+    // Sample size drives icon size, exactly as it drove point radius before,
+    // so "not enough data yet" still reads at a glance.
+    img.width = img.height = Math.min(18 + r.n * 2, 34);
+    return img;
+  };
   charts[id] = new Chart(document.getElementById(id), {
     type: "scatter",
     data: { datasets: [{
       data: rows.map((r) => ({ x: r.winrate, y: r.avgFun, r })),
       backgroundColor: rows.map((r) => (r.n < MIN_N ? MUTED : GOLD)),
+      pointStyle: rows.map((r) => sized(r) || "circle"),
       pointRadius: rows.map((r) => Math.min(4 + r.n, 14)),
       pointHoverRadius: rows.map((r) => Math.min(6 + r.n, 16)),
     }] },
@@ -237,7 +288,7 @@ function renderOverview(games) {
   } else {
     facts.push(card("Vibe-o-meter", "—", "no rated games in this filter (rookie numbers)"));
   }
-  const champs = aggregate(games, (g) => g.champion).filter((r) => r.avgFun != null);
+  const champs = aggregate(games, (g) => g.champion_key).filter((r) => r.avgFun != null);
   const bigChamps = champs.filter((r) => r.n >= MIN_N).sort((a, b) => b.avgFun - a.avgFun);
   facts.push(bigChamps.length
     ? card("Certified banger", `${bigChamps[0].key} ${EMOJI[Math.round(bigChamps[0].avgFun)]}`, `${bigChamps[0].avgFun.toFixed(2)} avg over ${bigChamps[0].n} games — this one's for the soul`, true)
@@ -277,7 +328,7 @@ function renderOverview(games) {
         y: { min: 1, max: 5, ticks: { callback: (v) => EMOJI[v] || v } },
       },
       plugins: { tooltip: { callbacks: {
-        label: (c) => ` ${c.raw.g.champion || "?"} ${EMOJI[c.raw.g.fun_score]} — rolling avg ${c.raw.y.toFixed(2)}`,
+        label: (c) => ` ${c.raw.g.champion_key || "?"} ${EMOJI[c.raw.g.fun_score]} — rolling avg ${c.raw.y.toFixed(2)}`,
         title: (items) => items[0].raw.g.day,
       } } },
     },
@@ -285,25 +336,47 @@ function renderOverview(games) {
 }
 
 function renderChampions(games) {
-  const byChamp = aggregate(games, (g) => g.champion);
-  renderRoster(byChamp);
-  funBarChart("chart-champ-fun", byChamp, { horizontal: true });
+  const byChamp = aggregate(games, (g) => g.champion_key);
+  renderTierList(byChamp);
   funScatterChart("chart-champ-scatter", byChamp);
 }
 
-/* The portraits' home. Unrated champions sort last rather than being dropped —
-   seeing a pick you've never vibed is the nudge to go rate it. */
-function renderRoster(rows) {
-  const host = document.getElementById("champ-roster");
-  const list = rows.slice().sort((a, b) => (b.avgFun ?? -1) - (a.avgFun ?? -1) || b.games - a.games);
-  host.innerHTML = list.length
-    ? list.map((c) => `
-        <div class="champ-card" title="${escapeAttr(c.key)} — ${c.games} game${c.games === 1 ? "" : "s"}">
-          ${champIcon(c.key)}
-          <div class="champ-name">${escapeAttr(c.key)}</div>
-          <div class="champ-vibe">${c.avgFun == null ? "—" : c.avgFun.toFixed(2)}</div>
-        </div>`).join("")
-    : '<div class="empty-note">No champions match this filter.</div>';
+/* Aggregate keys carry the "(Classic)" suffix, so split it back out to get the
+   champion name the icon endpoint expects, plus the variant flag. */
+function splitChampKey(key) {
+  const classic = key.endsWith(" (Classic)");
+  return { name: classic ? key.slice(0, -10) : key, classic };
+}
+
+/* The tier list is HTML rather than a canvas bar chart, for two reasons:
+   Chart.js has no hook for images in category tick labels, and a fixed-height
+   canvas becomes unreadable once you've played a hundred champions. Rows
+   scroll; bars are plain divs. Colours match the chart marks exactly. */
+function renderTierList(rows) {
+  const host = document.getElementById("champ-tiers");
+  const list = rows.filter((r) => r.avgFun != null).sort((a, b) => b.avgFun - a.avgFun);
+  if (!list.length) {
+    host.innerHTML = '<div class="empty-note">No rated games match this filter.</div>';
+    return;
+  }
+  host.innerHTML = list.map((r) => {
+    const { name, classic } = splitChampKey(r.key);
+    // Bars span the 1–5 rating range, not 0–5: at 0–5 every champion's bar
+    // starts a fifth of the way along and the differences that matter get
+    // squashed into the right-hand half.
+    const pct = (100 * (r.avgFun - 1)) / 4;
+    const thin = r.n < MIN_N;
+    const tip = `avg vibe ${r.avgFun.toFixed(2)} · ${r.n} rated game${r.n === 1 ? "" : "s"}` +
+                (thin ? " · not enough data yet" : "");
+    return `
+      <div class="tier-row" title="${escapeAttr(tip)}">
+        ${champIcon(name, classic)}
+        <div class="tier-name">${escapeAttr(r.key)}</div>
+        <div class="tier-track"><div class="tier-fill${thin ? " thin" : ""}" style="width:${pct.toFixed(1)}%"></div></div>
+        <div class="tier-score${thin ? " thin" : ""}">${r.avgFun.toFixed(2)}</div>
+      </div>`;
+  }).join("") +
+  `<div class="tier-axis">${[1, 2, 3, 4, 5].map((v) => `<span>${EMOJI[v]}</span>`).join("")}</div>`;
 }
 
 function renderSquad(games) {
@@ -404,7 +477,7 @@ function renderSessions(games) {
 }
 
 const DIMS = {
-  champion: (g) => g.champion,
+  champion: (g) => g.champion_key,
   enemy: (g) => g.enemy_champions,
   augment: (g) => g.augments,
   item: (g) => g.items,
@@ -889,7 +962,7 @@ function renderTags(games) {
   host.innerHTML = list.length
     ? list.map((g) => `
         <div class="tag-row">
-          <div class="tag-meta">${champIcon(g.champion)}<b>${g.champion || "?"}</b> · ${g.result} · ${g.queue_type || "?"}
+          <div class="tag-meta">${champIcon(g.champion, g.classic)}<b>${g.champion_key || "?"}</b> · ${g.result} · ${g.queue_type || "?"}
             <span class="when">${g.day}</span> ${g.rated ? EMOJI[g.fun_score] : ""}</div>
           ${tagEditorHTML(g)}
         </div>`).join("")
@@ -907,7 +980,7 @@ function renderPending() {
   list.innerHTML = pending.map((g) => `
     <div class="pending-row" data-id="${g.id}">
       <div class="meta">
-        <div>${champIcon(g.champion)}<b>${g.champion || "?"}</b> · ${g.result} · ${g.kills ?? "?"}/${g.deaths ?? "?"}/${g.assists ?? "?"} · ${g.queue_type || "?"}</div>
+        <div>${champIcon(g.champion, g.classic)}<b>${g.champion_key || "?"}</b> · ${g.result} · ${g.kills ?? "?"}/${g.deaths ?? "?"}/${g.assists ?? "?"} · ${g.queue_type || "?"}</div>
         <div class="when">${g.played_at.replace("T", " ")} · ${Math.round((g.duration_seconds || 0) / 60)} min${g.premades.length ? " · with " + g.premades.map((t) => t.name).join(", ") : ""}</div>
       </div>
       <div class="rate-btns">
@@ -991,7 +1064,8 @@ function buildMultiselect(containerId, label, options, set, onChange) {
 function buildFilters() {
   const uniq = (fn) => [...new Set(ALL.map(fn).flat().filter(Boolean))].sort();
   buildMultiselect("f-queue", "Queue", uniq((g) => g.queue_type).map((v) => ({ value: v, label: v })), state.sets.queue, renderAll);
-  buildMultiselect("f-champion", "Champion", uniq((g) => g.champion).map((v) => ({ value: v, label: v })), state.sets.champion, renderAll);
+  buildMultiselect("f-mode", "Mode", uniq((g) => g.mode_family).map((v) => ({ value: v, label: v })), state.sets.mode, renderAll);
+  buildMultiselect("f-champion", "Champion", uniq((g) => g.champion_key).map((v) => ({ value: v, label: v })), state.sets.champion, renderAll);
   buildMultiselect("f-role", "Role", uniq((g) => g.role || "(unknown)").map((v) => ({ value: v, label: v })), state.sets.role, renderAll);
   const mates = new Map();
   for (const g of ALL) for (const t of g.premades) mates.set(t.puuid, t.name || "(unknown)");

@@ -320,19 +320,34 @@ tr.low-n td { color: var(--ink-3); }
   width: 20px; height: 20px; border-radius: 4px; vertical-align: -5px;
   margin-right: 6px; border: 1px solid var(--line);
 }
-.champ-roster { display: flex; flex-wrap: wrap; gap: 10px; }
-.champ-card {
-  width: 84px; padding: 8px 4px; text-align: center; border-radius: 8px;
-  background: var(--surface); border: 1px solid var(--line);
-}
-.champ-card .champ-icon {
-  width: 44px; height: 44px; border-radius: 6px; margin: 0 0 4px; vertical-align: 0;
-}
-.champ-name {
-  font-size: 11px; color: var(--ink-2);
+/* League Classic art is a different crop of the same champion, which at 20px
+   can read as "the same picture". The cyan edge is the tell — mana-cyan is the
+   brand's accent for an active/alternate state (BRAND.md §3). */
+.champ-icon.is-classic { border-color: #00f0ff; box-shadow: 0 0 0 1px rgba(0, 240, 255, .35); }
+
+/* ---------- champion vibe tier list ---------- */
+/* HTML, not a canvas chart: Chart.js can't put images in tick labels, and a
+   fixed-height canvas stops being readable past a few dozen champions. Rows
+   scroll instead. Colours mirror the chart marks so it reads as one system. */
+.champ-tiers { max-height: 460px; overflow-y: auto; padding-right: 4px; }
+.tier-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+.tier-row .champ-icon { width: 26px; height: 26px; margin: 0; flex: none; }
+.tier-name {
+  width: 130px; flex: none; font-size: 12px; color: var(--ink-2);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.champ-vibe { font-size: 14px; font-weight: 600; color: var(--gold); }
+.tier-track { flex: 1; height: 16px; background: #2a2f37; border-radius: 4px; overflow: hidden; }
+/* min-width so a 1.00 champion still shows a sliver: a zero-width bar reads as
+   missing data, when it actually means the worst possible score. */
+.tier-fill { height: 100%; background: #b28328; border-radius: 4px; min-width: 4px; }
+.tier-fill.thin { background: #4a5058; }  /* below MIN_N — not enough data yet */
+.tier-score { width: 38px; flex: none; text-align: right; font-size: 12px; color: var(--ink); }
+.tier-score.thin { color: var(--ink-3); }
+/* Aligned to the bar track, so the emoji scale lines up with the fills. */
+.tier-axis {
+  display: flex; justify-content: space-between;
+  margin: 6px 38px 0 172px; font-size: 12px;
+}
 
 .tag-meta { font-size: 13px; color: var(--ink); }
 .tag-meta .when { color: var(--ink-3); font-size: 12px; margin-left: 6px; }

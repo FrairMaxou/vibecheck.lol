@@ -87,6 +87,14 @@ QUEUE_NAMES = {
     3270: "ARAM Mayhem (Custom)",
 }
 
+# League Classic is a *different game*, not a different queue: Season 3 kits,
+# items and map. Its champions share display names with the modern ones but play
+# nothing like them, and Riot ships separate art for all 60 — so a vibe score
+# that averaged both would describe an experience nobody actually had. These
+# drive the "(Classic)" split in the dashboard and the Jade portraits.
+CLASSIC_QUEUE_IDS = {4310, 4320, 3260, 3262, 2450, 3280, 2410, 3270}
+CLASSIC_GAME_MODES = {"JADE", "KIWI_JADE"}
+
 # Bump whenever QUEUE_NAMES or GAME_MODE_NAMES changes. Labels are stored on the
 # game row at capture time, so already-captured games keep whatever name was
 # known back then — League Classic games captured before its label existed read

@@ -8,7 +8,13 @@ normalize() never raises — worst case it returns a minimal record.
 import logging
 from datetime import datetime, timedelta
 
-from .config import GAME_MODE_NAMES, QUEUE_NAMES, QUEUE_TYPE_TO_ID
+from .config import (
+    CLASSIC_GAME_MODES,
+    CLASSIC_QUEUE_IDS,
+    GAME_MODE_NAMES,
+    QUEUE_NAMES,
+    QUEUE_TYPE_TO_ID,
+)
 
 log = logging.getLogger(__name__)
 
@@ -100,6 +106,27 @@ def queue_label(queue_id: int | None, payload: dict) -> str:
         if value:
             return str(value)
     return f"Queue {queue_id}" if queue_id else "Unknown queue"
+
+
+# The stored labels for Classic queues, derived from the tables above so the
+# two can't drift apart.
+_CLASSIC_LABELS = {QUEUE_NAMES[q] for q in CLASSIC_QUEUE_IDS if q in QUEUE_NAMES}
+
+
+def is_classic(queue_id: int | None, queue_type: str | None = None, game_mode: str = "") -> bool:
+    """Whether a game was played in League Classic (the Season 3 throwback).
+
+    Three signals, most reliable first: the queue id, the payload's gameMode,
+    then the stored label. The label fallback matters because it's all a stored
+    row carries — and the gameMode check means a Classic queue id we haven't
+    catalogued yet is still recognised, which is the same reason queue_label
+    falls back to GAME_MODE_NAMES.
+    """
+    if queue_id in CLASSIC_QUEUE_IDS:
+        return True
+    if str(game_mode or "").upper() in CLASSIC_GAME_MODES:
+        return True
+    return str(queue_type or "") in _CLASSIC_LABELS
 
 
 def normalize(

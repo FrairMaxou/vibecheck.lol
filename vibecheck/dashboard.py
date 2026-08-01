@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from . import ddragon, startup, telemetry, updater, whatsnew
+from . import capture, ddragon, startup, telemetry, updater, whatsnew
 from .config import (
     APP_NAME,
     APP_VERSION,
@@ -147,7 +147,7 @@ def create_app(
         return FileResponse(ASSETS_DIR / name)
 
     @app.get("/api/champ-icon/{name}")
-    def champ_icon(name: str):
+    def champ_icon(name: str, classic: bool = False):
         """A champion's Data Dragon portrait, served from the local cache only.
 
         Deliberately never downloads on the request path: a page can ask for a
@@ -156,7 +156,7 @@ def create_app(
         frontend drops the <img>, and a background pass fills the cache so the
         next render has it.
         """
-        path = ddragon.icon_path(name)
+        path = ddragon.icon_path(name, classic=classic)
         if not path:
             _warm_icons()
             raise HTTPException(404)
@@ -172,7 +172,10 @@ def create_app(
 
         def worker():
             try:
-                ddragon.warm(g["champion"] for g in store.games_with_details())
+                ddragon.warm(
+                    (g["champion"], capture.is_classic(g.get("queue_id"), g.get("queue_type")))
+                    for g in store.games_with_details()
+                )
             except Exception:
                 log.debug("Champion icon warm-up failed", exc_info=True)
 
@@ -180,7 +183,13 @@ def create_app(
 
     @app.get("/api/games")
     def games():
-        return {"games": store.games_with_details()}
+        rows = store.games_with_details()
+        for g in rows:
+            # Derived, not stored: it's a pure function of fields already on the
+            # row, so it applies to every game ever captured with no migration
+            # and no re-capture.
+            g["classic"] = capture.is_classic(g.get("queue_id"), g.get("queue_type"))
+        return {"games": rows}
 
     @app.get("/api/rev")
     def rev():
