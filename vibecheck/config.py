@@ -4,7 +4,7 @@ from pathlib import Path
 
 APP_NAME = "VibeCheck.lol"
 TAGLINE = "Winrate is temporary. The vibes are forever."
-APP_VERSION = "0.1.5"  # bump per release; also the git tag (vX.Y.Z)
+APP_VERSION = "0.1.6"  # bump per release; also the git tag (vX.Y.Z)
 
 # Where the in-app "update available" check looks. Must point at whichever repo
 # hosts the PUBLIC releases (this repo if open-sourced, or a separate public
