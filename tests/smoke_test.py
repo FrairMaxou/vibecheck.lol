@@ -141,17 +141,47 @@ def test_queue_label_fallback():
     # known ids -> friendly labels
     assert capture.queue_label(450, {}) == "ARAM"
     assert capture.queue_label(2400, {"gameMode": "KIWI"}) == "ARAM Mayhem"
-    # unknown id -> raw gameMode from payload (the blank-queue bug this guards)
-    assert capture.queue_label(9999, {"gameMode": "NEXUSBLITZ"}) == "NEXUSBLITZ"
+    # League Classic (patch 26.15): new ids on the new "JADE" mode
+    assert capture.queue_label(4310, {"gameMode": "JADE"}) == "League Classic"
+    assert capture.queue_label(2450, {"gameMode": "KIWI_JADE"}) == "ARAM Mayhem Classic-ish"
+    # unknown id but a known gameMode -> the mode's friendly name, so a queue id
+    # Riot adds later still reads properly instead of showing "JADE"
+    assert capture.queue_label(9999, {"gameMode": "JADE"}) == "League Classic"
+    assert capture.queue_label(9999, {"gameMode": "NEXUSBLITZ"}) == "Nexus Blitz"
+    # unknown id AND unknown mode -> raw string (the blank-queue bug this guards)
+    assert capture.queue_label(9999, {"gameMode": "SOME_FUTURE_MODE"}) == "SOME_FUTURE_MODE"
     # unknown id, no strings -> never blank
     assert capture.queue_label(9999, {}) == "Queue 9999"
     assert capture.queue_label(None, {}) == "Unknown queue"
+
+
+def test_win_fallback():
+    """Win must survive a payload that only reports it per-player (F3b spirit:
+    new modes must not silently record an unknown result)."""
+    eol = {
+        "gameId": 1,
+        "queueId": 4310,
+        "gameMode": "JADE",
+        "gameLength": 1800,
+        "teams": [
+            {
+                "teamId": 100,
+                "isPlayerTeam": True,
+                "players": [{"puuid": "ME", "championId": 84, "stats": {"WIN": 1}}],
+            },
+            {"teamId": 200, "players": [{"puuid": "E", "championId": 86, "stats": {"WIN": 0}}]},
+        ],
+    }
+    game = capture.normalize(eol, "ME", {84: "Akali", 86: "Garen"}, set(), {})["game"]
+    assert game["win"] == 1, "win should fall back to the player's own stats"
+    assert game["queue_type"] == "League Classic"
 
 
 def main():
     test_match_history_fallback()
     test_remake_detection()
     test_queue_label_fallback()
+    test_win_fallback()
     champ_names = {202: "Jhin", 157: "Yasuo", 1: "Annie"}
 
     result = capture.normalize(FAKE_EOL, MY_PUUID, champ_names, premade_puuids={"friend-1"})

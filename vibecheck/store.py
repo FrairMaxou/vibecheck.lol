@@ -269,6 +269,25 @@ class GameStore:
             self._db.execute("DELETE FROM games WHERE id = ?", (game_id,))
             self._bump_rev()
 
+    def set_premades(self, game_id: int, puuids: list) -> None:
+        """Set which of a game's teammates were premades (lobby-derived).
+
+        Used to repair games captured while the lobby snapshot was unavailable —
+        e.g. the app restarting mid-game, which used to lose it entirely.
+        """
+        with self._lock, self._db:
+            self._db.execute(
+                "UPDATE game_teammates SET was_premade = 0 WHERE game_id = ?", (game_id,)
+            )
+            if puuids:
+                marks = ",".join("?" * len(puuids))
+                self._db.execute(
+                    "UPDATE game_teammates SET was_premade = 1 "  # noqa: S608 - placeholders only
+                    f"WHERE game_id = ? AND riot_puuid IN ({marks})",
+                    (game_id, *puuids),
+                )
+            self._bump_rev()
+
     def update_queue_type(self, game_id: int, queue_type: str) -> None:
         with self._lock, self._db:
             self._db.execute("UPDATE games SET queue_type = ? WHERE id = ?", (queue_type, game_id))
@@ -363,10 +382,16 @@ class GameStore:
             self._bump_rev()
 
     def games_with_raw(self) -> list:
-        """(id, raw_payload) for every game — the backfill's input."""
+        """Every game that kept its payload — the input for backfills/relabels.
+
+        Includes the stored queue fields so a relabel can skip rows that already
+        have the right label instead of rewriting (and bumping the revision for)
+        every game.
+        """
         with self._lock:
             rows = self._db.execute(
-                "SELECT id, raw_payload FROM games WHERE raw_payload IS NOT NULL"
+                "SELECT id, queue_id, queue_type, raw_payload FROM games "
+                "WHERE raw_payload IS NOT NULL"
             ).fetchall()
         return [dict(r) for r in rows]
 
