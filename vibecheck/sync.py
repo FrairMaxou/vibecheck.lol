@@ -102,10 +102,16 @@ def save_config(url: str, anon_key: str) -> None:
 class Supabase:
     """Thin HTTP client for Supabase Auth + PostgREST."""
 
-    def __init__(self, url: str, anon_key: str, session: dict | None = None):
+    def __init__(self, url: str, anon_key: str, session: dict | None = None, on_session=None):
         self.url = url.rstrip("/")
         self.anon_key = anon_key
         self.session = session or {}
+        # Called every time the session changes, so the caller can save it
+        # immediately. Supabase *rotates* the refresh token on every use: saving
+        # only at the end of a successful operation means any error in between
+        # loses the new token, and the next launch presents the old one — which
+        # the server has already consumed ("Invalid Refresh Token: Already Used").
+        self._on_session = on_session
 
     # -- auth --------------------------------------------------------
 
@@ -137,8 +143,19 @@ class Supabase:
             raise SupabaseError(msg)
         if not data.get("access_token"):
             raise SupabaseError("Backend did not return a session token.")
-        self.session = data
+        self._set_session(data)
         return data
+
+    def _set_session(self, session: dict) -> None:
+        self.session = session
+        if not self._on_session:
+            return
+        try:
+            self._on_session(session)
+        except Exception:
+            # Saving is best-effort: a write failure must not turn a successful
+            # sign-in into a failed one.
+            log.debug("Could not persist the session", exc_info=True)
 
     def sign_in_anonymous(self) -> dict:
         """Create a silent anonymous session (no email/password).
@@ -156,7 +173,8 @@ class Supabase:
         return self._auth("token?grant_type=refresh_token", {"refresh_token": token})
 
     def sign_out(self) -> None:
-        self.session = {}
+        # Persisted too, so a session we know is dead isn't reloaded next launch.
+        self._set_session({})
 
     # -- data --------------------------------------------------------
 
@@ -240,7 +258,7 @@ class SquadService:
             except ValueError:
                 session = {}
         self.client = (
-            Supabase(cfg["url"], cfg["anon_key"], session)
+            Supabase(cfg["url"], cfg["anon_key"], session, on_session=self._save_session)
             if cfg.get("url") and cfg.get("anon_key")
             else None
         )
@@ -259,11 +277,15 @@ class SquadService:
     def configure(self, url: str, anon_key: str) -> None:
         """Point at a self-hosted backend (advanced; released builds skip this)."""
         save_config(url, anon_key)
-        self.client = Supabase(url, anon_key)
+        self.client = Supabase(url, anon_key, on_session=self._save_session)
         self._profile_synced = False
 
+    def _save_session(self, session: dict) -> None:
+        """Write the session the moment it changes (see Supabase.on_session)."""
+        self.store.set_meta(SESSION_KEY, json.dumps(session))
+
     def _persist_session(self) -> None:
-        self.store.set_meta(SESSION_KEY, json.dumps(self.client.session))
+        self._save_session(self.client.session)
 
     @staticmethod
     def _is_auth_error(exc: SupabaseError) -> bool:
@@ -272,11 +294,25 @@ class SquadService:
 
     def _upsert_profile(self, puuid: str) -> None:
         name = self.store.get_meta(MY_NAME_KEY) or "Summoner"
-        self.client.upsert(
-            "profiles",
-            [{"id": self.client.user_id, "puuid": puuid, "display_name": name}],
-            on_conflict="id",
-        )
+        try:
+            self.client.upsert(
+                "profiles",
+                [{"id": self.client.user_id, "puuid": puuid, "display_name": name}],
+                on_conflict="id",
+            )
+        except SupabaseError as exc:
+            # profiles.puuid must NOT be unique (see supabase/schema.sql): one
+            # player legitimately owns a new row whenever their anonymous session
+            # is recreated. A project carrying a leftover unique constraint from
+            # an older schema breaks sync permanently for that player, and RLS
+            # stops the client from clearing the old row — so say what to do
+            # rather than surfacing a raw Postgres error.
+            if "profiles_puuid_key" in str(exc):
+                raise SupabaseError(
+                    "The backend still has a unique constraint on profiles.puuid — "
+                    "run supabase/fix-profiles-puuid-unique.sql in the project."
+                ) from exc
+            raise
 
     def _ensure_identity(self) -> None:
         """Guarantee a valid session + a profile linking it to our PUUID.
