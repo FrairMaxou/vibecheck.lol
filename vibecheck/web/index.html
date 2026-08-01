@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>VibeCheck.lol</title>
-<link rel="stylesheet" href="/static/style.css">
+<link rel="stylesheet" href="/static/style.css?v=__VERSION__">
 <link rel="icon" href="/assets/logo.ico" sizes="any">
 <link rel="icon" type="image/png" href="/assets/logo.png">
 </head>
@@ -125,6 +125,7 @@
     <input type="date" id="f-to">
   </div>
   <div class="filter-group"><label>Queue</label><div id="f-queue"></div></div>
+  <div class="filter-group"><label>Mode</label><div id="f-mode"></div></div>
   <div class="filter-group"><label>Champion</label><div id="f-champion"></div></div>
   <div class="filter-group"><label>Role</label><div id="f-role"></div></div>
   <div class="filter-group"><label>Teammate</label><div id="f-teammate"></div></div>
@@ -155,11 +156,11 @@
   <div id="tab-champions" class="tab hidden">
     <div class="panel">
       <h2>Champion Vibe Tier List <span class="hint">who sparks joy, who sparks tilt</span></h2>
-      <div class="chart-wrap tall"><canvas id="chart-champ-fun"></canvas></div>
+      <div id="champ-tiers" class="champ-tiers"></div>
     </div>
     <div class="panel">
       <h2>Vibes vs. Win Rate <span class="hint">top-left: fun but bad · bottom-right: winning and miserable (pure copium)</span></h2>
-      <div class="chart-wrap"><canvas id="chart-champ-scatter"></canvas></div>
+      <div class="chart-wrap matrix"><canvas id="chart-champ-scatter"></canvas></div>
     </div>
   </div>
 
@@ -263,7 +264,7 @@
   and all associated properties are trademarks or registered trademarks of Riot Games, Inc.
 </footer>
 
-<script src="/static/chart.umd.js"></script>
-<script src="/static/app.js"></script>
+<script src="/static/chart.umd.js?v=__VERSION__"></script>
+<script src="/static/app.js?v=__VERSION__"></script>
 </body>
 </html>

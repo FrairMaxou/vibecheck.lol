@@ -219,6 +219,10 @@ h1 { font-size: 26px; letter-spacing: .5px; color: var(--gold); }
 .hint { color: var(--ink-3); font-weight: 400; font-size: 12px; margin-left: 8px; }
 .chart-wrap { position: relative; height: 260px; }
 .chart-wrap.tall { height: 340px; }
+/* The vibes-vs-winrate matrix plots champion portraits, not dots. Only ~60px
+   per rating point at the default height, so 36px icons half a point apart
+   overlapped; the extra height is what separates them. */
+.chart-wrap.matrix { height: 560px; }
 .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; }
 .empty-note { color: var(--ink-3); padding: 30px 0; text-align: center; }
 
@@ -312,6 +316,61 @@ tr.low-n td { color: var(--ink-3); }
   color: var(--ink); border-radius: 6px; padding: 5px 8px; font: inherit; font-size: 13px;
 }
 .tag-row { padding: 12px 4px; border-bottom: 1px solid var(--line); }
+/* ---------- champion icons (Data Dragon) ---------- */
+/* Inline next to a champion name. vertical-align keeps it centred on the text
+   line, and the fixed box means a missing icon doesn't reflow the row — it's
+   removed entirely by onerror rather than collapsing to a broken image. */
+.champ-icon {
+  width: 20px; height: 20px; border-radius: 4px; vertical-align: -5px;
+  margin-right: 6px; border: 1px solid var(--line);
+}
+/* Holds the icon's space whether or not the image loads, so onerror removing
+   the <img> can never shift the row it sits in. */
+.champ-slot {
+  display: inline-block; width: 26px; height: 20px; flex: none;
+  vertical-align: -5px;
+}
+.champ-slot .champ-icon { vertical-align: top; margin-right: 0; }
+/* League Classic art is a different crop of the same champion, which at 20px
+   can read as "the same picture". The cyan edge is the tell — mana-cyan is the
+   brand's accent for an active/alternate state (BRAND.md §3). */
+.champ-icon.is-classic { border-color: #00f0ff; box-shadow: 0 0 0 1px rgba(0, 240, 255, .35); }
+
+/* ---------- champion vibe tier list ---------- */
+/* HTML, not a canvas chart: Chart.js can't put images in tick labels, and a
+   fixed-height canvas stops being readable past a few dozen champions. Rows
+   scroll instead. Colours mirror the chart marks so it reads as one system. */
+/* Top 10 by default with the rest one click away — no inner scrollbar, which
+   is awkward inside an already-scrolling page. */
+.tier-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+.tier-row.hidden { display: none; }
+.tier-row .champ-slot { width: 28px; height: 28px; }
+.tier-row .champ-icon { width: 28px; height: 28px; margin: 0; vertical-align: 0; }
+.tier-name {
+  width: 150px; flex: none; font-size: 12px; color: var(--ink-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tier-track { flex: 1; height: 16px; background: #2a2f37; border-radius: 4px; overflow: hidden; }
+/* min-width so a 1.00 champion still shows a sliver: a zero-width bar reads as
+   missing data, when it actually means the worst possible score. */
+.tier-fill { height: 100%; background: #b28328; border-radius: 4px; min-width: 4px; }
+/* Below MIN_N. Deliberately still gold, just faded: a grey bar reads as broken,
+   and with a young dataset EVERY champion is under the threshold, which made
+   the whole list look dead. */
+.tier-fill.thin { background: rgba(178, 131, 40, .45); }
+.tier-score { width: 38px; flex: none; text-align: right; font-size: 12px; color: var(--ink); }
+.tier-score.thin { color: var(--ink-2); }
+/* Aligned to the bar track, so the emoji scale lines up with the fills. */
+.tier-axis {
+  display: flex; justify-content: space-between;
+  margin: 6px 38px 0 194px; font-size: 12px;
+}
+.tier-toggle {
+  margin-top: 10px; background: none; border: 0; cursor: pointer;
+  color: var(--gold); font: inherit; font-size: 12px; padding: 4px 0;
+}
+.tier-toggle:hover { text-decoration: underline; }
+
 .tag-meta { font-size: 13px; color: var(--ink); }
 .tag-meta .when { color: var(--ink-3); font-size: 12px; margin-left: 6px; }
 
