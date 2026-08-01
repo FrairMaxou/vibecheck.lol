@@ -243,6 +243,26 @@ def download(info: dict, progress_cb=None) -> Path:
     return target
 
 
+# PyInstaller's bootloader passes these to its own second stage to say "the
+# archive is already unpacked, reuse this directory". Inherited by any child we
+# spawn, they make the NEW build skip extraction and adopt the outgoing build's
+# temp directory — which PyInstaller then deletes when the old process exits.
+# The relaunched app is left pointing at files that no longer exist and dies
+# with "Tcl data directory ... not found" before it can draw anything.
+_PYI_ENV_VARS = ("_PYI_APPLICATION_HOME_DIR", "_PYI_ARCHIVE_FILE", "_PYI_PARENT_PROCESS_LEVEL")
+_LEGACY_PYI_ENV_VARS = ("_MEIPASS2",)  # pre-6.x bootloaders
+
+
+def _child_env() -> dict:
+    """The parent's environment minus PyInstaller's private bookkeeping.
+
+    The relaunched build has to unpack itself from scratch, exactly as it would
+    if the user double-clicked it.
+    """
+    drop = set(_PYI_ENV_VARS) | set(_LEGACY_PYI_ENV_VARS)
+    return {k: v for k, v in os.environ.items() if k not in drop}
+
+
 def apply(new_exe: Path) -> None:
     """Swap in the new build and relaunch it. The caller then quits the app.
 
@@ -267,6 +287,7 @@ def apply(new_exe: Path) -> None:
         subprocess.Popen(  # noqa: S603 - our own executable, fixed argv
             [str(current), "--updated-from-pid", str(os.getpid())],
             close_fds=True,
+            env=_child_env(),
         )
     except Exception as exc:
         shutil.copy2(backup, current)  # restore, since the new one won't start
