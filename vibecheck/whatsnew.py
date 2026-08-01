@@ -9,6 +9,11 @@ A version with no entry here simply shows nothing, which is a fine default.
 """
 
 RELEASE_NOTES = {
+    "0.1.4": [
+        "League Classic and ARAM Mayhem Classic-ish now show up by name — and your "
+        "old games from those modes get renamed too.",
+        "Fixed games with friends being counted as solo queue when the app restarted mid-game.",
+    ],
     "0.1.3": [
         "Updates install themselves now — one click, no more downloading from GitHub.",
         "The dashboard stopped flickering every minute.",
