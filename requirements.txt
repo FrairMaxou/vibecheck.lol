@@ -1,4 +1,4 @@
-requests>=2.31
+requests>=2.34.2
 websocket-client>=1.7
 psutil>=5.9
 pystray>=0.19
