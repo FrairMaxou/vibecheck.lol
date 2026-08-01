@@ -19,6 +19,7 @@ from . import startup, telemetry, updater, whatsnew
 from .config import (
     APP_NAME,
     APP_VERSION,
+    ASSETS_DIR,
     DASHBOARD_HOST,
     DASHBOARD_PORT,
     DATA_DIR,
@@ -32,6 +33,10 @@ from .sync import SquadService, SupabaseError
 log = logging.getLogger(__name__)
 
 STATIC_FILES = {"app.js", "style.css", "chart.umd.js"}
+# Brand assets the dashboard is allowed to serve. Allowlisted for the same
+# reason as STATIC_FILES: `name` comes from the URL, so nothing else in
+# ASSETS_DIR (the meme rating art, for one) can be reached by guessing.
+ASSET_FILES = {"logo-horizontal.png", "logo.png", "logo.ico"}
 
 LAST_SEEN_VERSION_KEY = "last_seen_version"  # drives the once-per-update notes
 
@@ -113,6 +118,13 @@ def create_app(
         if name not in STATIC_FILES:  # allowlist — no path traversal possible
             raise HTTPException(404)
         return FileResponse(WEB_DIR / name)
+
+    @app.get("/assets/{name}")
+    def asset(name: str):
+        """Brand assets (logo, favicon). Same allowlist guard as /static."""
+        if name not in ASSET_FILES:
+            raise HTTPException(404)
+        return FileResponse(ASSETS_DIR / name)
 
     @app.get("/api/games")
     def games():

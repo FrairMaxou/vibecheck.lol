@@ -21,6 +21,16 @@ body {
 
 header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
 h1 { font-size: 26px; letter-spacing: .5px; color: var(--gold); }
+/* Height-driven so the lockup scales with the header rather than a fixed px
+   width; `auto` width keeps the 403x128 aspect ratio. BRAND.md §2 asks for
+   clear space ≈ the height of the cyan gem, hence the small bottom margin. */
+.app-logo { height: 38px; width: auto; display: block; margin-bottom: 4px; }
+/* Off-screen but still read by screen readers — the visible wordmark is the
+   logo image, which carries no text for assistive tech. */
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
 .subtitle { color: var(--ink-2); font-size: 13px; }
 
 /* ---------- profile menu (top-right) ---------- */
