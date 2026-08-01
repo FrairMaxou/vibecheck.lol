@@ -44,8 +44,12 @@ _MUTED = "#a09b8c"
 # Faces get a fixed cell, and any aspect ratio is fitted and centred inside it.
 # Meme crops are rarely square (wide reaction shots, tall Chad), so a square box
 # would make the row ragged and shrink the wide ones to nothing.
-FACE_W, FACE_H = 104, 88
-_EMOJI_PX = 60  # emoji fallback renders square inside the same cell
+#
+# Sized for a toast, not a dialog: this appears unprompted after every game, so
+# it should read at a glance and get out of the way. The five tiers still have
+# to be distinguishable at this size — that's the floor on how small it can go.
+FACE_W, FACE_H = 58, 50
+_EMOJI_PX = 38  # emoji fallback renders square inside the same cell
 
 _EMOJI_FONT_CANDIDATES = ("seguiemj.ttf", "C:/Windows/Fonts/seguiemj.ttf")
 
@@ -96,6 +100,35 @@ def _grade_image(score: int, emoji: str, width: int, height: int) -> Image.Image
     return _centred(emoji_img, width, height) if emoji_img else None
 
 
+def _round_corners(win: tk.Toplevel) -> None:
+    """Ask Windows 11's compositor to round this window's corners.
+
+    Tk can't draw a rounded window itself — an overrideredirect Toplevel is a
+    hard rectangle. DWM will round it for us, which also gets the correct
+    antialiasing against whatever is behind it.
+
+    Best-effort by design: the attribute landed in Windows 11 (build 22000), so
+    on Windows 10 the call simply fails and the popup stays square. That's a
+    cosmetic difference, never a reason to fail to ask for a rating.
+    """
+    try:
+        import ctypes
+
+        DWMWA_WINDOW_CORNER_PREFERENCE = 33
+        DWMWA_ROUND = 2
+        GA_ROOT = 2
+        # winfo_id() is the Tk child window; DWM only rounds the real top-level.
+        hwnd = ctypes.windll.user32.GetAncestor(win.winfo_id(), GA_ROOT)
+        ctypes.windll.dwmapi.DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_WINDOW_CORNER_PREFERENCE,
+            ctypes.byref(ctypes.c_int(DWMWA_ROUND)),
+            ctypes.sizeof(ctypes.c_int),
+        )
+    except Exception:
+        log.debug("Rounded corners unavailable on this Windows version", exc_info=True)
+
+
 class RatingPopup:
     def __init__(self, root: tk.Tk, on_rate: Callable[[int, int], None]):
         self._root = root
@@ -119,18 +152,19 @@ class RatingPopup:
         win.protocol("WM_DELETE_WINDOW", self.hide)  # close = pending, not lost
 
         tk.Label(
-            win, text="How was that game?", font=("Segoe UI", 17, "bold"), bg=_BG, fg=_GOLD
-        ).pack(padx=26, pady=(16, 2))
-        tk.Label(win, text=summary, font=("Segoe UI", 10), bg=_BG, fg=_MUTED, wraplength=360).pack(
-            padx=26, pady=(0, 12)
+            win, text="How was that game?", font=("Segoe UI", 11, "bold"), bg=_BG, fg=_GOLD
+        ).pack(padx=14, pady=(10, 0))
+        tk.Label(win, text=summary, font=("Segoe UI", 8), bg=_BG, fg=_MUTED, wraplength=330).pack(
+            padx=14, pady=(0, 7)
         )
 
         row = tk.Frame(win, bg=_BG)
-        row.pack(padx=16, pady=(0, 16))
+        row.pack(padx=9, pady=(0, 9))
         for score, emoji, label in RATINGS:
             self._add_face(row, score, emoji, label)
 
         win.update_idletasks()
+        _round_corners(win)
         x = win.winfo_screenwidth() - win.winfo_width() - 24
         y = win.winfo_screenheight() - win.winfo_height() - 72
         win.geometry(f"+{x}+{y}")
@@ -139,7 +173,7 @@ class RatingPopup:
 
     def _add_face(self, parent: tk.Frame, score: int, emoji: str, label: str) -> None:
         card = tk.Frame(parent, bg=_CARD, cursor="hand2")
-        card.pack(side=tk.LEFT, padx=5)
+        card.pack(side=tk.LEFT, padx=3)
 
         img = _grade_image(score, emoji, FACE_W, FACE_H)
         if img is not None:
@@ -147,12 +181,22 @@ class RatingPopup:
             self._images.append(photo)
             face = tk.Label(card, image=photo, bg=_CARD)
         else:  # fallback: monochrome text emoji still works
-            face = tk.Label(card, text=emoji, font=("Segoe UI Emoji", 26), bg=_CARD)
-        face.pack(padx=8, pady=(8, 0))
+            face = tk.Label(card, text=emoji, font=("Segoe UI Emoji", 18), bg=_CARD)
+        face.pack(padx=5, pady=(5, 0))
+        # The tier names are fixed by BRAND.md §5, so they wrap rather than get
+        # shortened. height=2 reserves both lines on every card, including the
+        # one-word ones — otherwise "Meh" sits in a card 12px shorter than
+        # "Who Let Them Cook?" and the row of faces ends up ragged.
         name = tk.Label(
-            card, text=label, font=("Segoe UI", 8), bg=_CARD, fg=_MUTED, justify="center"
+            card,
+            text=label,
+            font=("Segoe UI", 7),
+            bg=_CARD,
+            fg=_MUTED,
+            justify="center",
+            height=2,
         )
-        name.pack(padx=6, pady=(0, 7))
+        name.pack(padx=4, pady=(1, 4))
 
         widgets = (card, face, name)
         for w in widgets:
