@@ -169,18 +169,33 @@ def create_app(
         threading.Timer(0.3, quit_fn).start()
         return {"ok": True, "quitting": True}
 
+    def _build_id() -> str:
+        """Identifies the build asking the question, not just the version.
+
+        The cache lives in the shared database, so a run from source (which can
+        never self-update) and the packaged exe would otherwise hand each other
+        their answers — the exe then shows "Download from GitHub" even though it
+        could update itself. The version is in here too, so an app that has just
+        updated itself doesn't keep reporting the version it replaced.
+        """
+        return f"{APP_VERSION}|{int(updater.can_self_update())}"
+
     def _update_info(force: bool = False) -> dict:
         """The latest-release check, cached so opening the menu can't hammer
         GitHub's unauthenticated rate limit."""
         if not force:
             try:
                 cached = json.loads(store.get_meta(UPDATE_CACHE_KEY) or "{}")
-                if time.time() - cached.get("at", 0) < UPDATE_CACHE_SECONDS:
+                fresh = time.time() - cached.get("at", 0) < UPDATE_CACHE_SECONDS
+                if fresh and cached.get("build") == _build_id():
                     return cached["info"]
             except (ValueError, KeyError, TypeError):
                 pass
         info = updater.check()
-        store.set_meta(UPDATE_CACHE_KEY, json.dumps({"at": time.time(), "info": info}))
+        store.set_meta(
+            UPDATE_CACHE_KEY,
+            json.dumps({"at": time.time(), "build": _build_id(), "info": info}),
+        )
         return info
 
     @app.get("/api/update")
