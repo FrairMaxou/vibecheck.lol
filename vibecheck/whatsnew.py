@@ -9,6 +9,15 @@ A version with no entry here simply shows nothing, which is a fine default.
 """
 
 RELEASE_NOTES = {
+    # Whoever reads this card has *just* updated, which is exactly the audience
+    # that may have hit the crash — so lead by explaining it rather than
+    # burying it under a feature.
+    "0.1.8": [
+        "If updating threw an error about a missing folder and VibeCheck didn't come "
+        "back on its own — sorry, that's the bug this release fixes. Nothing was "
+        "damaged, and opening it again was all it needed.",
+        "Updates now restart the app properly instead of tripping over themselves.",
+    ],
     "0.1.7": [
         "The rating popup is way smaller — a notification instead of a window "
         "taking over a third of your screen.",
