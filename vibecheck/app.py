@@ -53,6 +53,8 @@ ASSETS_CHAMPS_KEY = "assets_champions"
 QUEUE_LABELS_KEY = "queue_labels_version"
 PREMADES_KEY = "lobby_premades"  # survives a mid-game restart
 UPDATE_NOTIFIED_KEY = "update_notified"  # version we've already toasted about
+ONBOARDING_KEY = "onboarding_state"  # "backfilled" once imported, "done" once dismissed
+ONBOARDING_GAMES = 5  # == PRD MIN_N, so rating them all clears "not enough data yet"
 
 UPDATE_CHECK_DELAY_SECONDS = 90  # let startup finish first
 UPDATE_CHECK_INTERVAL_SECONDS = 6 * 3600  # matches the updater's cache TTL
@@ -501,6 +503,10 @@ class App:
 
         def worker():
             try:
+                # Before the normal sweep: the backfill advances the watermark,
+                # so catch-up then correctly sees those games as already ours
+                # and doesn't pop a rating prompt for one of them.
+                self._backfill_for_onboarding()
                 self._catch_up()
             except Exception:
                 log.exception("Catch-up sweep failed")
@@ -508,6 +514,41 @@ class App:
                 self._capture_lock.release()
 
         threading.Thread(target=worker, name="catch-up", daemon=True).start()
+
+    def _backfill_for_onboarding(self) -> None:
+        """First install only: import recent games so the dashboard isn't empty.
+
+        A new user opens VibeCheck to blank charts and the next game is half an
+        hour away, which is a poor reason to close it and not come back. Pulling
+        the last few games gives the dashboard something to show and the user
+        something to rate right now.
+
+        Deliberately silent — no rating popup. These land in "To Rate" and the
+        dashboard offers them as a one-time wizard; firing five popups at a
+        first-time user would be the opposite of a welcome.
+        """
+        if self.store.get_meta(ONBOARDING_KEY) or self.store.game_count():
+            return
+        self.store.set_meta(ONBOARDING_KEY, "backfilled")  # once, even if it finds nothing
+
+        imported = 0
+        for summary in sorted(
+            self._client.recent_matches(ONBOARDING_GAMES),
+            key=lambda g: g.get("gameCreation", 0),
+        ):  # oldest first, so session numbering stays chronological
+            game_id = summary.get("gameId")
+            if not game_id or self.store.has_game(str(game_id)):
+                continue
+            match = self._client.match_details(game_id) or summary
+            result = capture.normalize_match(
+                match, self._my_puuid, self._champ_names, set(), self._assets
+            )
+            if result["game"].get("is_remake"):
+                continue  # F5: never ask about a remake
+            if self.store.insert_game(result["game"], result["teammates"]) is not None:
+                self._advance_watermark(result["game"].get("played_at", ""))
+                imported += 1
+        log.info("Onboarding backfill imported %d recent game(s)", imported)
 
     def _catch_up(self) -> None:
         watermark = self.store.get_meta(WATERMARK_KEY) or ""
