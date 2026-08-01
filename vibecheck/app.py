@@ -28,6 +28,7 @@ from .config import (
     DATA_DIR,
     FROZEN,
     LOG_PATH,
+    QUEUE_LABELS_VERSION,
 )
 from .dashboard import start_dashboard
 from .popup import RatingPopup
@@ -49,6 +50,9 @@ MY_PUUID_KEY = "my_puuid"
 ASSETS_ITEMS_KEY = "assets_items"
 ASSETS_AUGMENTS_KEY = "assets_augments"
 ASSETS_CHAMPS_KEY = "assets_champions"
+QUEUE_LABELS_KEY = "queue_labels_version"
+PREMADES_KEY = "lobby_premades"  # survives a mid-game restart
+PREMADES_MAX_AGE_HOURS = 6
 
 
 class App:
@@ -68,6 +72,7 @@ class App:
         self._champ_names: dict = {}
         self._assets: dict = {}
         self._premade_puuids: set = set()
+        self._restore_premades()  # a restart mid-game must not lose the lobby
         self._processed_game_ids: set = set()
         self._capture_lock = threading.Lock()
 
@@ -110,7 +115,45 @@ class App:
         if "--autostart" not in sys.argv:
             self._root.after(1000, self._open_dashboard)
         self._start_usage_ping()
+        self._relabel_queues()
         self._root.mainloop()
+
+    def _relabel_queues(self) -> None:
+        """Re-apply queue names to already-captured games after the label table
+        changes (F3b). Labels are written at capture time, so a game played
+        before its mode had a name keeps the raw one — League Classic games
+        captured at launch read "JADE" until this runs.
+
+        Runs once per QUEUE_LABELS_VERSION bump, off the main thread because it
+        reads every stored payload. Each update bumps the store revision, so an
+        open dashboard picks the new names up on its own.
+        """
+        if self.store.get_meta(QUEUE_LABELS_KEY) == str(QUEUE_LABELS_VERSION):
+            return
+
+        def worker():
+            fixed = 0
+            try:
+                for row in self.store.games_with_raw():
+                    try:
+                        payload = json.loads(row["raw_payload"])
+                    except (TypeError, ValueError):
+                        continue
+                    if not isinstance(payload, dict):
+                        continue
+                    label = capture.queue_label(row["queue_id"], payload)
+                    if label and label != row["queue_type"]:
+                        self.store.update_queue_type(row["id"], label)
+                        fixed += 1
+                self.store.set_meta(QUEUE_LABELS_KEY, str(QUEUE_LABELS_VERSION))
+                if fixed:
+                    log.info("Re-labelled %d game(s) with updated queue names", fixed)
+            except Exception:
+                # Cosmetic only — never let it stop the app, and leave the
+                # version unset so it retries next launch.
+                log.exception("Queue relabel pass failed")
+
+        threading.Thread(target=worker, name="queue-relabel", daemon=True).start()
 
     def _start_usage_ping(self) -> None:
         """Anonymous usage ping, well after startup so it competes with nothing.
@@ -301,7 +344,34 @@ class App:
         puuids.discard(self._my_puuid)
         if puuids:
             self._premade_puuids = puuids
+            # Persist it: the lobby is gone by the time the game ends, so if the
+            # app restarts mid-game an in-memory-only set is lost and the game
+            # is recorded as solo queue. Survives that.
+            self.store.set_meta(
+                PREMADES_KEY,
+                json.dumps(
+                    {"at": datetime.now().isoformat(timespec="seconds"), "puuids": list(puuids)}
+                ),
+            )
             log.info("Lobby premades captured: %d", len(puuids))
+
+    def _restore_premades(self) -> None:
+        """Reload the last lobby snapshot after a restart (see _capture_premades).
+
+        Only a recent one: an old snapshot belongs to a session that's long over,
+        and wrongly tagging a later solo game as premade would quietly corrupt
+        the Squad Buff comparison.
+        """
+        try:
+            saved = json.loads(self.store.get_meta(PREMADES_KEY) or "{}")
+            when = datetime.fromisoformat(saved["at"])
+            puuids = {p for p in saved.get("puuids", []) if p}
+        except (ValueError, KeyError, TypeError):
+            return
+        if not puuids or datetime.now() - when > timedelta(hours=PREMADES_MAX_AGE_HOURS):
+            return
+        self._premade_puuids = puuids
+        log.info("Restored %d lobby premade(s) from the previous run", len(puuids))
 
     def _handle_end_of_game(self) -> None:
         """Kick off capture in a worker thread.
@@ -424,6 +494,7 @@ class App:
     def _finish_capture(self, game_id_str: str, result: dict, source: str) -> None:
         self._processed_game_ids.add(game_id_str)
         self._premade_puuids = set()
+        self.store.set_meta(PREMADES_KEY, "")  # consumed — don't reuse next game
         stored_id = self.store.insert_game(result["game"], result["teammates"])
         self._advance_watermark(result["game"].get("played_at", ""))
         if stored_id is None:

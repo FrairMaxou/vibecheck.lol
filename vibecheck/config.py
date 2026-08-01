@@ -87,6 +87,12 @@ QUEUE_NAMES = {
     3270: "ARAM Mayhem (Custom)",
 }
 
+# Bump whenever QUEUE_NAMES or GAME_MODE_NAMES changes. Labels are stored on the
+# game row at capture time, so already-captured games keep whatever name was
+# known back then — League Classic games captured before its label existed read
+# "JADE". On startup the app re-applies labels once per version bump.
+QUEUE_LABELS_VERSION = 2
+
 # Fallback labels by gameMode, used when a queue id isn't in QUEUE_NAMES above.
 # Riot ships new queue ids for existing modes regularly (League Classic alone
 # added four), so this keeps a brand-new queue readable — "League Classic"
