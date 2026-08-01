@@ -213,9 +213,69 @@ function champImage(key, onLoad) {
   return img;
 }
 
+/* pointHoverRadius does nothing for image points — Chart.js won't rescale a
+   bitmap on hover. So redraw the hovered icon on top, larger, with a gold ring
+   and a dark backdrop. Drawing it last also lifts it clear of the neighbours it
+   overlaps, which is the whole point when portraits stack at 0% and 100%. */
+const champHoverPlugin = {
+  id: "champHover",
+  afterDatasetsDraw(chart) {
+    const active = chart.getActiveElements();
+    if (!active.length) return;
+    const { datasetIndex, index } = active[0];
+    const img = chart.data.datasets[datasetIndex].pointStyle[index];
+    if (!(img instanceof HTMLImageElement) || !img.complete) return;
+    const { x, y } = active[0].element;
+    const size = Math.round(img.width * 1.45);
+    const half = size / 2;
+    const ctx = chart.ctx;
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,.75)";
+    ctx.shadowBlur = 10;
+    ctx.fillStyle = "#10141a";
+    ctx.fillRect(x - half - 2, y - half - 2, size + 4, size + 4);
+    ctx.shadowBlur = 0;
+    ctx.drawImage(img, x - half, y - half, size, size);
+    ctx.strokeStyle = "#c8aa6e";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x - half - 1, y - half - 1, size + 2, size + 2);
+    ctx.restore();
+  },
+};
+
+/* Champions that tie on BOTH vibe and winrate land on identical coordinates,
+   so one portrait hides the other completely — and with small samples, ties are
+   common (two champions at 3.00 and 50% is an ordinary Tuesday). Height can't
+   fix that; only separation can.
+
+   Tied champions are fanned along the winrate axis, which is the secondary
+   metric here — vibe stays exactly where it belongs on the y axis. The spread
+   is a couple of percent, tooltips always report the true value, and groups
+   near 0% or 100% are nudged inward so nobody gets pushed off the plot. */
+function fanTies(rows) {
+  const groups = new Map();
+  for (const r of rows) {
+    const k = `${r.winrate.toFixed(2)}|${r.avgFun.toFixed(2)}`;
+    (groups.get(k) || groups.set(k, []).get(k)).push(r);
+  }
+  // Winrate % between tied portraits. ~3.6% clears a 36px icon on a typical
+  // window; the fan tightens on narrow ones, which is the right way round.
+  const STEP = 3.6;
+  for (const tied of groups.values()) {
+    if (tied.length < 2) continue;
+    // Stable order, so a champion doesn't hop position between renders.
+    tied.sort((a, b) => a.key.localeCompare(b.key));
+    const span = STEP * (tied.length - 1);
+    let start = tied[0].winrate - span / 2;
+    start = Math.max(0, Math.min(100 - span, start)); // keep the fan on-plot
+    tied.forEach((r, i) => { r.plotX = start + i * STEP; });
+  }
+  return rows;
+}
+
 function funScatterChart(id, rows) {
   destroyChart(id);
-  rows = rows.filter((r) => r.avgFun != null && r.winrate != null);
+  rows = fanTies(rows.filter((r) => r.avgFun != null && r.winrate != null));
   // Draw now, upgrade to portraits as they decode: a cold icon cache or an
   // offline machine must never hold the chart back.
   let queued = false;
@@ -235,7 +295,9 @@ function funScatterChart(id, rows) {
   charts[id] = new Chart(document.getElementById(id), {
     type: "scatter",
     data: { datasets: [{
-      data: rows.map((r) => ({ x: r.winrate, y: r.avgFun, r })),
+      // plotX is the fanned position when this champion ties with another;
+      // r.winrate (the true value) is what the tooltip reports.
+      data: rows.map((r) => ({ x: r.plotX ?? r.winrate, y: r.avgFun, r })),
       backgroundColor: rows.map((r) => (r.n < MIN_N ? MUTED : GOLD)),
       pointStyle: rows.map((r) => sized(r) || "circle"),
       pointRadius: rows.map((r) => Math.min(4 + r.n, 14)),
@@ -246,8 +308,12 @@ function funScatterChart(id, rows) {
     }] },
     options: {
       maintainAspectRatio: false,
-      // Room for the half-icon that now overhangs each edge.
-      layout: { padding: { left: 28, right: 28, top: 28, bottom: 8 } },
+      // Room for the half-icon that now overhangs each edge, plus the enlarged
+      // hover state on top of that.
+      layout: { padding: { left: 34, right: 34, top: 34, bottom: 10 } },
+      // Hit the nearest portrait rather than requiring a hit inside the point:
+      // where icons overlap, "nearest" is what makes the top one reachable.
+      interaction: { mode: "nearest", intersect: true },
       scales: {
         x: { min: 0, max: 100, title: { display: true, text: "winrate %" } },
         y: { min: 1, max: 5, title: { display: true, text: "avg vibe" }, ticks: { callback: (v) => EMOJI[v] || v } },
@@ -260,6 +326,7 @@ function funScatterChart(id, rows) {
         },
       } } },
     },
+    plugins: [champHoverPlugin],
   });
 }
 

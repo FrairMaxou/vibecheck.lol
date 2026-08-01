@@ -219,6 +219,10 @@ h1 { font-size: 26px; letter-spacing: .5px; color: var(--gold); }
 .hint { color: var(--ink-3); font-weight: 400; font-size: 12px; margin-left: 8px; }
 .chart-wrap { position: relative; height: 260px; }
 .chart-wrap.tall { height: 340px; }
+/* The vibes-vs-winrate matrix plots champion portraits, not dots. Only ~60px
+   per rating point at the default height, so 36px icons half a point apart
+   overlapped; the extra height is what separates them. */
+.chart-wrap.matrix { height: 560px; }
 .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; }
 .empty-note { color: var(--ink-3); padding: 30px 0; text-align: center; }
 
