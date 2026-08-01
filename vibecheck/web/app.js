@@ -68,8 +68,12 @@ function champIcon(name, classic) {
   const q = classic ? "?classic=1" : "";
   const cls = classic ? "champ-icon is-classic" : "champ-icon";
   const tip = classic ? ' title="League Classic"' : "";
-  return `<img class="${cls}" src="/api/champ-icon/${encodeURIComponent(name)}${q}"` +
-         ` alt="" loading="lazy"${tip} onerror="this.remove()">`;
+  // Wrapped in a fixed-size slot: onerror removes the img, and without the
+  // slot holding that space the whole row shifts left, so rows with a missing
+  // icon no longer line up with the rest of the column.
+  return `<span class="champ-slot">` +
+         `<img class="${cls}" src="/api/champ-icon/${encodeURIComponent(name)}${q}"` +
+         ` alt="" loading="lazy"${tip} onerror="this.remove()"></span>`;
 }
 
 /* League Classic champions share a display name with the modern ones but are a
@@ -225,7 +229,7 @@ function funScatterChart(id, rows) {
     if (!img || !img.complete || !img.naturalWidth) return null;
     // Sample size drives icon size, exactly as it drove point radius before,
     // so "not enough data yet" still reads at a glance.
-    img.width = img.height = Math.min(18 + r.n * 2, 34);
+    img.width = img.height = Math.min(30 + r.n * 3, 52);
     return img;
   };
   charts[id] = new Chart(document.getElementById(id), {
@@ -236,9 +240,14 @@ function funScatterChart(id, rows) {
       pointStyle: rows.map((r) => sized(r) || "circle"),
       pointRadius: rows.map((r) => Math.min(4 + r.n, 14)),
       pointHoverRadius: rows.map((r) => Math.min(6 + r.n, 16)),
+      // 0% and 100% winrate are common (small samples), and those points sit
+      // exactly on the plot edge — without this the icons are cut in half.
+      clip: false,
     }] },
     options: {
       maintainAspectRatio: false,
+      // Room for the half-icon that now overhangs each edge.
+      layout: { padding: { left: 28, right: 28, top: 28, bottom: 8 } },
       scales: {
         x: { min: 0, max: 100, title: { display: true, text: "winrate %" } },
         y: { min: 1, max: 5, title: { display: true, text: "avg vibe" }, ticks: { callback: (v) => EMOJI[v] || v } },
@@ -352,6 +361,8 @@ function splitChampKey(key) {
    Chart.js has no hook for images in category tick labels, and a fixed-height
    canvas becomes unreadable once you've played a hundred champions. Rows
    scroll; bars are plain divs. Colours match the chart marks exactly. */
+const TIER_TOP_N = 10; // shown by default; the rest is one click away
+
 function renderTierList(rows) {
   const host = document.getElementById("champ-tiers");
   const list = rows.filter((r) => r.avgFun != null).sort((a, b) => b.avgFun - a.avgFun);
@@ -359,7 +370,7 @@ function renderTierList(rows) {
     host.innerHTML = '<div class="empty-note">No rated games match this filter.</div>';
     return;
   }
-  host.innerHTML = list.map((r) => {
+  const row = (r, i) => {
     const { name, classic } = splitChampKey(r.key);
     // Bars span the 1–5 rating range, not 0–5: at 0–5 every champion's bar
     // starts a fifth of the way along and the differences that matter get
@@ -369,14 +380,29 @@ function renderTierList(rows) {
     const tip = `avg vibe ${r.avgFun.toFixed(2)} · ${r.n} rated game${r.n === 1 ? "" : "s"}` +
                 (thin ? " · not enough data yet" : "");
     return `
-      <div class="tier-row" title="${escapeAttr(tip)}">
+      <div class="tier-row${i >= TIER_TOP_N ? " extra hidden" : ""}" title="${escapeAttr(tip)}">
         ${champIcon(name, classic)}
         <div class="tier-name">${escapeAttr(r.key)}</div>
         <div class="tier-track"><div class="tier-fill${thin ? " thin" : ""}" style="width:${pct.toFixed(1)}%"></div></div>
         <div class="tier-score${thin ? " thin" : ""}">${r.avgFun.toFixed(2)}</div>
       </div>`;
-  }).join("") +
-  `<div class="tier-axis">${[1, 2, 3, 4, 5].map((v) => `<span>${EMOJI[v]}</span>`).join("")}</div>`;
+  };
+  const axis = `<div class="tier-axis">${[1, 2, 3, 4, 5].map((v) => `<span>${EMOJI[v]}</span>`).join("")}</div>`;
+  const hidden = list.length - TIER_TOP_N;
+  const toggle = hidden > 0
+    ? `<button class="tier-toggle" id="tier-toggle" data-open="0">▾ Show all ${list.length}</button>`
+    : "";
+  host.innerHTML = list.map(row).join("") + axis + toggle;
+
+  const btn = document.getElementById("tier-toggle");
+  if (btn) {
+    btn.addEventListener("click", () => {
+      const open = btn.dataset.open === "1";
+      btn.dataset.open = open ? "0" : "1";
+      btn.textContent = open ? `▾ Show all ${list.length}` : "▴ Show top 10";
+      host.querySelectorAll(".tier-row.extra").forEach((el) => el.classList.toggle("hidden", open));
+    });
+  }
 }
 
 function renderSquad(games) {

@@ -163,7 +163,13 @@ def create_app(
         return FileResponse(path)
 
     def _warm_icons() -> None:
-        """Download icons for every champion in the store, once per process."""
+        """Download any icons the store needs but the cache doesn't have.
+
+        The flag guards against a page-load's worth of misses each starting
+        their own thread — it is NOT a once-per-process latch. It has to clear
+        when the pass finishes, or the first warm-up permanently blocks every
+        later one and a champion played afterwards never gets an icon.
+        """
         nonlocal _warming
         with _warm_lock:
             if _warming:
@@ -171,6 +177,7 @@ def create_app(
             _warming = True
 
         def worker():
+            nonlocal _warming
             try:
                 ddragon.warm(
                     (g["champion"], capture.is_classic(g.get("queue_id"), g.get("queue_type")))
@@ -178,6 +185,9 @@ def create_app(
                 )
             except Exception:
                 log.debug("Champion icon warm-up failed", exc_info=True)
+            finally:
+                with _warm_lock:
+                    _warming = False
 
         threading.Thread(target=worker, name="champ-icons", daemon=True).start()
 
