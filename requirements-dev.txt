@@ -1,4 +1,4 @@
 ruff>=0.16.0
 pre-commit>=4.0
 pip-audit>=2.10.1
-pyinstaller>=6.0
+pyinstaller>=6.21.0
