@@ -38,6 +38,9 @@ drop table if exists shared_games cascade;
 -- Keyed on the auth user id. puuid is intentionally NOT unique: if a client's
 -- anonymous session is ever recreated, a new row for the same puuid is harmless
 -- (my_puuid() only ever looks up the caller's own current session).
+-- NOTE: projects created before this was settled may still carry a leftover
+-- `profiles_puuid_key` unique constraint, which `create table if not exists`
+-- will not remove — run supabase/fix-profiles-puuid-unique.sql once to drop it.
 create table if not exists profiles (
   id           uuid primary key references auth.users (id) on delete cascade,
   puuid        text not null,
