@@ -58,6 +58,17 @@ function escapeAttr(s) {
   return String(s ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+/* Champion portrait, or nothing at all. The icon is decoration served from a
+   local cache that may legitimately be empty (offline, or not warmed yet), so
+   onerror removes the element rather than leaving a broken-image box. alt is
+   empty on purpose: the champion name is always right next to it, and a second
+   copy is just noise for a screen reader. */
+function champIcon(name) {
+  if (!name) return "";
+  return `<img class="champ-icon" src="/api/champ-icon/${encodeURIComponent(name)}"` +
+         ` alt="" loading="lazy" onerror="this.remove()">`;
+}
+
 function enrich(g) {
   const d = new Date(g.played_at);
   const mins = (g.duration_seconds || 0) / 60;
@@ -274,8 +285,25 @@ function renderOverview(games) {
 }
 
 function renderChampions(games) {
-  funBarChart("chart-champ-fun", aggregate(games, (g) => g.champion), { horizontal: true });
-  funScatterChart("chart-champ-scatter", aggregate(games, (g) => g.champion));
+  const byChamp = aggregate(games, (g) => g.champion);
+  renderRoster(byChamp);
+  funBarChart("chart-champ-fun", byChamp, { horizontal: true });
+  funScatterChart("chart-champ-scatter", byChamp);
+}
+
+/* The portraits' home. Unrated champions sort last rather than being dropped —
+   seeing a pick you've never vibed is the nudge to go rate it. */
+function renderRoster(rows) {
+  const host = document.getElementById("champ-roster");
+  const list = rows.slice().sort((a, b) => (b.avgFun ?? -1) - (a.avgFun ?? -1) || b.games - a.games);
+  host.innerHTML = list.length
+    ? list.map((c) => `
+        <div class="champ-card" title="${escapeAttr(c.key)} — ${c.games} game${c.games === 1 ? "" : "s"}">
+          ${champIcon(c.key)}
+          <div class="champ-name">${escapeAttr(c.key)}</div>
+          <div class="champ-vibe">${c.avgFun == null ? "—" : c.avgFun.toFixed(2)}</div>
+        </div>`).join("")
+    : '<div class="empty-note">No champions match this filter.</div>';
 }
 
 function renderSquad(games) {
@@ -861,7 +889,7 @@ function renderTags(games) {
   host.innerHTML = list.length
     ? list.map((g) => `
         <div class="tag-row">
-          <div class="tag-meta"><b>${g.champion || "?"}</b> · ${g.result} · ${g.queue_type || "?"}
+          <div class="tag-meta">${champIcon(g.champion)}<b>${g.champion || "?"}</b> · ${g.result} · ${g.queue_type || "?"}
             <span class="when">${g.day}</span> ${g.rated ? EMOJI[g.fun_score] : ""}</div>
           ${tagEditorHTML(g)}
         </div>`).join("")
@@ -879,7 +907,7 @@ function renderPending() {
   list.innerHTML = pending.map((g) => `
     <div class="pending-row" data-id="${g.id}">
       <div class="meta">
-        <div><b>${g.champion || "?"}</b> · ${g.result} · ${g.kills ?? "?"}/${g.deaths ?? "?"}/${g.assists ?? "?"} · ${g.queue_type || "?"}</div>
+        <div>${champIcon(g.champion)}<b>${g.champion || "?"}</b> · ${g.result} · ${g.kills ?? "?"}/${g.deaths ?? "?"}/${g.assists ?? "?"} · ${g.queue_type || "?"}</div>
         <div class="when">${g.played_at.replace("T", " ")} · ${Math.round((g.duration_seconds || 0) / 60)} min${g.premades.length ? " · with " + g.premades.map((t) => t.name).join(", ") : ""}</div>
       </div>
       <div class="rate-btns">

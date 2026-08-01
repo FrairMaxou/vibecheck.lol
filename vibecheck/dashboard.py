@@ -8,14 +8,15 @@ aggregation client-side, which is what makes the filter bar and explorer
 
 import logging
 import threading
+import time
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from . import startup, telemetry, updater, whatsnew
+from . import ddragon, startup, telemetry, updater, whatsnew
 from .config import (
     APP_NAME,
     APP_VERSION,
@@ -24,6 +25,7 @@ from .config import (
     DASHBOARD_PORT,
     DATA_DIR,
     DISCORD_INVITE_URL,
+    FROZEN,
     WEB_DIR,
     feedback_form_url,
 )
@@ -37,6 +39,11 @@ STATIC_FILES = {"app.js", "style.css", "chart.umd.js"}
 # reason as STATIC_FILES: `name` comes from the URL, so nothing else in
 # ASSETS_DIR (the meme rating art, for one) can be reached by guessing.
 ASSET_FILES = {"logo-horizontal.png", "logo.png", "logo.ico"}
+
+# Cache-buster stamped into the page's asset URLs. Frozen builds use the release
+# version (changes exactly when the files do); running from source it changes
+# every start, so an edit is never masked by a stale cache.
+ASSET_VERSION = APP_VERSION if FROZEN else f"{APP_VERSION}-{int(time.time())}"
 
 LAST_SEEN_VERSION_KEY = "last_seen_version"  # drives the once-per-update notes
 
@@ -73,6 +80,8 @@ def create_app(
     squad = squad or SquadService(store)
     controls = controls or {}
     update_job = updater.UpdateJob()
+    _warm_lock = threading.Lock()
+    _warming = False
 
     def _settings() -> dict:
         is_paused = controls.get("is_paused")
@@ -111,7 +120,18 @@ def create_app(
 
     @app.get("/")
     def index():
-        return FileResponse(WEB_DIR / "index.html")
+        """The page, with asset URLs stamped with the running version.
+
+        Without the stamp the browser happily keeps a previous build's app.js
+        and style.css after a self-update — new backend, old frontend, which
+        fails in confusing ways rather than obviously. `?v=` changes on every
+        release, so the cache is bypassed exactly when it has to be.
+
+        Dev builds get a per-start value, since the version doesn't move
+        between two runs while editing.
+        """
+        html = (WEB_DIR / "index.html").read_text(encoding="utf-8")
+        return HTMLResponse(html.replace("__VERSION__", ASSET_VERSION))
 
     @app.get("/static/{name}")
     def static(name: str):
@@ -125,6 +145,38 @@ def create_app(
         if name not in ASSET_FILES:
             raise HTTPException(404)
         return FileResponse(ASSETS_DIR / name)
+
+    @app.get("/api/champ-icon/{name}")
+    def champ_icon(name: str):
+        """A champion's Data Dragon portrait, served from the local cache only.
+
+        Deliberately never downloads on the request path: a page can ask for a
+        dozen of these at once, and a slow or unreachable CDN would stall the
+        dashboard for something purely decorative. A miss 404s immediately, the
+        frontend drops the <img>, and a background pass fills the cache so the
+        next render has it.
+        """
+        path = ddragon.icon_path(name)
+        if not path:
+            _warm_icons()
+            raise HTTPException(404)
+        return FileResponse(path)
+
+    def _warm_icons() -> None:
+        """Download icons for every champion in the store, once per process."""
+        nonlocal _warming
+        with _warm_lock:
+            if _warming:
+                return
+            _warming = True
+
+        def worker():
+            try:
+                ddragon.warm(g["champion"] for g in store.games_with_details())
+            except Exception:
+                log.debug("Champion icon warm-up failed", exc_info=True)
+
+        threading.Thread(target=worker, name="champ-icons", daemon=True).start()
 
     @app.get("/api/games")
     def games():

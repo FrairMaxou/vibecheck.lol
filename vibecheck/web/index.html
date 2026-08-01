@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>VibeCheck.lol</title>
-<link rel="stylesheet" href="/static/style.css">
+<link rel="stylesheet" href="/static/style.css?v=__VERSION__">
 <link rel="icon" href="/assets/logo.ico" sizes="any">
 <link rel="icon" type="image/png" href="/assets/logo.png">
 </head>
@@ -154,6 +154,10 @@
 
   <div id="tab-champions" class="tab hidden">
     <div class="panel">
+      <h2>Your Roster <span class="hint">everyone you've picked, best vibes first</span></h2>
+      <div id="champ-roster" class="champ-roster"></div>
+    </div>
+    <div class="panel">
       <h2>Champion Vibe Tier List <span class="hint">who sparks joy, who sparks tilt</span></h2>
       <div class="chart-wrap tall"><canvas id="chart-champ-fun"></canvas></div>
     </div>
@@ -263,7 +267,7 @@
   and all associated properties are trademarks or registered trademarks of Riot Games, Inc.
 </footer>
 
-<script src="/static/chart.umd.js"></script>
-<script src="/static/app.js"></script>
+<script src="/static/chart.umd.js?v=__VERSION__"></script>
+<script src="/static/app.js?v=__VERSION__"></script>
 </body>
 </html>
