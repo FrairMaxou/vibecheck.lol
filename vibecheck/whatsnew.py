@@ -9,6 +9,12 @@ A version with no entry here simply shows nothing, which is a fine default.
 """
 
 RELEASE_NOTES = {
+    "0.1.5": [
+        "VibeCheck now tells you when a new version is out, even if you never open "
+        "the dashboard — look for the tray icon.",
+        "Fixed friends not showing up in your squad.",
+        "The Update button installs the update again, instead of sending you to GitHub.",
+    ],
     "0.1.4": [
         "League Classic and ARAM Mayhem Classic-ish now show up by name — and your "
         "old games from those modes get renamed too.",
