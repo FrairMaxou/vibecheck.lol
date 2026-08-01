@@ -34,7 +34,7 @@ from .dashboard import start_dashboard
 from .popup import RatingPopup
 from .store import GameStore
 from .sync import SquadService
-from .tray import build_tray
+from .tray import build_tray, notify
 
 log = logging.getLogger(__name__)
 
@@ -52,6 +52,10 @@ ASSETS_AUGMENTS_KEY = "assets_augments"
 ASSETS_CHAMPS_KEY = "assets_champions"
 QUEUE_LABELS_KEY = "queue_labels_version"
 PREMADES_KEY = "lobby_premades"  # survives a mid-game restart
+UPDATE_NOTIFIED_KEY = "update_notified"  # version we've already toasted about
+
+UPDATE_CHECK_DELAY_SECONDS = 90  # let startup finish first
+UPDATE_CHECK_INTERVAL_SECONDS = 6 * 3600  # matches the updater's cache TTL
 PREMADES_MAX_AGE_HOURS = 6
 
 
@@ -96,9 +100,13 @@ class App:
         }
         self._dashboard_url = start_dashboard(self.store, self.squad, controls)
         self._window_proc: subprocess.Popen | None = None
+        # Set by the background check; drives the tray's "Update to vX.Y.Z" entry.
+        self._pending_update: str | None = None
         self._tray = build_tray(
             on_quit=self.stop,
             on_open_dashboard=self._open_dashboard,
+            on_update=self._open_update,
+            pending_version=lambda: self._pending_update,
         )
 
     # ---------------- lifecycle ----------------
@@ -115,6 +123,7 @@ class App:
         if "--autostart" not in sys.argv:
             self._root.after(1000, self._open_dashboard)
         self._start_usage_ping()
+        self._start_update_check()
         self._relabel_queues()
         self._root.mainloop()
 
@@ -172,6 +181,68 @@ class App:
 
         threading.Thread(target=worker, name="usage-ping", daemon=True).start()
 
+    def _start_update_check(self) -> None:
+        """Look for new releases in the background, not just when the dashboard
+        is open.
+
+        Most people run VibeCheck as a tray icon and never open the dashboard,
+        so a release could sit unnoticed indefinitely — the check that mattered
+        only ran when the profile menu was opened. This surfaces it instead: a
+        balloon once per version, plus a tray entry that stays until taken.
+
+        Still never silent (PRD §9): finding an update only offers it, and the
+        install is the same one-click flow the user drives from the dashboard.
+        """
+
+        def worker():
+            if self._stopping.wait(UPDATE_CHECK_DELAY_SECONDS):
+                return  # quit before the delay elapsed
+            while not self._stopping.is_set():
+                try:
+                    self._check_for_update()
+                except Exception:
+                    # Offline, rate-limited, GitHub down — all fine, try later.
+                    log.debug("Background update check failed", exc_info=True)
+                if self._stopping.wait(UPDATE_CHECK_INTERVAL_SECONDS):
+                    return
+
+        threading.Thread(target=worker, name="update-check", daemon=True).start()
+
+    def _check_for_update(self) -> None:
+        info = updater.check_cached(self.store)
+        latest = info.get("latest")
+        if not info.get("update_available") or not latest:
+            self._pending_update = None  # e.g. a release that got pulled
+            return
+
+        self._pending_update = latest
+        try:
+            self._tray.update_menu()  # so the entry appears without a restart
+        except Exception:
+            log.debug("Could not refresh the tray menu", exc_info=True)
+
+        # The toast is once per version. The tray entry is the persistent
+        # reminder — a balloon on every restart until you update would be nagging.
+        if self.store.get_meta(UPDATE_NOTIFIED_KEY) == latest:
+            return
+        self.store.set_meta(UPDATE_NOTIFIED_KEY, latest)
+        log.info("Update available: v%s", latest)
+        notify(
+            self._tray,
+            f"{APP_NAME} v{latest} is out",
+            "Open VibeCheck to install it — takes a few seconds."
+            if info.get("can_self_update")
+            else "Grab it from the releases page when you have a minute.",
+        )
+
+    def _open_update(self) -> None:
+        """Tray "Update to vX.Y.Z": open the dashboard with the update offered.
+
+        Deliberately not a one-click install from the tray — the user should see
+        what they're installing, and the dashboard already shows progress.
+        """
+        self._open_dashboard(query="?update=1")
+
     def _maybe_prompt_autostart(self) -> None:
         """First-run only: offer launch-at-login (F23). Tray toggle changes it later."""
         if self.store.get_meta("autostart_prompted"):
@@ -205,17 +276,23 @@ class App:
         self.paused = bool(value)
         log.info("Prompts %s", "paused" if self.paused else "resumed")
 
-    def _open_dashboard(self) -> None:
-        """Open the dashboard in its own native window process (§14)."""
+    def _open_dashboard(self, query: str = "") -> None:
+        """Open the dashboard in its own native window process (§14).
+
+        `query` deep-links into a part of the UI (e.g. "?update=1" opens the
+        profile menu on the update). It's ignored when a window is already open,
+        which is fine — the user is looking at the app either way.
+        """
         if self._window_proc is not None and self._window_proc.poll() is None:
             log.info("Dashboard window already open")
             return
+        url = self._dashboard_url + query
         # Frozen builds have no `python -m`, so the exe relaunches itself with a
         # flag that run_vibecheck.py routes to the window (see that module).
         argv = (
-            [sys.executable, "--window", self._dashboard_url]
+            [sys.executable, "--window", url]
             if FROZEN
-            else [sys.executable, "-m", "vibecheck.window", self._dashboard_url]
+            else [sys.executable, "-m", "vibecheck.window", url]
         )
         try:
             self._window_proc = subprocess.Popen(argv)  # noqa: S603 - fixed argv, no shell

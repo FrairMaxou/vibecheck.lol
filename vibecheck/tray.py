@@ -36,10 +36,26 @@ def _icon_image() -> Image.Image:
 def build_tray(
     on_quit: Callable[[], None],
     on_open_dashboard: Callable[[], None],
+    on_update: Callable[[], None] | None = None,
+    pending_version: Callable[[], str | None] | None = None,
 ) -> pystray.Icon:
+    """The tray icon. `pending_version` returns the newer version when one is
+    known, which makes the update entry appear; the app calls `icon.update_menu()`
+    after a background check so a release found mid-session shows up without a
+    restart."""
+    pending_version = pending_version or (lambda: None)
+
     # The tray stays minimal — behaviour toggles (auto-start, pause) live in the
     # dashboard's Settings tab, which is the proper home for them.
     menu = pystray.Menu(
+        # Text and visibility are callables: pystray re-evaluates them each time
+        # the menu opens, so this entry appears by itself once a check finds a
+        # release, and names the version it found.
+        pystray.MenuItem(
+            lambda item: f"Update to v{pending_version()}",
+            lambda: on_update and on_update(),
+            visible=lambda item: bool(pending_version()),
+        ),
         # default=True: double-clicking the tray icon opens the dashboard.
         pystray.MenuItem("Open dashboard", lambda: on_open_dashboard(), default=True),
         # startfile opens Explorer on our own data dir — fixed local path, not user input.
@@ -47,3 +63,12 @@ def build_tray(
         pystray.MenuItem("Quit", lambda: on_quit()),
     )
     return pystray.Icon(APP_NAME, _icon_image(), APP_NAME, menu)
+
+
+def notify(icon: pystray.Icon, title: str, message: str) -> None:
+    """Best-effort balloon. Not every backend supports notifications, and a
+    failed toast is never worth taking the app down for."""
+    try:
+        icon.notify(message, title)
+    except Exception:
+        log.debug("Tray notification not shown", exc_info=True)

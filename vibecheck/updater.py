@@ -36,6 +36,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import time
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -48,6 +49,9 @@ ASSET_NAME = "VibeCheck.exe"
 CHECKSUM_ASSET = "SHA256SUMS.txt"
 STAGING_DIR = DATA_DIR / "update"
 TIMEOUT = 30
+
+CACHE_KEY = "update_check"
+CACHE_SECONDS = 6 * 3600  # unauthenticated GitHub allows 60 req/h per IP
 
 # Release assets live on github.com but redirect to a CDN host; every hop is
 # checked against this set, so a tampered API response can't point us elsewhere.
@@ -162,6 +166,38 @@ def check(timeout: int = 10) -> dict:
     result["size"] = exe.get("size")
     result["can_self_update"] = can_self_update() and bool(result["asset_url"])
     return result
+
+
+def _build_id() -> str:
+    """Identifies the build asking, not just the version.
+
+    The cache lives in the shared database, so a run from source (which can
+    never self-update) and the packaged exe would otherwise hand each other
+    their answers — the exe then shows "Download from GitHub" even though it
+    could update itself. The version is in here too, so an app that has just
+    updated itself doesn't keep reporting the version it replaced.
+    """
+    return f"{APP_VERSION}|{int(can_self_update())}"
+
+
+def check_cached(store, force: bool = False) -> dict:
+    """`check()` behind a shared 6h cache.
+
+    Both callers — the dashboard's profile menu and the background tray check —
+    go through here, so they answer identically and draw on one rate-limit
+    budget instead of racing each other for it.
+    """
+    if not force:
+        try:
+            cached = json.loads(store.get_meta(CACHE_KEY) or "{}")
+            fresh = time.time() - cached.get("at", 0) < CACHE_SECONDS
+            if fresh and cached.get("build") == _build_id():
+                return cached["info"]
+        except (ValueError, KeyError, TypeError):
+            pass
+    info = check()
+    store.set_meta(CACHE_KEY, json.dumps({"at": time.time(), "build": _build_id(), "info": info}))
+    return info
 
 
 def _fetch_expected_sha(sums_url: str) -> str:

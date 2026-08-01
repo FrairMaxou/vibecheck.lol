@@ -6,10 +6,8 @@ aggregation client-side, which is what makes the filter bar and explorer
 (F13b/F13c) instant.
 """
 
-import json
 import logging
 import threading
-import time
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
@@ -35,8 +33,6 @@ log = logging.getLogger(__name__)
 
 STATIC_FILES = {"app.js", "style.css", "chart.umd.js"}
 
-UPDATE_CACHE_KEY = "update_check"
-UPDATE_CACHE_SECONDS = 6 * 3600  # unauthenticated GitHub allows 60 req/h per IP
 LAST_SEEN_VERSION_KEY = "last_seen_version"  # drives the once-per-update notes
 
 
@@ -169,34 +165,10 @@ def create_app(
         threading.Timer(0.3, quit_fn).start()
         return {"ok": True, "quitting": True}
 
-    def _build_id() -> str:
-        """Identifies the build asking the question, not just the version.
-
-        The cache lives in the shared database, so a run from source (which can
-        never self-update) and the packaged exe would otherwise hand each other
-        their answers — the exe then shows "Download from GitHub" even though it
-        could update itself. The version is in here too, so an app that has just
-        updated itself doesn't keep reporting the version it replaced.
-        """
-        return f"{APP_VERSION}|{int(updater.can_self_update())}"
-
     def _update_info(force: bool = False) -> dict:
-        """The latest-release check, cached so opening the menu can't hammer
-        GitHub's unauthenticated rate limit."""
-        if not force:
-            try:
-                cached = json.loads(store.get_meta(UPDATE_CACHE_KEY) or "{}")
-                fresh = time.time() - cached.get("at", 0) < UPDATE_CACHE_SECONDS
-                if fresh and cached.get("build") == _build_id():
-                    return cached["info"]
-            except (ValueError, KeyError, TypeError):
-                pass
-        info = updater.check()
-        store.set_meta(
-            UPDATE_CACHE_KEY,
-            json.dumps({"at": time.time(), "build": _build_id(), "info": info}),
-        )
-        return info
+        # Cached in updater.py so the background tray check shares both the
+        # answer and the rate-limit budget with this endpoint.
+        return updater.check_cached(store, force)
 
     @app.get("/api/update")
     def check_update(force: bool = False):
