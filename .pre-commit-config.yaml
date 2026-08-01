@@ -1,8 +1,13 @@
 repos:
+  # Keep this in step with the ruff floor in requirements-dev.txt. The hook
+  # pins its own ruff, so letting the two drift means a commit the hook passes
+  # can still fail CI on a rule the newer ruff added.
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.9.6
+    rev: v0.16.1
     hooks:
-      - id: ruff
+      # `ruff-check`, not `ruff`: the bare id is a deprecated alias on this
+      # version and is slated for removal.
+      - id: ruff-check
         args: [--fix]
       - id: ruff-format
   - repo: https://github.com/gitleaks/gitleaks
