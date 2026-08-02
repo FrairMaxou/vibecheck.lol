@@ -87,7 +87,7 @@ advantage whatsoever. It literally just asks whether you had fun.
 
 **You will not get banned**
 
-Your data stays **on your PC** in `%LOCALAPPDATA%\LeagueOfKiffance\`. Only your
+Your data stays **on your PC** in `%LOCALAPPDATA%\VibeCheck\`. Only your
 *rated* games sync to The Gang, and they're visible only to mutual League
 friends who also run the app — never to anyone else.
 
@@ -102,7 +102,7 @@ It's also linked inside the app, under the **profile menu** at the top-right.
 
 ## Privacy
 
-Your games live **on your PC**, in `%LOCALAPPDATA%\LeagueOfKiffance\`. Two things
+Your games live **on your PC**, in `%LOCALAPPDATA%\VibeCheck\`. Two things
 leave it, and nothing else:
 
 **Rated games → your squad.** Only games you've rated, and only visible to mutual
@@ -119,7 +119,7 @@ You can switch it off any time in the **profile menu → Anonymous usage stats**
 
 **No tray icon?** Check the **^** arrow by the clock. Still nothing — the app
 probably crashed; see the log at
-`%LOCALAPPDATA%\LeagueOfKiffance\kiffance.log`.
+`%LOCALAPPDATA%\VibeCheck\vibecheck.log`.
 
 **Games not being captured?** The app must be running *before* the game ends.
 If it was closed, it catches up the next time it starts — as long as the game
@@ -129,7 +129,7 @@ still appears in your client's match history.
 to a free port and relaunch.
 
 **Want to start fresh?** Quit from the tray, then delete (or move)
-`%LOCALAPPDATA%\LeagueOfKiffance\kiffance.sqlite3`.
+`%LOCALAPPDATA%\VibeCheck\vibecheck.sqlite3`.
 
 ---
 

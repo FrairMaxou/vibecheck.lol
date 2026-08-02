@@ -126,7 +126,7 @@ those are the two places silent breakage hurts.
   input automation.
 - **Backend compatibility:** never make a breaking Supabase schema change. Old
   clients are live and cannot be forced to upgrade.
-- Data stays in `%LOCALAPPDATA%\LeagueOfKiffance\` — the repo never contains
+- Data stays in `%LOCALAPPDATA%\VibeCheck\` — the repo never contains
   user data.
 
 ## Releases

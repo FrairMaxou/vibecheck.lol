@@ -96,8 +96,8 @@ row in this table — don't grow this one.
 .venv\Scripts\pre-commit run --all-files        # everything the commit hook runs
 ```
 
-Runtime data and logs: `%LOCALAPPDATA%\LeagueOfKiffance\` (`kiffance.sqlite3`,
-`kiffance.log`).
+Runtime data and logs: `%LOCALAPPDATA%\VibeCheck\` (`vibecheck.sqlite3`,
+`vibecheck.log`).
 
 ## Workflow in one paragraph
 

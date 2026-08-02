@@ -15,7 +15,7 @@ configured at all, everything here is inert and nothing leaves the machine.
 
 Credentials: released builds bake the project URL + publishable key in at build
 time (vibecheck/_bundled.py, gitignored). Self-hosters can drop a supabase.json
-in %LOCALAPPDATA%\\LeagueOfKiffance. The publishable/anon key is public by
+in %LOCALAPPDATA%\\VibeCheck. The publishable/anon key is public by
 design; Row-Level Security in supabase/schema.sql is what protects the data.
 """
 

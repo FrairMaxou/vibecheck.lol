@@ -89,7 +89,7 @@ SUPABASE_KEY = "sb_publishable_..."
 
 Credential resolution order (`vibecheck/sync.py: load_config`):
 
-1. `%LOCALAPPDATA%\LeagueOfKiffance\supabase.json` — self-host / dev override
+1. `%LOCALAPPDATA%\VibeCheck\supabase.json` — self-host / dev override
 2. `vibecheck/_bundled.py` — what shipped builds use
 3. `VIBECHECK_SUPABASE_URL` / `VIBECHECK_SUPABASE_KEY` env vars — CI / scripts
 

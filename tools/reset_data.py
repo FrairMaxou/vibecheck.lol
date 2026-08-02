@@ -1,6 +1,6 @@
 """Fresh start: archive the current database and log into a timestamped backup.
 
-Nothing is deleted — data moves to %LOCALAPPDATA%\\LeagueOfKiffance\\backups\\<timestamp>\\.
+Nothing is deleted — data moves to %LOCALAPPDATA%\\VibeCheck\\backups\\<timestamp>\\.
 The app recreates an empty database on next launch. Quit the app first (tray -> Quit):
 Windows locks the database file while the app is running.
 
