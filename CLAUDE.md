@@ -77,6 +77,7 @@ Read the narrow file, not everything. This file stays small on purpose.
 | [PRD.md](PRD.md) | Full spec and locked decisions (§9) | Questions about intended behaviour |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Branching, Conventional Commits, hooks, CI | Committing or opening a PR |
 | [docs/RELEASE.md](docs/RELEASE.md) | Deployment protocol + release checklist | Shipping a version |
+| [docs/SECURITY.md](docs/SECURITY.md) | Attack surface, why each guard exists, pre-deploy security checklist | **Before every release**, and before touching the dashboard, RLS or anything that renders user text |
 | [docs/MONITORING.md](docs/MONITORING.md) | Supabase Studio dashboard setup | Maintainer analytics |
 | [GitHub Issues](https://github.com/FrairMaxou/vibecheck.lol/issues) | The backlog — one issue per unit of work | Picking up or planning work |
 
@@ -119,6 +120,7 @@ Details: [CONTRIBUTING.md](CONTRIBUTING.md), [docs/RELEASE.md](docs/RELEASE.md).
 - [vibecheck/app.py](vibecheck/app.py) — orchestration and threading: main thread = Tk (popup), watcher thread = LCU WebSocket (blocks; reconnects when the client restarts), tray thread = pystray. Cross-thread UI goes through the `_popup_request` queue — never call Tk from the watcher thread.
 - [vibecheck/popup.py](vibecheck/popup.py), [vibecheck/tray.py](vibecheck/tray.py) — rating popup (F7–F10b) and tray icon (F22).
 - [vibecheck/sync.py](vibecheck/sync.py), [vibecheck/telemetry.py](vibecheck/telemetry.py), [vibecheck/updater.py](vibecheck/updater.py) — Supabase squad sync, anonymous usage ping, one-click self-update.
+- [vibecheck/security.py](vibecheck/security.py) — the dashboard's browser-facing guards: CSRF rejection on state-changing requests, CSP and friends on every response. Read it before adding an endpoint or an inline handler.
 - [vibecheck/config.py](vibecheck/config.py) — `APP_VERSION`, paths, queue labels, timeouts.
 
 ## Architecture (PRD §6)

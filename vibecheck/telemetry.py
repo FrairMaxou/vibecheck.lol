@@ -110,6 +110,11 @@ def ping(store: GameStore) -> bool:
                 "apikey": cfg["anon_key"],
                 "Authorization": f"Bearer {cfg['anon_key']}",
                 "Content-Type": "application/json",
+                # return=minimal is load-bearing, not a micro-optimisation:
+                # `anon` holds INSERT on this table and nothing else
+                # (supabase/harden-grants.sql), so asking PostgREST to return
+                # the inserted row would need a SELECT it doesn't have and every
+                # ping would start failing with a permission error.
                 "Prefer": "return=minimal",
             },
             json=_payload(store),
