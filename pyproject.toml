@@ -1,6 +1,6 @@
 [project]
 name = "league-of-vibecheck"
-version = "0.1.8"
+version = "0.1.9"
 description = "Tracks whether you're actually having fun playing League of Legends."
 requires-python = ">=3.10"
 
