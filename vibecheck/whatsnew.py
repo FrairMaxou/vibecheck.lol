@@ -5,7 +5,10 @@ League, not a changelog reader. A few bullets, no jargon, no issue numbers.
 Skip anything internal — if it isn't visible to the user, it doesn't belong.
 
 Add a new entry each release, keyed by the version in config.APP_VERSION.
-A version with no entry here simply shows nothing, which is a fine default.
+At runtime a missing version degrades to showing nothing rather than crashing —
+but it is no longer an acceptable state to ship: release-please bumps the
+version automatically, so a missing entry means it was forgotten, not chosen.
+`tests/smoke_test.py` fails the release until one exists.
 """
 
 RELEASE_NOTES = {

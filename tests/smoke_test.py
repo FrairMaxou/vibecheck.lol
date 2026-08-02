@@ -10,10 +10,25 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from vibecheck import capture
+from vibecheck import capture, config, whatsnew
 from vibecheck.store import GameStore
 
 MY_PUUID = "me-1234"
+
+
+def check_release_notes():
+    """The version being shipped must have a what's-new entry.
+
+    release-please bumps APP_VERSION on its own, so nothing else would notice
+    that the card users see after updating was never written. This fails the
+    Release PR's CI until someone writes it — which is the point: it's the one
+    step of a release that a machine can't do.
+    """
+    assert whatsnew.notes_for(config.APP_VERSION), (
+        f"no what's-new entry for {config.APP_VERSION} — add one to "
+        f"vibecheck/whatsnew.py before releasing"
+    )
+
 
 FAKE_EOL = {
     "gameId": 987654321,
@@ -249,6 +264,7 @@ def main():
         assert detail["note"] == "int diff from minute 1"
         store.close()
 
+    check_release_notes()
     print("smoke test OK")
 
 
