@@ -12,6 +12,21 @@ version automatically, so a missing entry means it was forgotten, not chosen.
 """
 
 RELEASE_NOTES = {
+    # Nothing in 0.1.9 is visible on screen, which is exactly why it needs
+    # saying: one button that never worked (people pressed it and got an error),
+    # and a door on the dashboard that should never have been open. "We improved
+    # security" with no detail is how you make someone nervous instead of
+    # reassured — so each one says plainly what it was and what it means.
+    "0.1.9": [
+        "Sync now, in Squad Sync, has never actually worked — it just handed you an "
+        "error. Fixed. Your rated games were going up on their own after every "
+        "rating anyway, so nothing was ever missing.",
+        "The dashboard now ignores anything that isn't you. It has only ever run on "
+        "your own machine, but a random site open in another tab could still tell it "
+        "to do things — like shut VibeCheck down mid-game. That door is closed.",
+        "Champion names, summoner names and your own notes are shown as plain text "
+        "everywhere, so nothing coming out of a match can mess with the page.",
+    ],
     # Whoever reads this card has *just* updated, which is exactly the audience
     # that may have hit the crash — so lead by explaining it rather than
     # burying it under a feature.
