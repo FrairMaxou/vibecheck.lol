@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Discord
+    url: https://discord.gg/SnE9Yj8cSh
+    about: Chat, quick questions, and feedback that isn't a bug report.
+  - name: Install help / general questions
+    url: https://github.com/FrairMaxou/vibecheck.lol#readme
+    about: The README covers install, the Windows SmartScreen warning, and where data is stored.

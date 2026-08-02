@@ -1,0 +1,58 @@
+name: Bug report
+description: Something in VibeCheck doesn't work
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. If the app crashed or a game wasn't captured, the
+        log is the single most useful thing you can attach.
+
+  - type: input
+    id: version
+    attributes:
+      label: VibeCheck version
+      description: Shown in the tray menu and at the bottom of the dashboard.
+      placeholder: v0.1.8
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what you got instead.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where
+      options:
+        - Game capture (a game wasn't recorded)
+        - Rating popup
+        - Dashboard / charts
+        - Squad Online (sync with friends)
+        - Self-update
+        - Tray / startup
+        - Something else
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log excerpt
+      description: >
+        From `%LOCALAPPDATA%\LeagueOfKiffance\kiffance.log` — the lines around
+        the problem. Paste as-is, it's automatically formatted as code.
+      render: text
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I'm on the latest release (the tray menu offers the update if not)
+          required: false

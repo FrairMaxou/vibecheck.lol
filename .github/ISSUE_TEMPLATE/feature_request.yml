@@ -1,0 +1,41 @@
+name: Feature request
+description: An idea for something VibeCheck should do
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to find out?
+      description: >
+        VibeCheck exists to answer "what actually makes League fun for me".
+        Describe the question you can't answer today, not the UI you imagine.
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: How you'd picture it working
+      description: Optional — a rough shape is plenty.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Capture (what gets recorded)
+        - Rating / popup
+        - Dashboard / insights
+        - Squad Online (friends)
+        - Packaging, updates, onboarding
+        - Something else
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        **Out of scope, permanently:** anything that reads or touches the League
+        game process — memory reads, injection, overlays, input automation. The
+        app is deliberately Vanguard-safe and only talks to the League client's
+        local API. Requests that need more than that will be closed.

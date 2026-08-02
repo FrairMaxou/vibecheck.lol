@@ -5,7 +5,62 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
+  # We squash-merge, so the PR title — not the branch's commits — is what lands
+  # on main. This is the only place that can enforce the convention on history.
+  pr-title:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    steps:
+      - uses: amannn/action-semantic-pull-request@v6.1.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            perf
+            refactor
+            docs
+            test
+            build
+            ci
+            chore
+            revert
+          # Scope is optional, but a typo'd one is worse than none: an unknown
+          # scope fragments the changelog into categories nobody reads.
+          requireScope: false
+          scopes: |
+            capture
+            lcu
+            store
+            app
+            popup
+            tray
+            dashboard
+            web
+            sync
+            telemetry
+            updater
+            startup
+            config
+            brand
+            release
+            deps
+            deps-dev
+          # Release PRs are titled `chore(release): vX.Y.Z`; everything else
+          # should read as a sentence, so no capitalised first word.
+          subjectPattern: ^(?![A-Z]).+$
+          subjectPatternError: |
+            The subject "{subject}" is not formatted correctly: start it
+            lowercase and describe what changed, e.g.
+            "fix(capture): handle Arena subteam payloads".
+
   checks:
     runs-on: windows-latest
     steps:

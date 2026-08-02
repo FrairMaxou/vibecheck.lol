@@ -1,5 +1,29 @@
 # Releasing VibeCheck.lol
 
+The deployment protocol: how a merged PR becomes an exe on the releases page,
+and everything about the backend credentials that build depends on.
+
+## Shipping a version
+
+A tag is what publishes. `.github/workflows/release.yml` builds the single-exe
+with PyInstaller on a clean Windows runner, smoke-tests it, and attaches it —
+plus `SHA256SUMS.txt` — to a GitHub Release.
+
+1. Bump `APP_VERSION` in [vibecheck/config.py](../vibecheck/config.py).
+2. Add the version's notes to [vibecheck/whatsnew.py](../vibecheck/whatsnew.py) —
+   plain language, no jargon: it's shown in-app right after updating.
+3. `ruff check . --fix`, `ruff format .`, `python tests/smoke_test.py`.
+4. Branch → PR (`chore(release): vX.Y.Z`) → CI green → squash-merge →
+   `git switch main && git pull`.
+5. `git tag vX.Y.Z && git push origin vX.Y.Z`.
+6. Verify the release: **both** `VibeCheck.exe` and `SHA256SUMS.txt` are
+   attached, and the published hash matches the exe. The in-app updater refuses
+   a build it can't verify, so a missing checksum file breaks self-update for
+   every existing user.
+
+Run through the [pre-release checklist](#pre-release-checklist) before step 5
+whenever the change touched the backend.
+
 ## The backend model (PRD §12)
 
 There is **one** Supabase project, owned by the maintainer, shared by everyone.

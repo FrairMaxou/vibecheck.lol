@@ -1,4 +1,18 @@
+# `commit-msg` is not installed by default, and the Conventional Commits check
+# only runs at that stage — without this line `pre-commit install` silently
+# leaves commit messages unchecked.
+default_install_hook_types: [pre-commit, commit-msg]
+
 repos:
+  # Conventional Commits. CI checks the *PR title* separately, because we
+  # squash-merge: the PR title is what actually lands on main, so both need
+  # guarding to keep the history parseable.
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.4.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+
   # Keep this in step with the ruff floor in requirements-dev.txt. The hook
   # pins its own ruff, so letting the two drift means a commit the hook passes
   # can still fail CI on a rule the newer ruff added.
