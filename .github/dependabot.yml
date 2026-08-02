@@ -1,10 +1,19 @@
 version: 2
 updates:
+  # `commit-message` is set explicitly rather than left to Dependabot's
+  # convention auto-detection: CI now rejects PR titles that aren't Conventional
+  # Commits, and a week where it guesses wrong is a week of dependency PRs that
+  # can't merge. The `deps` / `deps-dev` scopes match the allowed list in ci.yml.
   - package-ecosystem: pip
     directory: /
     schedule:
       interval: weekly
+    commit-message:
+      prefix: "build(deps)"
+      prefix-development: "build(deps-dev)"
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    commit-message:
+      prefix: "ci(deps)"

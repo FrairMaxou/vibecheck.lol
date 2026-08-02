@@ -27,6 +27,30 @@ Default to a few lines. The user reads every word; padding wastes their time.
 Verbosity in *code comments* is different — keep explaining the non-obvious
 "why" there, per the repo's existing style.
 
+## Three gates — non-negotiable
+
+These are gates, not guidelines: each one blocks a step until it's satisfied.
+They exist because the three moments below are where a wrong turn is cheapest to
+catch and most expensive to miss.
+
+**1. Before writing a plan.** Do not produce a plan until you have **over 96%
+confidence you know what you are planning for.** Below that, ask follow-up
+questions until you reach it. A plan built on a guess costs a day; a question
+costs a message. "I'll figure it out while implementing" is not confidence.
+
+**2. Immediately after submitting a plan.** Review your own plan and identify
+the parts that introduce the most **product** risk — risk to users, to their
+data, to the release — not just technical difficulty. List them **most risky
+first**, then extend the plan with a concrete step that reduces each one. A risk
+named without a mitigation is decoration.
+
+**3. Before opening a PR or deploying anything.** Act as a senior engineer and
+do a **thorough code review of your own work**. Identify every error,
+inconsistent logic, inefficiency, and anything that can create a bug. List the
+findings **most critical first, before fixing them** — then fix them. Report
+what you found in the PR, including what you checked and could *not* verify.
+"CI is green" is not a review; CI only runs the checks that already exist.
+
 ## What this is
 
 **VibeCheck.lol** — a Windows tray app that detects the end of each League of

@@ -73,11 +73,15 @@ One-time setup:
 
 ```powershell
 .venv\Scripts\pip install -r requirements-dev.txt
-.venv\Scripts\pre-commit install --install-hooks
+.venv\Scripts\pre-commit install
 ```
 
-`--install-hooks` also installs the `commit-msg` hook, which is what checks the
-Conventional Commits format. Every commit then runs:
+`default_install_hook_types` in `.pre-commit-config.yaml` is what makes that one
+command install the `commit-msg` hook as well as the `pre-commit` one — without
+it, `pre-commit install` silently leaves commit messages unchecked. If you set
+this repo up before that line existed, re-run the command.
+
+Every commit then runs:
 
 - **conventional-pre-commit** — commit message format (`commit-msg` stage)
 - **ruff** — lint (incl. `S` security rules from bandit) + auto-format
