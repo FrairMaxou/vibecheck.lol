@@ -14,9 +14,17 @@
 -- friends. Because anyone can *claim* a PUUID, this is soft (fun-tool) security,
 -- not a hard identity guarantee — the only "secret" is how much fun you had.
 --
--- This file is safe to re-run: it drops the old account/invite tables and every
--- policy first (Postgres has no "create policy if not exists"). Shared game rows
--- are dropped too; each client re-syncs them automatically on the next rating.
+-- This file is safe to re-run, including against live production. It drops and
+-- recreates every policy (Postgres has no "create policy if not exists"), and
+-- it will NOT touch a shared_games table that has rows in it — see the guard
+-- below.
+--
+-- It did not always work that way. Until 2026-08-02 this file dropped
+-- shared_games unconditionally, and said so in a sentence that read as
+-- reassurance ("each client re-syncs on the next rating") rather than as the
+-- warning it was. Running it on prod to refresh the policies wiped every user's
+-- synced games. That is why the drop is now conditional: the only way to lose
+-- that data is to drop the table by hand, deliberately.
 
 -- ---------------------------------------------------------------------------
 -- Drop the previous (accounts + squads + invite codes) model.
@@ -27,8 +35,23 @@ drop table if exists squads        cascade;
 drop function if exists join_squad(text)          cascade;
 drop function if exists is_squad_member(uuid)      cascade;
 drop function if exists shares_squad_with(uuid)    cascade;
--- shared_games changes shape (keyed on puuid now); drop so create rebuilds it.
-drop table if exists shared_games cascade;
+-- shared_games once changed shape (keyed on puuid now), so this file rebuilt it.
+-- That rebuild is only ever correct on a table with nothing in it: on a live
+-- project it is a silent data wipe, and the `create table if not exists` below
+-- gives no hint that it happened. Drop it only while it is empty — on a project
+-- with real rows this is a no-op and the rest of the file still runs, which is
+-- the case that actually matters (re-running to refresh the policies).
+do $$
+begin
+  if to_regclass('public.shared_games') is null then
+    return;  -- fresh project: nothing to protect, `create table` below builds it
+  elsif exists (select 1 from shared_games limit 1) then
+    raise notice 'shared_games kept: % row(s) present, not dropping it',
+                 (select count(*) from shared_games);
+  else
+    drop table shared_games cascade;
+  end if;
+end $$;
 
 -- ---------------------------------------------------------------------------
 -- Tables
