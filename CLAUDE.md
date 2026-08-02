@@ -105,8 +105,11 @@ Work is tracked as GitHub Issues. One issue → one branch (`<type>/<issue>-<slu
 → one PR that says `Closes #N` → CI green → squash-merge. **Commit messages and
 PR titles follow [Conventional Commits](https://www.conventionalcommits.org)**
 (`feat(capture): …`, `fix(sync): …`) — enforced by a `commit-msg` hook locally
-and a PR-title check in CI. Keep PRD.md, CLAUDE.md and the docs in the same
-commit as the behaviour change they describe. Details: [CONTRIBUTING.md](CONTRIBUTING.md).
+and a PR-title check in CI. The convention is load-bearing, not cosmetic:
+`release-please` derives the next version from those types and keeps a Release
+PR open — merging it tags and ships. Keep PRD.md, CLAUDE.md and the docs in the
+same commit as the behaviour change they describe.
+Details: [CONTRIBUTING.md](CONTRIBUTING.md), [docs/RELEASE.md](docs/RELEASE.md).
 
 ## Code map
 

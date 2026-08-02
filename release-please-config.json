@@ -1,0 +1,30 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "62db1b1f2fe18182b84737cc203c6e055fedb447",
+  "include-component-in-tag": false,
+  "pull-request-title-pattern": "chore(release): v${version}",
+  "pull-request-header": "The next release, assembled from the commits merged since the last one. Edit `vibecheck/whatsnew.py` on this branch before merging — that's the plain-language card users actually read. Merging this PR tags the version and ships the build.",
+  "packages": {
+    ".": {
+      "release-type": "python",
+      "changelog-path": "CHANGELOG.md",
+      "extra-files": [
+        {
+          "type": "generic",
+          "path": "vibecheck/config.py"
+        }
+      ],
+      "changelog-sections": [
+        { "type": "feat", "section": "Features" },
+        { "type": "fix", "section": "Fixes" },
+        { "type": "perf", "section": "Performance" },
+        { "type": "refactor", "section": "Internal", "hidden": true },
+        { "type": "docs", "section": "Docs", "hidden": true },
+        { "type": "test", "section": "Tests", "hidden": true },
+        { "type": "build", "section": "Build", "hidden": true },
+        { "type": "ci", "section": "CI", "hidden": true },
+        { "type": "chore", "section": "Chores", "hidden": true }
+      ]
+    }
+  }
+}
