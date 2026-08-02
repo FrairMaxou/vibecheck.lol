@@ -4,7 +4,10 @@ from pathlib import Path
 
 APP_NAME = "VibeCheck.lol"
 TAGLINE = "Winrate is temporary. The vibes are forever."
-APP_VERSION = "0.1.8"  # bump per release; also the git tag (vX.Y.Z)
+# Bumped automatically by release-please when the Release PR merges — the
+# trailing annotation is what it looks for, so don't drop it. Also the git tag
+# (vX.Y.Z) and what the updater compares against.
+APP_VERSION = "0.1.8"  # x-release-please-version
 
 # Where the in-app "update available" check looks. Must point at whichever repo
 # hosts the PUBLIC releases (this repo if open-sourced, or a separate public

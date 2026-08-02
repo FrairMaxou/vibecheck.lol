@@ -1,0 +1,43 @@
+name: Release Please
+
+# Every push to main refreshes an open "Release PR" holding the version bump and
+# the changelog assembled from the conventional commits since the last release.
+# Merging that PR is what tags the version — and the tag is what ships.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+# Two pushes landing close together must not race to write the same Release PR.
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      released: ${{ steps.release.outputs.release_created }}
+      tag: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@v5
+        id: release
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  # A tag pushed with GITHUB_TOKEN does not trigger other workflows, so
+  # release.yml would never start on its own here. Calling it directly closes
+  # the loop without needing a long-lived PAT just to fake a "real" push.
+  build:
+    needs: release-please
+    if: needs.release-please.outputs.released == 'true'
+    permissions:
+      contents: write
+    secrets: inherit
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.release-please.outputs.tag }}

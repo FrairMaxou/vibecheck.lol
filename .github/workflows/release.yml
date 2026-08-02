@@ -1,11 +1,18 @@
 name: Release
 
-# Tag a version to publish a build:
+# Normally invoked by release-please.yml once a Release PR merges. The tag
+# triggers stay as an escape hatch for a hand-cut release:
 #   git tag v0.1.0 && git push origin v0.1.0
 on:
   push:
     tags: ["v*"]
   workflow_dispatch: # manual runs produce an artifact without a release
+  workflow_call:
+    inputs:
+      tag:
+        description: Tag of the release already created by release-please.
+        type: string
+        required: true
 
 jobs:
   build:
@@ -13,7 +20,11 @@ jobs:
     permissions:
       contents: write # needed to create the release
     steps:
+      # `inputs.tag` is empty for the push/dispatch triggers, which makes this a
+      # no-op and checks out the ref that triggered the run.
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -75,14 +86,19 @@ jobs:
           name: VibeCheck
           path: dist/VibeCheck.exe
 
+      # Called from release-please the release already exists with the changelog
+      # as its body, so append rather than replace it — and don't ask GitHub to
+      # regenerate notes on top of notes.
       - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/')
+        if: inputs.tag != '' || startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ inputs.tag }}
           files: |
             dist/VibeCheck.exe
             dist/SHA256SUMS.txt
-          generate_release_notes: true
+          append_body: true
+          generate_release_notes: ${{ inputs.tag == '' }}
           body: |
             ## Install
             Download **VibeCheck.exe** below and double-click it.
