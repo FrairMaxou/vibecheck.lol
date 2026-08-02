@@ -131,8 +131,12 @@ those are the two places silent breakage hurts.
 
 ## Releases
 
-Tag `vX.Y.Z` → [release.yml](.github/workflows/release.yml) builds the single-exe
-with PyInstaller on a clean runner and attaches it, plus `SHA256SUMS.txt`, to a
-GitHub Release. Building in CI rather than on a dev machine keeps the shipped
-binary reproducible and clean. Full protocol and checklist:
+Releases are automatic, which is the other reason the commit convention is
+enforced rather than encouraged. `release-please` reads the types of the commits
+merged since the last release, works out the next version, and keeps a **Release
+PR** open with the bump and a generated changelog. Merging that PR tags the
+version and builds the exe on a clean runner.
+
+Practically: `fix:` ships a patch, `feat:` ships a minor, `docs:`/`chore:`/`ci:`
+ship nothing. A mislabelled commit is a mis-versioned release. Full protocol:
 [docs/RELEASE.md](docs/RELEASE.md).

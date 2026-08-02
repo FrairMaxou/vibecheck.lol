@@ -5,24 +5,58 @@ and everything about the backend credentials that build depends on.
 
 ## Shipping a version
 
-A tag is what publishes. `.github/workflows/release.yml` builds the single-exe
-with PyInstaller on a clean Windows runner, smoke-tests it, and attaches it —
-plus `SHA256SUMS.txt` — to a GitHub Release.
+**You ship by merging a pull request.** There is no manual version bump, no tag
+to push, no checklist to run from memory.
 
-1. Bump `APP_VERSION` in [vibecheck/config.py](../vibecheck/config.py).
-2. Add the version's notes to [vibecheck/whatsnew.py](../vibecheck/whatsnew.py) —
-   plain language, no jargon: it's shown in-app right after updating.
-3. `ruff check . --fix`, `ruff format .`, `python tests/smoke_test.py`.
-4. Branch → PR (`chore(release): vX.Y.Z`) → CI green → squash-merge →
-   `git switch main && git pull`.
-5. `git tag vX.Y.Z && git push origin vX.Y.Z`.
-6. Verify the release: **both** `VibeCheck.exe` and `SHA256SUMS.txt` are
-   attached, and the published hash matches the exe. The in-app updater refuses
-   a build it can't verify, so a missing checksum file breaks self-update for
+### How it works
+
+Every push to `main` runs
+[release-please.yml](../.github/workflows/release-please.yml), which reads the
+Conventional Commits landed since the last release and keeps a **Release PR**
+open — titled `chore(release): vX.Y.Z` — containing:
+
+- the new version in `vibecheck/config.py` and `pyproject.toml`
+- a `CHANGELOG.md` entry assembled from the commit subjects
+
+The version it picks comes from the commits: a `fix:` bumps the patch, a `feat:`
+bumps the minor, a `!`/`BREAKING CHANGE:` bumps the major. `docs:`, `chore:`,
+`ci:` and friends bump nothing, so a week of housekeeping never produces a
+release nobody needs.
+
+Merging that PR tags `vX.Y.Z` and calls
+[release.yml](../.github/workflows/release.yml), which builds the single-exe
+with PyInstaller on a clean Windows runner, smoke-tests it, and attaches it plus
+`SHA256SUMS.txt` to the GitHub Release.
+
+> The tag is created with `GITHUB_TOKEN`, and GitHub deliberately does not let
+> one workflow trigger another that way. That's why `release-please.yml` *calls*
+> `release.yml` as a reusable workflow instead of relying on the tag push — the
+> alternative is a long-lived personal access token, which isn't worth it.
+
+### Your part
+
+1. **Before merging the Release PR, edit
+   [vibecheck/whatsnew.py](../vibecheck/whatsnew.py) on its branch.** The
+   changelog is generated from commit subjects and reads like commit subjects;
+   `whatsnew.py` is the plain-language card users actually see after updating.
+   It stays hand-written on purpose.
+2. If the change touched the backend, run the
+   [pre-release checklist](#pre-release-checklist).
+3. Merge. Then check the published release has **both** `VibeCheck.exe` and
+   `SHA256SUMS.txt`, and that the hash matches — the in-app updater refuses a
+   build it can't verify, so a missing checksum file breaks self-update for
    every existing user.
 
-Run through the [pre-release checklist](#pre-release-checklist) before step 5
-whenever the change touched the backend.
+### Cutting one by hand
+
+The tag triggers are still live, so the old path works if automation is stuck:
+
+```bash
+git tag v0.1.9 && git push origin v0.1.9
+```
+
+Bump `APP_VERSION` and `.release-please-manifest.json` yourself if you do —
+otherwise the next Release PR will propose a version that already exists.
 
 ## The backend model (PRD §12)
 
