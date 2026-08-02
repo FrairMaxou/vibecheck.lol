@@ -78,5 +78,9 @@ jobs:
         run: python -m compileall -q vibecheck
       - name: Smoke test
         run: python tests/smoke_test.py
+      # The dashboard's guards are invisible in normal use — the app behaves
+      # identically with them removed, so only this notices a regression.
+      - name: Security checks
+        run: python tests/security_test.py
       - name: Dependency vulnerability audit
         run: pip-audit -r requirements.txt
