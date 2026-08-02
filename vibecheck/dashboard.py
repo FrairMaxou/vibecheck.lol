@@ -13,7 +13,7 @@ import time
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from . import capture, ddragon, startup, telemetry, updater, whatsnew
@@ -29,6 +29,7 @@ from .config import (
     WEB_DIR,
     feedback_form_url,
 )
+from .security import add_security_guards
 from .store import GameStore
 from .sync import SquadService, SupabaseError
 
@@ -50,22 +51,56 @@ ONBOARDING_GAMES = 5
 LAST_SEEN_VERSION_KEY = "last_seen_version"  # drives the once-per-update notes
 
 
+# Request-body bounds. The dashboard is single-user and localhost-only, so these
+# aren't anti-abuse limits — they exist so a malformed or scripted call can't
+# write an unbounded string into the local database and make the app slow to
+# load forever after. They mirror the maxlength attributes on the web/ inputs.
+MAX_TAG_LENGTH = 24
+MAX_TAGS_PER_GAME = 30
+MAX_NOTE_LENGTH = 500
+
+
 class RatingIn(BaseModel):
     score: int | None = None
     skipped: bool = False
 
 
 class TagsIn(BaseModel):
-    tags: list[str] = []
+    tags: list[str] = Field(default_factory=list, max_length=MAX_TAGS_PER_GAME)
+
+    @field_validator("tags")
+    @classmethod
+    def _bound_labels(cls, tags: list[str]) -> list[str]:
+        # Trimmed rather than rejected: an over-long label is a slip, not an
+        # attack, and losing the whole edit over it would be the worse outcome.
+        return [t.strip()[:MAX_TAG_LENGTH] for t in tags]
 
 
 class NoteIn(BaseModel):
-    note: str = ""
+    # Rejected rather than trimmed, unlike tags above: a note is a single value,
+    # so there is no valid part of the edit to save by trimming it — and the
+    # input that produces it is capped at the same length, so hitting this at
+    # all means something other than the dashboard is calling.
+    note: str = Field("", max_length=MAX_NOTE_LENGTH)
 
 
 class SquadConfigIn(BaseModel):
-    url: str
-    anon_key: str
+    url: str = Field(max_length=200)
+    anon_key: str = Field(max_length=500)
+
+    @field_validator("url")
+    @classmethod
+    def _http_url(cls, url: str) -> str:
+        """Only ever point the backend at an http(s) endpoint.
+
+        This value decides where every rated game gets sent, so it is worth one
+        check: without it a typo'd or pasted `javascript:`/`file:` string is
+        saved as-is and only fails later, somewhere less obvious.
+        """
+        clean = url.strip().rstrip("/")
+        if not clean.startswith(("https://", "http://")):
+            raise ValueError("must start with https:// (or http:// for a local backend)")
+        return clean
 
 
 class SettingsIn(BaseModel):
@@ -106,6 +141,10 @@ def create_app(
     # treats their page as same-origin with this server and CORS no longer
     # protects us. Rejecting unexpected Host headers closes that.
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])
+    # ...and the rest of the browser-facing hardening: the CSRF guard on
+    # state-changing requests, plus CSP and friends on every response. Why each
+    # one is needed is written up in security.py.
+    add_security_guards(app)
 
     def _auto_sync() -> None:
         """Push rated games to the backend in the background after a rating."""

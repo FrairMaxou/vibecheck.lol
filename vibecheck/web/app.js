@@ -54,6 +54,15 @@ async function loadData() {
   ALL_TAGS = tags.tags;
 }
 
+/* Escape anything that came from outside this file before it goes into an HTML
+   string — champion and teammate names arrive from the game payload, tags and
+   notes from the user, error text from the backend. This page's origin can
+   reach every localhost endpoint (including quit and install-update), so an
+   injected <script> here would be running with the app's own hands. The CSP in
+   vibecheck/security.py is the net under this; escaping is the actual fix.
+
+   Safe for both element text and quoted attribute values, which is why one
+   helper covers every site. Numbers we computed ourselves don't need it. */
 function escapeAttr(s) {
   return String(s ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
@@ -68,12 +77,43 @@ function champIcon(name, classic) {
   const q = classic ? "?classic=1" : "";
   const cls = classic ? "champ-icon is-classic" : "champ-icon";
   const tip = classic ? ' title="League Classic"' : "";
-  // Wrapped in a fixed-size slot: onerror removes the img, and without the
-  // slot holding that space the whole row shifts left, so rows with a missing
-  // icon no longer line up with the rest of the column.
+  // Wrapped in a fixed-size slot: a missing icon removes the img, and without
+  // the slot holding that space the whole row shifts left, so rows with a
+  // missing icon no longer line up with the rest of the column.
   return `<span class="champ-slot">` +
          `<img class="${cls}" src="/api/champ-icon/${encodeURIComponent(name)}${q}"` +
-         ` alt="" loading="lazy"${tip} onerror="this.remove()"></span>`;
+         ` alt="" loading="lazy"${tip} data-on-error="remove"></span>`;
+}
+
+/* Broken images, without inline onerror handlers — the CSP (security.py) blocks
+   those, and dropping them is what lets script-src stay strict. `error` doesn't
+   bubble, so this listens in the capture phase, which does see it and covers
+   every icon added later by a render.
+
+   The sweep below is not redundant: an image can fail before this file has even
+   run, and a listener registered afterwards never hears about it. A decoded
+   image has naturalWidth > 0, so a *complete* image with zero width failed. */
+const ON_ERROR = {
+  remove: (el) => el.remove(),
+  "reveal-title": (el) => {
+    el.remove();
+    document.getElementById("app-title").classList.remove("visually-hidden");
+  },
+};
+
+function handleAssetError(el) {
+  const action = ON_ERROR[el.dataset.onError];
+  if (action) action(el);
+}
+
+document.addEventListener("error", (e) => {
+  if (e.target instanceof HTMLImageElement) handleAssetError(e.target);
+}, true);
+
+function sweepBrokenImages() {
+  document.querySelectorAll("img[data-on-error]").forEach((img) => {
+    if (img.complete && img.naturalWidth === 0) handleAssetError(img);
+  });
 }
 
 /* League Classic champions share a display name with the modern ones but are a
@@ -597,8 +637,8 @@ function renderExplorer(games) {
     destroyChart("chart-explorer");
     wrap.classList.add("hidden");
     const sorted = rows.slice().sort((a, b) => (b.avgFun ?? 0) - (a.avgFun ?? 0));
-    tableDiv.innerHTML = `<table><thead><tr><th>${dim.replace("_", " ")}</th><th class="num">games</th><th class="num">rated</th><th class="num">avg vibe</th><th class="num">winrate</th></tr></thead><tbody>` +
-      sorted.map((r) => `<tr${r.n < MIN_N ? ' class="low-n"' : ""}><td>${r.key}</td><td class="num">${r.games}</td><td class="num">${r.n}</td><td class="num">${r.avgFun != null ? r.avgFun.toFixed(2) + " " + EMOJI[Math.round(r.avgFun)] : "—"}${r.n < MIN_N && r.n > 0 ? " ·  n<" + MIN_N : ""}</td><td class="num">${r.winrate != null ? r.winrate.toFixed(0) + "%" : "—"}</td></tr>`).join("") +
+    tableDiv.innerHTML = `<table><thead><tr><th>${escapeAttr(dim.replace("_", " "))}</th><th class="num">games</th><th class="num">rated</th><th class="num">avg vibe</th><th class="num">winrate</th></tr></thead><tbody>` +
+      sorted.map((r) => `<tr${r.n < MIN_N ? ' class="low-n"' : ""}><td>${escapeAttr(r.key)}</td><td class="num">${r.games}</td><td class="num">${r.n}</td><td class="num">${r.avgFun != null ? r.avgFun.toFixed(2) + " " + EMOJI[Math.round(r.avgFun)] : "—"}${r.n < MIN_N && r.n > 0 ? " ·  n<" + MIN_N : ""}</td><td class="num">${r.winrate != null ? r.winrate.toFixed(0) + "%" : "—"}</td></tr>`).join("") +
       "</tbody></table>";
   } else {
     tableDiv.innerHTML = "";
@@ -837,6 +877,11 @@ async function doUninstall() {
 
 let SQUAD = { status: null };
 
+/* The `body` argument is what selects the method: omit it and this sends a GET.
+   Pass `{}` to POST with no payload — every bodyless write endpoint needs that,
+   and forgetting it is not a loud failure, it's a 405 surfaced as "Method Not
+   Allowed" in a corner of the UI. That is exactly how the Sync now button shipped
+   broken. */
 async function api(path, body) {
   const res = await fetch(path, body
     ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
@@ -854,7 +899,7 @@ async function renderOnline() {
   try {
     st = SQUAD.status = await api("/api/squad/status");
   } catch (e) {
-    body.innerHTML = `<div class="empty-note">Couldn't reach the backend: ${e.message}</div>`;
+    body.innerHTML = `<div class="empty-note">Couldn't reach the backend: ${escapeAttr(e.message)}</div>`;
     return;
   }
 
@@ -889,7 +934,7 @@ async function renderOnline() {
       <p class="squad-help">Start the League client once while VibeCheck is running — that's how
         we learn your in-game identity and your friends list. Squad Sync then turns on
         automatically. No account, no invite codes.</p>
-      ${st.error ? `<div class="squad-err">${st.error}</div>` : ""}`;
+      ${st.error ? `<div class="squad-err">${escapeAttr(st.error)}</div>` : ""}`;
     return;
   }
 
@@ -905,11 +950,11 @@ async function renderOnline() {
       <span>· <b>${mutual}</b> also on VibeCheck</span>
       <button class="ghost-btn" id="sb-sync">Sync now</button>
     </div>
-    ${st.error ? `<div class="squad-err">${st.error}</div>` : ""}
+    ${st.error ? `<div class="squad-err">${escapeAttr(st.error)}</div>` : ""}
     <div id="sb-msg" class="squad-msg"></div>`;
 
   document.getElementById("sb-sync").addEventListener("click", async (e) => {
-    const r = await guard(e.target, () => api("/api/squad/push"));
+    const r = await guard(e.target, () => api("/api/squad/push", {}));
     if (r) {
       const m = document.getElementById("sb-msg");
       if (m) m.textContent = `Synced ${r.synced} rated games.`;
@@ -994,7 +1039,7 @@ async function renderSquadStats() {
 
 function tagEditorHTML(g) {
   const chips = ALL_TAGS.map(
-    (t) => `<button class="chip${g.tags.includes(t) ? " on" : ""}" data-tag="${escapeAttr(t)}">${t}</button>`,
+    (t) => `<button class="chip${g.tags.includes(t) ? " on" : ""}" data-tag="${escapeAttr(t)}">${escapeAttr(t)}</button>`,
   ).join("");
   return `<div class="tag-editor" data-id="${g.id}">
       <div class="chips">${chips}<input class="tag-add" placeholder="+ tag" maxlength="24"></div>
@@ -1055,8 +1100,8 @@ function renderTags(games) {
   host.innerHTML = list.length
     ? list.map((g) => `
         <div class="tag-row">
-          <div class="tag-meta">${champIcon(g.champion, g.classic)}<b>${g.champion_key || "?"}</b> · ${g.result} · ${g.queue_type || "?"}
-            <span class="when">${g.day}</span> ${g.rated ? EMOJI[g.fun_score] : ""}</div>
+          <div class="tag-meta">${champIcon(g.champion, g.classic)}<b>${escapeAttr(g.champion_key || "?")}</b> · ${escapeAttr(g.result)} · ${escapeAttr(g.queue_type || "?")}
+            <span class="when">${escapeAttr(g.day)}</span> ${g.rated ? EMOJI[g.fun_score] : ""}</div>
           ${tagEditorHTML(g)}
         </div>`).join("")
     : '<div class="empty-note">No games match this filter.</div>';
@@ -1073,11 +1118,11 @@ function renderPending() {
   list.innerHTML = pending.map((g) => `
     <div class="pending-row" data-id="${g.id}">
       <div class="meta">
-        <div>${champIcon(g.champion, g.classic)}<b>${g.champion_key || "?"}</b> · ${g.result} · ${g.kills ?? "?"}/${g.deaths ?? "?"}/${g.assists ?? "?"} · ${g.queue_type || "?"}</div>
-        <div class="when">${g.played_at.replace("T", " ")} · ${Math.round((g.duration_seconds || 0) / 60)} min${g.premades.length ? " · with " + g.premades.map((t) => t.name).join(", ") : ""}</div>
+        <div>${champIcon(g.champion, g.classic)}<b>${escapeAttr(g.champion_key || "?")}</b> · ${escapeAttr(g.result)} · ${g.kills ?? "?"}/${g.deaths ?? "?"}/${g.assists ?? "?"} · ${escapeAttr(g.queue_type || "?")}</div>
+        <div class="when">${escapeAttr(g.played_at.replace("T", " "))} · ${Math.round((g.duration_seconds || 0) / 60)} min${g.premades.length ? " · with " + escapeAttr(g.premades.map((t) => t.name).join(", ")) : ""}</div>
       </div>
       <div class="rate-btns">
-        ${[1, 2, 3, 4, 5].map((s) => `<button data-score="${s}" title="${GRADES[s]}">${EMOJI[s]}</button>`).join("")}
+        ${[1, 2, 3, 4, 5].map((s) => `<button data-score="${s}" title="${escapeAttr(GRADES[s])}">${EMOJI[s]}</button>`).join("")}
         <button class="skip" data-skip="1" title="exclude from stats">skip</button>
       </div>
       <div style="flex-basis:100%">${tagEditorHTML(g)}</div>
@@ -1348,6 +1393,7 @@ async function closeOnboarding() {
   refresh();
 }
 
+sweepBrokenImages(); // catches assets that failed before this script ran
 loadProfile();
 updateBadge();
 handleUpdateDeepLink();

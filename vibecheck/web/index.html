@@ -12,12 +12,13 @@
 <header>
   <div class="title-block">
     <!-- The wordmark is in the image, so the h1 stays for screen readers and
-         document outline only. If the asset ever fails to load, onerror drops
-         the img and unhides the text so the header is never blank. -->
+         document outline only. If the asset ever fails to load, app.js drops
+         the img and unhides the text so the header is never blank — see
+         data-on-error there. It is handled in script rather than with an
+         onerror attribute because the CSP forbids inline handlers. -->
     <h1 class="visually-hidden" id="app-title">VibeCheck.lol</h1>
     <img class="app-logo" src="/assets/logo-horizontal.png" alt="VibeCheck.lol"
-         width="403" height="128"
-         onerror="this.remove(); document.getElementById('app-title').classList.remove('visually-hidden');">
+         width="403" height="128" data-on-error="reveal-title">
     <p class="subtitle">Winrate is temporary. The vibes are forever.</p>
   </div>
   <div class="profile">
