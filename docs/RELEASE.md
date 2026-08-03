@@ -46,6 +46,29 @@ with PyInstaller on a clean Windows runner, smoke-tests it, and attaches it plus
    `SHA256SUMS.txt`, and that the hash matches — the in-app updater refuses a
    build it can't verify, so a missing checksum file breaks self-update for
    every existing user.
+4. **Run the [antivirus check](#antivirus-check-every-release) before telling
+   anyone the release exists.**
+
+## Antivirus check (every release)
+
+We ship unsigned, so every build is a fresh coin flip with Windows Defender's
+ML model. v0.1.9 was quarantined on download as `Trojan:Win32/Wacatac.B!ml` —
+which breaks **self-update as well as the manual download**, because the updater
+fetches the same asset. That makes this a release blocker, not a formality.
+
+1. Download the published exe on a machine that has never allowed it, or upload
+   it to [VirusTotal](https://www.virustotal.com/). Defender flagging it is the
+   signal that matters; a handful of no-name engines is noise.
+2. If it is flagged, file it at
+   [Microsoft's submission form](https://www.microsoft.com/en-us/wdsi/filesubmission)
+   as **software developer → Incorrectly detected as malware**, with the
+   detection name, the definition version from the affected machine, and links
+   to the public build logs. Turnaround has been a day or two.
+3. Only announce the release once it comes back clean.
+
+The permanent fix is code signing, which we have decided not to buy yet — so
+this stays a manual step. Do not let it become "I'll check after posting the
+Discord message": the users most likely to hit it are the ones who click first.
 
 ### Cutting one by hand
 
@@ -149,6 +172,7 @@ Because anyone with the key can reach the project's API:
 - [ ] `git grep` finds no `sb_secret`, no `service_role`, no JWT in the repo
 - [ ] Fresh-machine smoke test: install → capture a game → rate → open dashboard
 - [ ] Squad Online shows "start League once" (no key prompt); after a client connect it shows "Synced as …"
+- [ ] Published exe not flagged by Defender — see [Antivirus check](#antivirus-check-every-release)
 
 ## Merging the Release PR
 
