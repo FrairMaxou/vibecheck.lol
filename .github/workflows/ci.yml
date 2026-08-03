@@ -3,7 +3,12 @@ name: CI
 on:
   push:
     branches: [main]
+  # `edited` is not in the default set, and without it the pr-title job below
+  # can never go green again once it has failed: fixing the title triggers
+  # nothing, so the only way out is an unrelated commit. A permanently red
+  # check is one people learn to merge past.
   pull_request:
+    types: [opened, synchronize, reopened, edited]
 
 permissions:
   contents: read
