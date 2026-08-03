@@ -226,19 +226,39 @@ def download(info: dict, progress_cb=None) -> Path:
 
     with _get(url) as resp:
         total = int(resp.headers.get("Content-Length") or info.get("size") or 0)
-        with open(target, "wb") as fh:
-            while chunk := resp.read(256 * 1024):
-                fh.write(chunk)
-                digest.update(chunk)
-                done += len(chunk)
-                if progress_cb and total:
-                    progress_cb(done, total)
+        try:
+            with open(target, "wb") as fh:
+                while chunk := resp.read(256 * 1024):
+                    fh.write(chunk)
+                    digest.update(chunk)
+                    done += len(chunk)
+                    if progress_cb and total:
+                        progress_cb(done, total)
+        except OSError as exc:
+            # Only the local write is wrapped. urllib raises URLError — itself an
+            # OSError — for network trouble, and blaming antivirus for a dropped
+            # connection would send people to the wrong place entirely.
+            # Defender flags our unsigned PyInstaller build as Wacatac.B!ml often
+            # enough that a failed write here really is more likely antivirus
+            # than a full disk.
+            target.unlink(missing_ok=True)
+            raise UpdateError(f"the download could not be saved — antivirus? ({exc})") from exc
 
     actual = digest.hexdigest()
     if actual != expected:
         # Never keep an unverified binary around.
         target.unlink(missing_ok=True)
         raise UpdateError("the downloaded file failed its integrity check")
+
+    # The digest above came from the stream, so it stays valid even if something
+    # removed the file behind us. Antivirus deletes on close, after the last
+    # write returned fine — check the bytes actually survived.
+    if not target.is_file() or target.stat().st_size != done:
+        target.unlink(missing_ok=True)
+        raise UpdateError(
+            "the download was removed before it could be installed — "
+            "your antivirus most likely quarantined it"
+        )
     log.info("Update %s downloaded and verified (%d bytes)", info.get("latest"), done)
     return target
 

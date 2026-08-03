@@ -33,6 +33,26 @@ Windows may show a blue **"Windows protected your PC"** box the first time.
 That appears for any app that isn't code-signed (signing costs a few hundred
 euros a year). Click **More info → Run anyway**.
 
+### If Windows says the file "contains a virus"
+
+Windows Defender sometimes deletes VibeCheck on download and calls it
+`Trojan:Win32/Wacatac.B!ml`. It's a false positive: `!ml` means a machine-learning
+guess, not a match against a known virus. Small unsigned apps built with
+PyInstaller — which is how VibeCheck is packaged — trip it regularly.
+
+Don't take my word for it:
+
+- **Check the file yourself.** Every release ships a `SHA256SUMS.txt`. Run
+  `Get-FileHash VibeCheck.exe -Algorithm SHA256` in PowerShell and compare.
+- **Upload it to [VirusTotal](https://www.virustotal.com/)** to see what 70-odd
+  other engines think.
+- **Read the source.** The whole app is in this repo, and the exe is built in
+  public by [GitHub Actions](../../actions) — nothing is compiled on my machine.
+
+To get it back: open **Windows Security → Protection history**, find the blocked
+item, and choose **Actions → Allow**. If you'd rather not, that's completely
+fair — wait for a signed build instead.
+
 The VibeCheck icon appears near your clock. That's it — it's running.
 If you can't see it, click the **^** arrow next to the clock; Windows hides new
 tray icons there.
