@@ -108,4 +108,14 @@ jobs:
             system tray; that means it's running. Play a game and it'll ask
             how it went.
 
+            ### If Defender calls it a virus
+            Windows Defender sometimes deletes the download and reports
+            `Trojan:Win32/Wacatac.B!ml`. That's a false positive — `!ml` is a
+            machine-learning guess, and unsigned PyInstaller apps trip it
+            regularly. Check `SHA256SUMS.txt` below against
+            `Get-FileHash VibeCheck.exe -Algorithm SHA256`, or upload the file
+            to [VirusTotal](https://www.virustotal.com/). The exe is built in
+            public by GitHub Actions from the source in this repo.
+            [More detail in the README](../../blob/main/README.md#if-windows-says-the-file-contains-a-virus).
+
             See the [README](../../blob/main/README.md) for the full guide.
