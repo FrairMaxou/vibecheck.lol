@@ -1,7 +1,7 @@
 """Bake the shared backend credentials into the build (for local exe builds).
 
 Reads the Supabase config already saved on this machine
-(%LOCALAPPDATA%\\LeagueOfKiffance\\supabase.json) and writes
+(%LOCALAPPDATA%\\VibeCheck\\supabase.json) and writes
 vibecheck/_bundled.py, which PyInstaller then includes so shipped builds point
 at the shared project with no setup screen for friends.
 

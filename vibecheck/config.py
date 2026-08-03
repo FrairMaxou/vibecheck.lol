@@ -45,12 +45,72 @@ PACKAGE_DIR = Path(sys._MEIPASS) / "vibecheck" if FROZEN else Path(__file__).res
 WEB_DIR = PACKAGE_DIR / "web"
 ASSETS_DIR = PACKAGE_DIR / "assets"
 
-# The on-disk folder/file names are kept as-is through the VibeCheck.lol rebrand
-# on purpose: renaming them would orphan every game a user has already captured.
-# These paths are internal and effectively invisible to users.
-DATA_DIR = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "LeagueOfKiffance"
-DB_PATH = DATA_DIR / "kiffance.sqlite3"
-LOG_PATH = DATA_DIR / "kiffance.log"
+# --- on-disk data location, and the migration off the pre-rebrand names -------
+#
+# Builds up to v0.1.8 stored everything under "LeagueOfKiffance" with
+# kiffance.* filenames. Live users have real history there, so the move to the
+# VibeCheck names is a *migration*, not a rename, and it runs at import time:
+# every module below reads these constants, and one of them is the log file, so
+# there is no later moment at which the paths are still safe to change.
+#
+# The rule that makes it safe: if a move fails for any reason, keep using the
+# old location. Falling back to the legacy path shows the user their games with
+# a stale folder name; creating a fresh path instead would show them an empty
+# app, which reads as "it deleted everything".
+_LOCAL_APPDATA = Path(os.environ.get("LOCALAPPDATA", str(Path.home())))
+
+# Import happens before logging is configured, so the migration can't log.
+# app.main() drains this once handlers exist.
+DATA_MIGRATION_NOTES: list[str] = []
+
+
+def _migrate_data_dir(new: Path, legacy: Path) -> Path:
+    """Move the pre-rebrand data folder to its new name; return the one in use."""
+    if new.exists() or not legacy.exists():
+        if new.exists() and legacy.exists():
+            DATA_MIGRATION_NOTES.append(
+                f"Both {new} and {legacy} exist — using {new}. "
+                f"The old folder is left untouched; an older build may have recreated it."
+            )
+        return new
+    try:
+        # Same volume (both under LOCALAPPDATA), so this is an atomic rename:
+        # the folder is either fully moved or not moved at all, never half.
+        os.replace(legacy, new)
+    except OSError as exc:
+        DATA_MIGRATION_NOTES.append(
+            f"Could not move {legacy} to {new} ({exc}); staying on the old folder"
+        )
+        return legacy
+    DATA_MIGRATION_NOTES.append(f"Moved data folder {legacy} -> {new}")
+    return new
+
+
+def _migrate_data_file(new: Path, legacy: Path) -> Path:
+    """Rename one pre-rebrand data file; return the name actually in use."""
+    if new.exists() or not legacy.exists():
+        return new
+    # A "-journal"/"-wal" sidecar means the last run died mid-write. SQLite finds
+    # that journal by the database's filename, so renaming now would strand it
+    # and lose the rollback. Leave the pair alone: this run opens the legacy
+    # name, SQLite recovers it, and the next launch migrates a clean file.
+    if any(legacy.parent.glob(legacy.name + "-*")):
+        DATA_MIGRATION_NOTES.append(f"Deferring rename of {legacy.name}: recovery journal present")
+        return legacy
+    try:
+        os.replace(legacy, new)
+    except OSError as exc:
+        DATA_MIGRATION_NOTES.append(
+            f"Could not rename {legacy.name} to {new.name} ({exc}); keeping the old name"
+        )
+        return legacy
+    DATA_MIGRATION_NOTES.append(f"Renamed {legacy.name} -> {new.name}")
+    return new
+
+
+DATA_DIR = _migrate_data_dir(_LOCAL_APPDATA / "VibeCheck", _LOCAL_APPDATA / "LeagueOfKiffance")
+DB_PATH = _migrate_data_file(DATA_DIR / "vibecheck.sqlite3", DATA_DIR / "kiffance.sqlite3")
+LOG_PATH = _migrate_data_file(DATA_DIR / "vibecheck.log", DATA_DIR / "kiffance.log")
 
 # PRD F3b: ALL queues are captured. This map only provides friendly labels for
 # known queue ids; unknown/rotating modes fall back to the payload's raw

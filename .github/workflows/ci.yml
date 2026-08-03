@@ -76,6 +76,11 @@ jobs:
         run: ruff format --check .
       - name: Compile check
         run: python -m compileall -q vibecheck
+      # Runs on windows-latest for a reason: the guarantee that a locked data
+      # folder falls back instead of starting empty only holds on Windows, and
+      # Windows is the only platform we ship.
+      - name: Data folder migration
+        run: python tests/migration_test.py
       - name: Smoke test
         run: python tests/smoke_test.py
       # The dashboard's guards are invisible in normal use — the app behaves

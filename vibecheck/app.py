@@ -20,7 +20,7 @@ import webbrowser
 from datetime import datetime, timedelta
 from tkinter import messagebox
 
-from . import capture, lcu, startup, telemetry, updater
+from . import capture, config, lcu, startup, telemetry, updater
 from .config import (
     APP_NAME,
     CATCHUP_FIRST_RUN_HOURS,
@@ -741,8 +741,15 @@ def _acquire_single_instance() -> bool:
         # error directly — plain windll.kernel32.GetLastError() can read a stale
         # value because ctypes makes its own intervening Windows calls.
         kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-        kernel32.CreateMutexW(None, False, "Local\\LeagueOfKiffance_singleton")
-        already = ctypes.get_last_error() == 183  # ERROR_ALREADY_EXISTS
+        # Both names are claimed: the pre-rebrand one is what builds up to
+        # v0.1.8 hold, and a user who launches an old exe alongside this one
+        # must still be told, not left with two instances fighting over the
+        # port and DB. The handles are deliberately never closed — Windows
+        # frees them when the process dies, crash included.
+        already = False
+        for name in ("Local\\VibeCheck_singleton", "Local\\LeagueOfKiffance_singleton"):
+            kernel32.CreateMutexW(None, False, name)
+            already = already or ctypes.get_last_error() == 183  # ERROR_ALREADY_EXISTS
         if already:
             message = (
                 f"{APP_NAME} is already running.\n"
@@ -768,6 +775,11 @@ def main() -> None:
         handlers=handlers,
     )
     _install_crash_logging()
+    # config.py migrates the pre-rebrand data folder at import time, before any
+    # handler exists. Replay what it did now, so a failed move is visible in the
+    # log instead of looking like missing history.
+    for note in config.DATA_MIGRATION_NOTES:
+        log.info("Data location: %s", note)
     # Relaunched by the updater: the outgoing build still holds the mutex for a
     # moment, so wait for it to exit before claiming single-instance ownership.
     if "--updated-from-pid" in sys.argv:

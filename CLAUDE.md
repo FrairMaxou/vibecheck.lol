@@ -92,13 +92,14 @@ row in this table — don't grow this one.
 .venv\Scripts\python -m vibecheck               # run with console logs (dev)
 .venv\Scripts\pythonw -m vibecheck              # run silent, tray-only
 .venv\Scripts\python tests\smoke_test.py        # capture+store smoke test (no League needed)
+.venv\Scripts\python tests\migration_test.py    # data-folder migration (isolated LOCALAPPDATA)
 .venv\Scripts\ruff check . --fix                # lint (incl. security rules)
 .venv\Scripts\ruff format .                     # format
 .venv\Scripts\pre-commit run --all-files        # everything the commit hook runs
 ```
 
-Runtime data and logs: `%LOCALAPPDATA%\LeagueOfKiffance\` (`kiffance.sqlite3`,
-`kiffance.log`).
+Runtime data and logs: `%LOCALAPPDATA%\VibeCheck\` (`vibecheck.sqlite3`,
+`vibecheck.log`).
 
 ## Workflow in one paragraph
 
