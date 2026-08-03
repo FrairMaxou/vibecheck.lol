@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.10](https://github.com/FrairMaxou/vibecheck.lol/compare/v0.1.9...v0.1.10) (2026-08-03)
+
+
+### Fixes
+
+* **release:** stop Defender flagging the exe as Wacatac.B!ml ([#74](https://github.com/FrairMaxou/vibecheck.lol/issues/74)) ([3b6805a](https://github.com/FrairMaxou/vibecheck.lol/commit/3b6805a749833f7ced4734bcfcef67fdef403b12))
+
 ## [0.1.9](https://github.com/FrairMaxou/vibecheck.lol/compare/v0.1.8...v0.1.9) (2026-08-03)
 
 
