@@ -29,6 +29,52 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
+  # The Release PR's own checks cannot be relied on as the gate. Runs on a PR
+  # opened by github-actions[bot] land in `action_required` and wait for someone
+  # to approve them, so the PR shows *no* checks at all — which reads as
+  # "nothing blocking" rather than "not run yet". This job is the gate instead:
+  # it is triggered by the push to main, so nothing has to approve it.
+  #
+  # It deliberately does NOT test the release branch on its own. That branch is
+  # never released in isolation — it is merged into main first, so the commit
+  # that actually gets tagged carries main's whatsnew.py and the branch's
+  # version bump. Checking the branch alone would fail whenever it is merely
+  # stale (release-please leaves it untouched after ci:/docs: commits, which
+  # produce no changelog entry), and a stale branch still releases correctly.
+  # So: take the version from the branch, check the notes on main.
+  verify-pending-release:
+    needs: release-please
+    if: needs.release-please.outputs.released != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: The pending release must have release notes on main
+        run: |
+          branch=release-please--branches--main
+          if ! git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            echo "No Release PR open - nothing to verify."
+            exit 0
+          fi
+          git fetch --quiet origin "$branch"
+          version=$(git show FETCH_HEAD:.release-please-manifest.json \
+                    | python3 -c 'import json,sys; print(json.load(sys.stdin)["."])')
+          echo "Pending release: $version"
+          python3 - "$version" <<'PY'
+          import sys
+          sys.path.insert(0, ".")
+          from vibecheck import whatsnew
+
+          version = sys.argv[1]
+          if not whatsnew.notes_for(version):
+              print(
+                  f"::error file=vibecheck/whatsnew.py::No release-notes entry for "
+                  f"{version}. Add one before merging the Release PR, or the build "
+                  f"fails after the tag is already public."
+              )
+              raise SystemExit(1)
+          print(f"Release notes for {version}: present")
+          PY
+
   # A tag pushed with GITHUB_TOKEN does not trigger other workflows, so
   # release.yml would never start on its own here. Calling it directly closes
   # the loop without needing a long-lived PAT just to fake a "real" push.

@@ -123,8 +123,12 @@ and burning free-tier quota, not because exposure would breach the data.
 
 Because anyone with the key can reach the project's API:
 
-- **Keep RLS on for every table.** Re-run `schema.sql` after any schema change;
-  it is idempotent and safe to re-run.
+- **Keep RLS on for every table**, and verify it against the live project rather
+  than against the file: run `supabase/verify-security.sql`, which is read-only.
+  `schema.sql` is for a *fresh* project or a deliberate schema change — it is no
+  longer something to run "just to check", because until 2026-08-02 doing so
+  dropped `shared_games` and emptied every user's synced games. It now refuses
+  to drop a table that has rows, but the habit is still the wrong one.
 - **Anonymous sign-ins are enabled by design** (they're what make onboarding
   zero-config). RLS is the only guard, so every table must deny by default and
   expose rows solely to the owner PUUID and its mutual friends.
@@ -137,9 +141,31 @@ Because anyone with the key can reach the project's API:
 
 ## Pre-release checklist
 
-- [ ] `schema.sql` re-run against the production project (idempotent)
+- [ ] `supabase/verify-security.sql` run against production — RLS on every table,
+      no view granted to `anon`, no unexpected grants (read-only; **not**
+      `schema.sql`, which rebuilds rather than reports)
 - [ ] **Anonymous sign-ins enabled** in the project (Authentication → Sign In / Providers)
 - [ ] `_bundled.py` generated from CI secrets, **not** committed
 - [ ] `git grep` finds no `sb_secret`, no `service_role`, no JWT in the repo
 - [ ] Fresh-machine smoke test: install → capture a game → rate → open dashboard
 - [ ] Squad Online shows "start League once" (no key prompt); after a client connect it shows "Synced as …"
+
+## Merging the Release PR
+
+**Do not read the Release PR's own checks as the gate.** A PR opened by
+`github-actions[bot]` produces workflow runs that sit in `action_required`
+waiting for approval, so the PR shows *no* checks — indistinguishable at a
+glance from "all clear". The real gate is the `verify-pending-release` job in
+`release-please.yml`, which runs on the push to `main` and needs no approval: it
+takes the version from the Release PR and asserts `vibecheck/whatsnew.py` on
+`main` has notes for it. Green there means the release will build.
+
+Two things that are normal and not a problem:
+
+- **The Release PR branch goes stale.** `ci:` and `docs:` commits produce no
+  changelog entry, so release-please leaves the branch where it is. The branch
+  is never released on its own — it is merged into `main` first, so the tagged
+  commit carries `main`'s content plus the version bump.
+- **The branch's own CI may be red** for the same reason. If you want it
+  refreshed, close the Release PR and delete its branch; the next push to `main`
+  regenerates it from current `main`.
