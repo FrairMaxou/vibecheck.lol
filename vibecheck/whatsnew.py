@@ -12,6 +12,22 @@ version automatically, so a missing entry means it was forgotten, not chosen.
 """
 
 RELEASE_NOTES = {
+    # Almost nobody reading this card hit the problem — they updated fine, which
+    # is the only reason they can see it. It still leads, because the people who
+    # *did* hit it were told by their own computer that this app is a virus, and
+    # that is not something to leave hanging. Say what it was, say it plainly,
+    # and hand over a way to check rather than asking to be trusted.
+    "0.1.10": [
+        "Windows Defender has been deleting VibeCheck on download and calling it a "
+        "virus. It's a false positive. Windows is suspicious of small apps that "
+        "aren't signed, and signing costs a few hundred euros a year this project "
+        "doesn't have yet. This build introduces itself to Windows properly, which "
+        "should help. Every release also publishes a checksum so you can check the "
+        "file yourself — and the whole app is built in public, from source you can "
+        "read.",
+        "If your antivirus removes an update while it's downloading, VibeCheck now "
+        "tells you that's what happened instead of just failing.",
+    ],
     # Nothing in 0.1.9 is visible on screen, which is exactly why it needs
     # saying: one button that never worked (people pressed it and got an error),
     # and a door on the dashboard that should never have been open. "We improved
