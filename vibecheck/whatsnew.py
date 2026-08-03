@@ -26,6 +26,14 @@ RELEASE_NOTES = {
         "to do things — like shut VibeCheck down mid-game. That door is closed.",
         "Champion names, summoner names and your own notes are shown as plain text "
         "everywhere, so nothing coming out of a match can mess with the page.",
+        # Last on purpose: the move is silent and needs nothing from the user, so
+        # it only matters in one situation — going back to an older build, which
+        # then looks empty. Someone who hits that is about to think they lost
+        # months of games, so the reassurance has to be in the sentence itself.
+        "Your games moved to a folder actually named VibeCheck instead of the old "
+        "project name — it happens by itself on first launch. If you ever go back to "
+        "an older version it'll look empty: that build still checks the old folder. "
+        "Nothing is lost, it's just not where the old one looks.",
     ],
     # Whoever reads this card has *just* updated, which is exactly the audience
     # that may have hit the crash — so lead by explaining it rather than
