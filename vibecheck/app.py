@@ -84,6 +84,7 @@ class App:
 
         self._root = tk.Tk()
         self._root.withdraw()
+        self._root.protocol("WM_SAVE_YOURSELF", self.stop)  # exit on Windows shutdown
         # Tk swallows callback exceptions to stderr (invisible under pythonw) —
         # send them to the log instead so UI errors are never lost.
         self._root.report_callback_exception = lambda *exc: log.error(
@@ -269,7 +270,7 @@ class App:
             self._events.stop()
         self._tray.stop()
         if self._window_proc is not None and self._window_proc.poll() is None:
-            self._window_proc.terminate()  # don't leave the window orphaned
+            self._window_proc.kill()  # kill (not terminate) so it exits instantly during shutdown
         self.store.close()
         # Quit Tk from its own thread.
         self._root.after(0, self._root.quit)
