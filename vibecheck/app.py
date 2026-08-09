@@ -70,6 +70,7 @@ class App:
             self.store.set_meta(WATERMARK_KEY, grace.isoformat(timespec="seconds"))
         self.paused = False
         self._stopping = threading.Event()
+        self._stop_lock = threading.Lock()  # makes stop()'s check-and-set atomic
         self._ui_requests: queue.Queue = queue.Queue()
 
         self._client: lcu.LcuClient | None = None
@@ -271,7 +272,21 @@ class App:
             log.exception("Auto-start prompt failed")
 
     def stop(self) -> None:
-        self._stopping.set()
+        """Tear the app down. Safe to call from any thread, and more than once.
+
+        Four paths reach this, on three different threads: the tray's Quit
+        entry (tray thread), the dashboard window's close prompt and the
+        self-updater's restart (both server-side timers), and the Windows
+        shutdown handler (Tk main thread). Two can fire at once — a session-end
+        message arriving while someone clicks Quit, or while an update is
+        swapping the build — so the check-and-set is under a lock. A bare Event
+        is not enough: both callers could pass is_set() before either reached
+        set(), and run the teardown twice from two threads.
+        """
+        with self._stop_lock:
+            if self._stopping.is_set():
+                return
+            self._stopping.set()
         if self._events:
             self._events.stop()
         self._tray.stop()
