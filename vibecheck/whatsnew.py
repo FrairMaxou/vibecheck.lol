@@ -12,12 +12,23 @@ version automatically, so a missing entry means it was forgotten, not chosen.
 """
 
 RELEASE_NOTES = {
-    # Almost nobody reading this card hit the problem — they updated fine, which
-    # is the only reason they can see it. It still leads, because the people who
-    # *did* hit it were told by their own computer that this app is a virus, and
-    # that is not something to leave hanging. Say what it was, say it plainly,
-    # and hand over a way to check rather than asking to be trusted.
-    "0.1.10": [
+    # 0.1.10 was assembled but never released — ARAM God landed first and took
+    # the version to 0.2.0. Its three bullets are carried over here rather than
+    # left behind: nobody ever updated *to* 0.1.10, so this is the only card
+    # that will ever tell them about the Defender business.
+    #
+    # The feature leads because it is the reason to open the app today. The
+    # Defender note follows rather than opens: almost nobody reading this card
+    # hit it — they updated fine, which is the only reason they can see it — but
+    # the people who *did* were told by their own computer that this app is a
+    # virus, so it says plainly what happened and hands over a way to check
+    # rather than asking to be trusted.
+    "0.2.0": [
+        "VibeCheck now tracks your ARAM God run — an S- or better on every champion "
+        "in ARAM. It reads the progress straight from your League client, so it "
+        "opens on your real number instead of pretending you're starting from zero. "
+        "It's in the Champions tab, with the whole roster and everyone you still "
+        "have left.",
         "Windows Defender has been deleting VibeCheck on download and calling it a "
         "virus. It's a false positive. Windows is suspicious of small apps that "
         "aren't signed, and signing costs a few hundred euros a year this project "
