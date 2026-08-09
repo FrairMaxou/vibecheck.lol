@@ -23,6 +23,7 @@ from tkinter import messagebox
 from . import capture, config, lcu, startup, telemetry, updater
 from .config import (
     APP_NAME,
+    ASSETS_CHAMPS_KEY,
     CATCHUP_FIRST_RUN_HOURS,
     CLIENT_POLL_SECONDS,
     DATA_DIR,
@@ -49,7 +50,6 @@ WATERMARK_KEY = "capture_watermark"  # ISO datetime; games started after this ar
 MY_PUUID_KEY = "my_puuid"
 ASSETS_ITEMS_KEY = "assets_items"
 ASSETS_AUGMENTS_KEY = "assets_augments"
-ASSETS_CHAMPS_KEY = "assets_champions"
 QUEUE_LABELS_KEY = "queue_labels_version"
 PREMADES_KEY = "lobby_premades"  # survives a mid-game restart
 UPDATE_NOTIFIED_KEY = "update_notified"  # version we've already toasted about
@@ -357,6 +357,7 @@ class App:
             self.store.set_meta("my_summoner_name", display_name)  # squad profile (§12)
         self._champ_names = self._client.champion_names()
         self._load_assets()
+        self._sync_achievements()
         log.info(
             "Connected to League client (summoner: %s)",
             summoner.get("gameName") or summoner.get("displayName", "?"),
@@ -416,6 +417,37 @@ class App:
             self.store.set_meta(ASSETS_CHAMPS_KEY, json.dumps(self._champ_names))
         self._assets = {"items": items, "augments": augments}
         log.info("Asset maps loaded: %d items, %d augments", len(items), len(augments))
+
+    def _sync_achievements(self) -> None:
+        """Refresh ARAM God progress from the client's challenge data (PRD §16).
+
+        Read on every client connect rather than after every game: the client
+        recomputes the challenge itself, and a game that completes a new
+        champion is reflected the next time we connect at the latest. Cheap
+        enough to do inline here — one local GET the watcher is already making
+        four of.
+
+        Never destructive. A read that fails leaves the stored set alone, so
+        launching with the client closed, or Riot retiring the challenge, shows
+        the last known progress instead of wiping a lifetime figure VibeCheck
+        has no way to rebuild.
+        """
+        try:
+            completed = self._client.completed_champion_ids(config.ARAM_GOD_CHALLENGE_ID)
+        except Exception:
+            log.warning("Could not read challenge progress", exc_info=True)
+            return
+        if completed is None:
+            log.info("ARAM God progress unavailable from the client — keeping what we have")
+            return
+        changed = self.store.set_achievement_champions(
+            config.ARAM_GOD_KEY, completed, source="client"
+        )
+        log.info(
+            "ARAM God: %d champion(s) completed%s",
+            len(completed),
+            "" if changed else " (unchanged)",
+        )
 
     def _sync_friends(self) -> None:
         """Push my League friends list + rated games to the backend (§12).

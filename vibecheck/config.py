@@ -158,6 +158,21 @@ QUEUE_NAMES = {
 CLASSIC_QUEUE_IDS = {4310, 4320, 3260, 3262, 2450, 3280, 2410, 3270}
 CLASSIC_GAME_MODES = {"JADE", "KIWI_JADE"}
 
+# ---------------------------------------------------------------- achievements
+# Definitions live in code, never in the database: shipping a goal is a code
+# change, and only the player's progress is data (PRD §16).
+#
+# "ARAM God" is what players call the client's "All Random All Champions"
+# challenge — an S- grade or better on every champion in ARAM. It is a lifetime
+# figure VibeCheck cannot recompute: we see only the games captured since
+# install, so a self-computed number would open at 0 and stay there for years.
+# The progress therefore comes from the client's own challenge data.
+ARAM_GOD_KEY = "aram_god"
+ARAM_GOD_CHALLENGE_ID = 101301
+# Cached client-side so the dashboard still renders the roster with the League
+# client closed — which is most of the time a tray app is open.
+ASSETS_CHAMPS_KEY = "assets_champions"
+
 # Bump whenever QUEUE_NAMES or GAME_MODE_NAMES changes. Labels are stored on the
 # game row at capture time, so already-captured games keep whatever name was
 # known back then — League Classic games captured before its label existed read

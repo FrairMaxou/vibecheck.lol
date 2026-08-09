@@ -349,3 +349,30 @@ Deliberately corny, over-the-top, affectionate franglais/gamer voice is core to 
 - Direction: cheesy, punny, self-aware. Examples (illustrative, not final): **Kiff-o-meter** (avg fun), **Certified Banger / Certified Yikes** (best/worst champ), **"the 'one more game' regret curve"** (session fatigue), **Copium champions** (winning-but-miserable), loading lines like *"Consulting the vibes…"* / *"Asking your jungler what happened…"*.
 - Keep it skimmable and non-annoying (the one-click rating stays instant); tone lives in labels, cards, and flavor text, never in extra friction.
 - Consolidate all user-facing strings so the voice is consistent and easy to tune (also eases any future localization, though UI language is English per §9).
+
+---
+
+## 16. Achievements — ARAM God (added 2026-08-09)
+
+Long-running goals a player is already chasing, tracked alongside the vibe data. The first is **ARAM God**: the community name for the client's *All Random All Champions* challenge — an S- grade or better on every champion in ARAM.
+
+### The constraint that shapes it
+
+ARAM God is a **lifetime** figure across the whole roster. VibeCheck only ever sees the games captured since it was installed, so a self-computed number opens at 0/173 and stays near it for years — decoration, not a tracker. Progress therefore comes from the League client's own challenge data, and the app is a **reader**, never the source of truth.
+
+### How it works
+
+- **Source.** `GET /lol-challenges/v1/challenges/local-player`, a dict keyed by challenge id **as a string**. Challenge **101301** carries `idListType: "CHAMPION"` and `completedIds` — the champion ids already done. Read on every League client connect; the client recomputes it itself, so there is nothing to recompute here.
+- **Empty ≠ unknown.** A read that fails (client closed, challenge retired, shape drifted) returns `None` and leaves stored progress alone. Only a real answer overwrites it. Conflating the two erases a figure the app cannot rebuild — the one unrecoverable mistake in this feature.
+- **Never a fake zero.** Until the app has read the challenge once, the UI says so instead of showing 0/173.
+- **The denominator.** The client's champion list includes League Classic's alternate versions, which reuse the modern champion's display name and sit in the 60000s. Counting them makes the roster 233 instead of 173 and the bar unfillable. The canonical roster is one entry per display name, keeping the **lowest id** — the same data-derived rule `ddragon.py` uses for art, rather than an id cutoff or a `Jade_` prefix that rots the next time Riot ships a variant set. The roster is cached in `meta` so the dashboard renders with the client closed.
+- **Storage.** `achievement_progress(key, champion_id, state, value, source, updated_at)`, primary key `(key, champion_id)`. `champion_id` is **0**, not NULL, for a goal that isn't per-champion: SQLite treats NULLs as distinct in a unique index, so a nullable key column would let a counter be inserted twice. `source` is `client` or `manual`. Definitions live in **code** (`config.py`) — shipping a goal is a code change; only progress is data.
+- **Where it shows.** A panel in the Champions tab: score, progress bar, and the full roster grid with completed champions first. Outside the filter pipeline on purpose — a date filter must not appear to move a lifetime number.
+
+### Not built (deliberately)
+
+- **Manual tagging.** The client read makes it near-pointless for anyone who has the client installed, which is everyone the app works for at all. The `source` column is already there if this changes.
+- **Consent prompt.** The app already reads match history, summoner name and the full friends list from the same local API without one. A prompt on the least sensitive of those reads as inconsistent and implies the others were sneakier than they are.
+- **Squad comparison.** Every challenge entry carries `friendsAtLevels` — friends' puuids grouped by the level they've reached — so a read-only friends view needs no backend at all. Level granularity only, and it is a list of real people's puuids, so displaying it and syncing it are separate decisions. Deferred, not designed.
+
+No Vanguard or lightweight impact: one extra local GET on a connection the watcher already makes, and no game-process access (§6a/§6b).
