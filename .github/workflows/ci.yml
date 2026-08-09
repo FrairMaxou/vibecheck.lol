@@ -50,6 +50,7 @@ jobs:
             dashboard
             web
             sync
+            achievements
             telemetry
             updater
             startup
