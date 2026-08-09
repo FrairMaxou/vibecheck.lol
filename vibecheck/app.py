@@ -84,6 +84,13 @@ class App:
 
         self._root = tk.Tk()
         self._root.withdraw()
+        # Quit when Windows is shutting down, or the user gets an "app is
+        # preventing shutdown" screen naming VibeCheck. The X11-era protocol
+        # name is not a mistake: on Windows, Tk intercepts WM_QUERYENDSESSION
+        # and re-raises it as WM_SAVE_YOURSELF (tkWinWm.c), which it then drops
+        # unless a handler is registered. A withdrawn root still receives it —
+        # Windows sends session messages to hidden top-level windows too.
+        self._root.protocol("WM_SAVE_YOURSELF", self.stop)
         # Tk swallows callback exceptions to stderr (invisible under pythonw) —
         # send them to the log instead so UI errors are never lost.
         self._root.report_callback_exception = lambda *exc: log.error(
