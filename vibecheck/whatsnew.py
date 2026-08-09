@@ -27,6 +27,12 @@ RELEASE_NOTES = {
         "read.",
         "If your antivirus removes an update while it's downloading, VibeCheck now "
         "tells you that's what happened instead of just failing.",
+        # Reported by a user who then fixed it themselves. Worth naming the exact
+        # screen they saw — anyone who hit this recognises it instantly, and
+        # "shutdown handling improved" would mean nothing to them.
+        "Shutting down your PC no longer stops on the screen saying VibeCheck is "
+        "preventing it. VibeCheck now closes itself when Windows asks. Thanks to "
+        "Sam Pomerantz for finding and fixing this one.",
     ],
     # Nothing in 0.1.9 is visible on screen, which is exactly why it needs
     # saying: one button that never worked (people pressed it and got an error),
