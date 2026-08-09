@@ -6,6 +6,7 @@ real database.
 Run: .venv\\Scripts\\python tools\\dev_dashboard.py
 """
 
+import json
 import random
 import sys
 import tempfile
@@ -16,6 +17,7 @@ import uvicorn
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from vibecheck.config import ARAM_GOD_KEY, ASSETS_CHAMPS_KEY
 from vibecheck.dashboard import create_app
 from vibecheck.store import GameStore
 
@@ -75,8 +77,46 @@ def main():
             when += timedelta(seconds=duration + random.randint(120, 900))
         when += timedelta(hours=random.randint(5, 40))
 
+    _seed_aram_god(store)
     print(f"Seeded {store.game_count()} fake games in {tmp}")
     uvicorn.run(create_app(store), host="127.0.0.1", port=8578, log_level="warning")
+
+
+def _seed_aram_god(store):
+    """Fake a partly-done ARAM God run so the panel is previewable.
+
+    The real numbers come from the League client, which this harness has no
+    business talking to — but a panel you can only see by playing 173 ARAM
+    games is a panel nobody will style correctly. Includes a League Classic
+    variant id (60001) in the roster to prove the denominator drops it.
+    """
+    roster = {
+        1: "Annie",
+        2: "Olaf",
+        3: "Galio",
+        4: "Twisted Fate",
+        9: "Fiddlesticks",
+        11: "Master Yi",
+        12: "Alistar",
+        17: "Teemo",
+        22: "Ashe",
+        51: "Caitlyn",
+        64: "Lee Sin",
+        89: "Leona",
+        103: "Ahri",
+        157: "Yasuo",
+        222: "Jinx",
+        412: "Thresh",
+        32: "Amumu",
+        122: "Darius",
+        99: "Lux",
+        202: "Jhin",
+        60001: "Annie",  # League Classic variant — must not inflate the total
+    }
+    store.set_meta(ASSETS_CHAMPS_KEY, json.dumps(roster))
+    done = [1, 3, 11, 22, 89, 103, 202, 412]
+    store.set_achievement_champions(ARAM_GOD_KEY, done, source="client")
+    print(f"Seeded ARAM God: {len(done)} of {len(set(roster.values()))} champions")
 
 
 if __name__ == "__main__":

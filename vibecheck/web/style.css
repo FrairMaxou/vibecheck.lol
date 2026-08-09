@@ -370,6 +370,46 @@ tr.low-n td { color: var(--ink-3); }
    brand's accent for an active/alternate state (BRAND.md §3). */
 .champ-icon.is-classic { border-color: #00f0ff; box-shadow: 0 0 0 1px rgba(0, 240, 255, .35); }
 
+/* ---------- ARAM God run ---------- */
+/* Uses the live tokens, not BRAND.md §3's official palette: the rest of this
+   file hasn't been re-skinned yet (§8 tracks it), and a single panel in the new
+   colours would just look broken next to the old ones. #57 swaps them all at
+   once. */
+.ag-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+.ag-score { font-size: 22px; color: var(--gold); letter-spacing: .5px; }
+.ag-left { color: var(--ink-2); font-size: 13px; }
+.ag-bar {
+  height: 6px; border-radius: 999px; background: var(--surface-2);
+  overflow: hidden; margin-bottom: 14px;
+}
+.ag-bar i { display: block; height: 100%; background: var(--gold); }
+/* auto-fill rather than a fixed column count: the roster grows every patch and
+   the panel is the same width on a 1080p laptop and an ultrawide. */
+.ag-grid {
+  display: grid; gap: 8px; max-height: 420px; overflow-y: auto;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+}
+.ag-cell {
+  display: flex; align-items: center; gap: 6px; min-width: 0;
+  padding: 5px 7px; border-radius: 6px;
+  background: var(--surface-2); border: 1px solid var(--line);
+}
+/* The name is the fallback identity: portraits come from a local cache that is
+   legitimately empty offline, and onerror drops the <img> entirely. A grid of
+   173 nameless holes would be useless, so the label always ships. */
+.ag-cell span {
+  font-size: 11px; color: var(--ink-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* Done is the signal, so it carries the colour and full-strength art; the
+   remaining ones are dimmed rather than hidden — seeing what's left is the
+   point of the grid. Not colour alone: the border and opacity both change, so
+   it still reads without colour vision. */
+.ag-cell.is-done { border-color: var(--gold); background: rgba(200, 170, 110, .12); }
+.ag-cell.is-done span { color: var(--ink); }
+.ag-cell:not(.is-done) { opacity: .55; }
+.ag-cell:not(.is-done) .champ-icon { filter: grayscale(1); }
+
 /* ---------- champion vibe tier list ---------- */
 /* HTML, not a canvas chart: Chart.js can't put images in tick labels, and a
    fixed-height canvas stops being readable past a few dozen champions. Rows

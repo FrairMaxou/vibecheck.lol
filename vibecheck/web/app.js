@@ -453,8 +453,65 @@ function renderOverview(games) {
 
 function renderChampions(games) {
   const byChamp = aggregate(games, (g) => g.champion_key);
+  renderAramGod();
   renderTierList(byChamp);
   funScatterChart("chart-champ-scatter", byChamp);
+}
+
+/* ---------------- ARAM God (PRD §16) ---------------- */
+
+/* Deliberately outside the filter pipeline. Every other panel on this page
+   describes the games VibeCheck captured, and re-renders when the filter bar
+   changes; this one is a lifetime figure read from the League client, so a
+   date filter must not appear to move it. Cached until the store's revision
+   changes, because renderChampions runs on every filter keystroke and this
+   would otherwise refetch on each one. */
+let ARAM_GOD = null;
+let ARAM_GOD_PENDING = null; // in-flight fetch, so rapid re-renders share one request
+let ARAM_GOD_DRAWN = null; // what's currently on screen
+
+async function renderAramGod() {
+  const host = document.getElementById("aram-god");
+  if (!ARAM_GOD) {
+    try {
+      // renderChampions runs on every filter keystroke; without this the same
+      // request goes out several times before the first one lands.
+      ARAM_GOD_PENDING = ARAM_GOD_PENDING || fetchJSON("/api/aram-god");
+      ARAM_GOD = await ARAM_GOD_PENDING;
+    } catch {
+      host.innerHTML = '<div class="empty-note">Couldn\'t read your ARAM God progress.</div>';
+      return;
+    } finally {
+      ARAM_GOD_PENDING = null;
+    }
+  }
+  const d = ARAM_GOD;
+  // The grid is ~173 cells and as many <img>s. Rebuilding it on every keystroke
+  // in the filter bar is a visible stutter, and pointless: this panel is
+  // lifetime data that no filter can change. Only redraw when it actually did.
+  if (ARAM_GOD_DRAWN === d && host.firstChild) return;
+  ARAM_GOD_DRAWN = d;
+  // Never render a confident 0/173 we haven't earned: before the app has read
+  // the challenge once, zero completed and "we don't know yet" look identical
+  // in the data and mean completely different things to the player.
+  if (!d.tracked || !d.total) {
+    host.innerHTML =
+      '<div class="empty-note">Open the League client once with VibeCheck running — ' +
+      "we'll read your challenge progress from it. Nothing to set up.</div>";
+    return;
+  }
+  const left = Math.max(d.total - d.completed, 0);
+  const pct = d.total ? Math.round((d.completed / d.total) * 100) : 0;
+  const cell = (c) =>
+    `<div class="ag-cell${c.done ? " is-done" : ""}" title="${escapeAttr(c.name)}">` +
+    `${champIcon(c.name, false)}<span>${escapeAttr(c.name)}</span></div>`;
+  host.innerHTML =
+    `<div class="ag-head">` +
+    `<b class="ag-score">${d.completed} / ${d.total}</b>` +
+    `<span class="ag-left">${left ? `${left} to go` : "every single one. absolute unit."}</span>` +
+    `</div>` +
+    `<div class="ag-bar"><i style="width:${pct}%"></i></div>` +
+    `<div class="ag-grid">${d.champions.map(cell).join("")}</div>`;
 }
 
 /* Aggregate keys carry the "(Classic)" suffix, so split it back out to get the
@@ -1246,6 +1303,8 @@ function renderAll() {
 
 async function refresh() {
   await loadData();
+  ARAM_GOD = null; // a new game may have completed a champion — refetch it too
+  ARAM_GOD_DRAWN = null;
   document.getElementById("offline-banner").classList.add("hidden");
   buildFilters();
   renderAll();

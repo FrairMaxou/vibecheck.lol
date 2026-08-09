@@ -6,6 +6,7 @@ aggregation client-side, which is what makes the filter bar and explorer
 (F13b/F13c) instant.
 """
 
+import json
 import logging
 import threading
 import time
@@ -16,10 +17,12 @@ from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field, field_validator
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from . import capture, ddragon, startup, telemetry, updater, whatsnew
+from . import capture, ddragon, lcu, startup, telemetry, updater, whatsnew
 from .config import (
     APP_NAME,
     APP_VERSION,
+    ARAM_GOD_KEY,
+    ASSETS_CHAMPS_KEY,
     ASSETS_DIR,
     DASHBOARD_HOST,
     DASHBOARD_PORT,
@@ -231,6 +234,75 @@ def create_app(
                     _warming = False
 
         threading.Thread(target=worker, name="champ-icons", daemon=True).start()
+
+    @app.get("/api/aram-god")
+    def aram_god():
+        """ARAM God progress: the roster, and which champions are done (PRD §16).
+
+        Reads only what's stored, so it works with the League client closed —
+        which is most of a tray app's life. `tracked` is false until the app has
+        managed to read the challenge once; the frontend shows an explainer for
+        that state rather than a 0/173 it hasn't earned.
+        """
+        try:
+            champ_names = json.loads(store.get_meta(ASSETS_CHAMPS_KEY) or "{}")
+        except ValueError:
+            champ_names = {}
+        roster = lcu.canonical_roster(champ_names)
+        progress = store.achievement_progress(ARAM_GOD_KEY)
+        done = set(progress["champion_ids"])
+        if roster:
+            _warm_roster_icons(roster)
+
+        champions = sorted(
+            (
+                {"id": champ_id, "name": name, "done": champ_id in done}
+                for champ_id, name in roster.items()
+            ),
+            key=lambda c: (not c["done"], c["name"]),  # completed first, then A-Z
+        )
+        # A completed champion the cached roster doesn't know — a champion
+        # released since we last saw the client, say — must not be counted, or
+        # the score reads 46/173 above a grid with 45 cells lit and the panel
+        # looks broken. Count what the grid can actually show, and log the
+        # disagreement so a stale roster is diagnosable rather than mysterious.
+        orphans = sorted(done - set(roster))
+        if orphans:
+            log.warning("ARAM God: %d completed id(s) not in the roster: %s", len(orphans), orphans)
+        return {
+            "tracked": progress["synced_at"] is not None,
+            "synced_at": progress["synced_at"],
+            "source": progress["source"],
+            "completed": sum(c["done"] for c in champions),
+            "total": len(roster),
+            "champions": champions,
+        }
+
+    def _warm_roster_icons(roster: dict) -> None:
+        """Cache portraits for the whole roster, off the request path.
+
+        The grid wants ~173 icons and a new install has almost none of them —
+        the existing warm-up only fetches champions the player has *played*.
+        Same background-only rule as champ_icon: a slow CDN must never stall a
+        page that is otherwise pure local data.
+        """
+        nonlocal _warming
+        with _warm_lock:
+            if _warming:
+                return
+            _warming = True
+
+        def worker():
+            nonlocal _warming
+            try:
+                ddragon.warm((name, False) for name in roster.values())
+            except Exception:
+                log.debug("ARAM God icon warm-up failed", exc_info=True)
+            finally:
+                with _warm_lock:
+                    _warming = False
+
+        threading.Thread(target=worker, name="aram-god-icons", daemon=True).start()
 
     @app.get("/api/onboarding")
     def onboarding():

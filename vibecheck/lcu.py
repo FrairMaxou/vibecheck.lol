@@ -27,6 +27,33 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 GAMEFLOW_EVENT = "OnJsonApiEvent_lol-gameflow_v1_gameflow-phase"
 
+# Every challenge the account knows about, in one payload (~400 entries).
+CHALLENGES_PATH = "/lol-challenges/v1/challenges/local-player"
+
+
+def canonical_roster(champion_names: dict) -> dict:
+    """The playable roster — one entry per champion — from an id→name map.
+
+    `champion_names()` deliberately keeps every id the client ships, League
+    Classic's alternate versions included: capture needs them to name a Jade
+    pick. Anything that asks "how many champions are there" must not, because
+    the Classic variants reuse the modern champion's display name and would
+    inflate the roster from 173 to 233 — an ARAM God bar that can never fill.
+
+    Canonical means the lowest id for a display name, the same rule ddragon.py
+    uses to pick art. Derived from the data rather than an id cutoff or a
+    `Jade_` prefix, either of which rots the next time Riot ships a variant set.
+    """
+    lowest: dict[str, int] = {}
+    for champ_id, name in (champion_names or {}).items():
+        try:
+            champ_id = int(champ_id)  # meta round-trips through JSON, so keys are strings
+        except (TypeError, ValueError):
+            continue
+        if name and champ_id > 0 and champ_id < lowest.get(name, 1 << 30):
+            lowest[name] = champ_id
+    return {champ_id: name for name, champ_id in lowest.items()}
+
 
 @dataclass
 class LcuConnection:
@@ -125,6 +152,48 @@ class LcuClient:
         if not isinstance(summary, list):
             return {}
         return {c["id"]: c["name"] for c in summary if c.get("id", -1) > 0}
+
+    def challenge(self, challenge_id: int) -> dict | None:
+        """One challenge's progress for the logged-in player, or None.
+
+        The endpoint answers with a dict keyed by challenge id **as a string**
+        — not the list the rest of these endpoints return — carrying every
+        challenge at once, so this indexes rather than scans. A challenge Riot
+        has retired simply stops appearing, which lands here as None.
+        """
+        data = self.get(CHALLENGES_PATH)
+        if not isinstance(data, dict):
+            return None
+        entry = data.get(str(challenge_id))
+        return entry if isinstance(entry, dict) else None
+
+    def completed_champion_ids(self, challenge_id: int) -> list[int] | None:
+        """Champions already completed for a per-champion challenge.
+
+        **None and [] mean different things.** None is "we could not read it"
+        — client closed, challenge retired, payload shape drifted — and the
+        caller must keep whatever it stored last. [] is a real answer: the
+        player has completed none. Conflating them wipes a lifetime figure we
+        cannot rebuild, which is the one unrecoverable mistake available here.
+        """
+        entry = self.challenge(challenge_id)
+        if entry is None:
+            return None
+        # The flag that says completedIds are champion ids rather than, say,
+        # queue ids. 74 challenges declare one, so this is a shared mechanism
+        # and worth checking instead of assuming.
+        if entry.get("idListType") != "CHAMPION":
+            log.warning(
+                "Challenge %s is no longer a champion list (idListType=%r) — not syncing",
+                challenge_id,
+                entry.get("idListType"),
+            )
+            return None
+        ids = entry.get("completedIds")
+        if not isinstance(ids, list):
+            log.warning("Challenge %s has no completedIds list", challenge_id)
+            return None
+        return sorted({c for c in ids if isinstance(c, int) and c > 0})
 
     def item_names(self) -> dict:
         """itemId -> name (for build analysis, §13)."""

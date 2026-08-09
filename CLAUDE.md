@@ -93,6 +93,7 @@ row in this table — don't grow this one.
 .venv\Scripts\pythonw -m vibecheck              # run silent, tray-only
 .venv\Scripts\python tests\smoke_test.py        # capture+store smoke test (no League needed)
 .venv\Scripts\python tests\migration_test.py    # data-folder migration (isolated LOCALAPPDATA)
+.venv\Scripts\python tests\achievement_test.py  # ARAM God: roster rule, store, API (no client needed)
 .venv\Scripts\ruff check . --fix                # lint (incl. security rules)
 .venv\Scripts\ruff format .                     # format
 .venv\Scripts\pre-commit run --all-files        # everything the commit hook runs
@@ -122,7 +123,7 @@ Details: [CONTRIBUTING.md](CONTRIBUTING.md), [docs/RELEASE.md](docs/RELEASE.md).
 - [vibecheck/popup.py](vibecheck/popup.py), [vibecheck/tray.py](vibecheck/tray.py) — rating popup (F7–F10b) and tray icon (F22).
 - [vibecheck/sync.py](vibecheck/sync.py), [vibecheck/telemetry.py](vibecheck/telemetry.py), [vibecheck/updater.py](vibecheck/updater.py) — Supabase squad sync, anonymous usage ping, one-click self-update.
 - [vibecheck/security.py](vibecheck/security.py) — the dashboard's browser-facing guards: CSRF rejection on state-changing requests, CSP and friends on every response. Read it before adding an endpoint or an inline handler.
-- [vibecheck/config.py](vibecheck/config.py) — `APP_VERSION`, paths, queue labels, timeouts.
+- [vibecheck/config.py](vibecheck/config.py) — `APP_VERSION`, paths, queue labels, timeouts, and the achievement definitions (PRD §16 — definitions live in code, only progress is data).
 
 ## Architecture (PRD §6)
 

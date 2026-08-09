@@ -65,6 +65,21 @@ CREATE TABLE IF NOT EXISTS meta (
     key TEXT PRIMARY KEY,
     value TEXT
 );
+-- Achievement progress (PRD §16). Definitions live in code; only progress is
+-- data, so this table never learns what an achievement *is*.
+--
+-- champion_id is 0, not NULL, for a goal that isn't per-champion: SQLite treats
+-- NULLs as distinct in a UNIQUE index, so a nullable column in the primary key
+-- would let the same counter be inserted twice and silently double.
+CREATE TABLE IF NOT EXISTS achievement_progress (
+    key TEXT NOT NULL,
+    champion_id INTEGER NOT NULL DEFAULT 0,
+    state TEXT,
+    value REAL,
+    source TEXT,
+    updated_at TEXT,
+    PRIMARY KEY (key, champion_id)
+);
 """
 
 
@@ -259,6 +274,74 @@ class GameStore:
                 "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                 (key, value),
             )
+
+    # ---------------- achievements (PRD §16) ----------------
+
+    def set_achievement_champions(self, key: str, champion_ids, source: str = "client") -> bool:
+        """Replace the completed-champion set for an achievement.
+
+        Returns whether anything actually changed, so the caller can avoid
+        bumping the data revision — this is re-read on every League client
+        connect, and an unconditional bump would make an open dashboard reload
+        itself every time the client restarts.
+
+        Callers must never pass an empty list to mean "couldn't read it": that
+        would erase a lifetime figure the app cannot rebuild from its own
+        games. See `lcu.completed_champion_ids`, which returns None for that.
+        """
+        wanted = sorted({int(c) for c in champion_ids if int(c) > 0})
+        now = datetime.now().isoformat(timespec="seconds")
+        with self._lock, self._db:
+            rows = self._db.execute(
+                "SELECT champion_id FROM achievement_progress WHERE key = ? AND champion_id > 0",
+                (key,),
+            ).fetchall()
+            current = sorted(r["champion_id"] for r in rows)
+            changed = current != wanted
+            if changed:
+                self._db.execute(
+                    "DELETE FROM achievement_progress WHERE key = ? AND champion_id > 0", (key,)
+                )
+                self._db.executemany(
+                    """INSERT INTO achievement_progress
+                       (key, champion_id, state, value, source, updated_at)
+                       VALUES (?,?,'completed',1,?,?)""",
+                    [(key, champ_id, source, now) for champ_id in wanted],
+                )
+            # The summary row (champion_id 0) is rewritten either way: it
+            # carries when we last *checked*, which is the difference between
+            # "no progress" and "never synced" in the UI.
+            self._db.execute(
+                """INSERT INTO achievement_progress
+                   (key, champion_id, state, value, source, updated_at)
+                   VALUES (?,0,'synced',?,?,?)
+                   ON CONFLICT(key, champion_id) DO UPDATE SET
+                       state=excluded.state, value=excluded.value,
+                       source=excluded.source, updated_at=excluded.updated_at""",
+                (key, float(len(wanted)), source, now),
+            )
+            if changed:
+                self._bump_rev()
+        return changed
+
+    def achievement_progress(self, key: str) -> dict:
+        """Stored progress for one achievement.
+
+        `synced_at` is None when the app has never managed to read it — which
+        the UI must distinguish from a real zero, or a brand-new install shows
+        a confident 0/173 that is simply a lie.
+        """
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT champion_id, source, updated_at FROM achievement_progress WHERE key = ?",
+                (key,),
+            ).fetchall()
+        summary = next((r for r in rows if r["champion_id"] == 0), None)
+        return {
+            "champion_ids": sorted(r["champion_id"] for r in rows if r["champion_id"] > 0),
+            "source": summary["source"] if summary else None,
+            "synced_at": summary["updated_at"] if summary else None,
+        }
 
     def delete_game(self, game_id: int) -> None:
         """Remove a game and all its related rows (rating, teammates, tags)."""
