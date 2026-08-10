@@ -305,6 +305,55 @@ function renderLifetimeTotals(games, leaders) {
     card("hours", "Time played", formatHours(totals.seconds), leaders.hours);
 }
 
+const OV_TIER_CLASS = { 1: "ov-tier1", 2: "ov-tier2", 3: "ov-tier3", 4: "ov-tier4", 5: "ov-tier5" };
+const OV_CAT_ICON = {
+  vibe: '<path d="M12 2l2.5 5.5L20 8l-4.5 4 1.5 6L12 15l-5 3 1.5-6L4 8l5.5-.5z"/>',
+  kills: OV_ICONS.kills, deaths: OV_ICONS.deaths, assists: OV_ICONS.assists, hours: OV_ICONS.hours,
+};
+const OV_CAT_LABEL = { vibe: "Best vibe", kills: "Most kills", deaths: "Most deaths", assists: "Most assists", hours: "Most hours" };
+const OV_CAT_HEADLINE = {
+  vibe: (r) => r.avgFun.toFixed(1),
+  kills: (r) => String(r.kills),
+  deaths: (r) => String(r.deaths),
+  assists: (r) => String(r.assists),
+  hours: (r) => formatHours(r.seconds),
+};
+
+function ovSpotlightTile(cat, row) {
+  if (!row) {
+    return `<div class="ov-stile"><div class="ov-overlay" style="opacity:1"><div class="ov-empty-note">not enough data yet</div></div></div>`;
+  }
+  const tierRound = row.avgFun != null ? Math.round(row.avgFun) : null;
+  const tierClass = tierRound ? OV_TIER_CLASS[tierRound] : "ov-tier3";
+  const vibeLabel = tierRound ? `${row.avgFun.toFixed(2)} · ${GRADES[tierRound]}` : "not enough rated games";
+  return `
+    <div class="ov-stile">
+      <img class="ov-splash-img" src="${escapeAttr(champSplashUrl(row.name, row.classic))}" alt="" loading="lazy" data-on-error="remove">
+      <div class="ov-scrim"></div>
+      <div class="ov-cat-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${OV_CAT_ICON[cat]}</svg>${OV_CAT_LABEL[cat]}</div>
+      <div class="ov-headline">
+        <div class="ov-champ-name">${escapeAttr(row.key)}</div>
+        <div class="ov-stat-big">${OV_CAT_HEADLINE[cat](row)}</div>
+      </div>
+      <div class="ov-overlay">
+        <div class="ov-name">${escapeAttr(row.key)}</div>
+        <div class="ov-games">${row.games} game${row.games === 1 ? "" : "s"}</div>
+        <div class="ov-grow">
+          <div class="ov-g"><b>${row.kills}</b>Kills</div>
+          <div class="ov-g"><b>${row.deaths}</b>Deaths</div>
+          <div class="ov-g"><b>${row.assists}</b>Assists</div>
+          <div class="ov-g"><b>${formatHours(row.seconds)}</b>Played</div>
+        </div>
+        <div class="ov-vibe-row ${tierClass}">${vibeLabel}</div>
+      </div>
+    </div>`;
+}
+
+function renderSpotlight(games, leaders) {
+  document.getElementById("ov-spotlight").innerHTML =
+    ["vibe", "kills", "deaths", "assists", "hours"].map((cat) => ovSpotlightTile(cat, leaders[cat])).join("");
+}
+
 /* ---------------- chart helpers ---------------- */
 
 function destroyChart(id) {
@@ -515,7 +564,7 @@ function renderOverview(games) {
   // twice on every filter-bar keystroke.
   const leaders = categoryLeaders(championTotals(games));
   renderLifetimeTotals(games, leaders);
-  // renderSpotlight(games, leaders) — Task 5
+  renderSpotlight(games, leaders);
   // renderAramGodCompact() — Task 6
   // renderVibeTrend(games) — Task 7
 }
