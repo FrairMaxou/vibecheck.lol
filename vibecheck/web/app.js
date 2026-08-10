@@ -191,6 +191,84 @@ function aggregate(games, keyFn) {
   }));
 }
 
+/* Per-champion career totals (raw sums, not averages) — feeds the Overview
+   lifetime strip and spotlight tiles. Separate from aggregate() rather than
+   extending it: aggregate() is shared by every tab's fun/winrate charts and
+   deliberately stays narrow, while these sums (kills/deaths/assists/seconds)
+   are Overview-specific. */
+function championTotals(games) {
+  const acc = new Map();
+  for (const g of games) {
+    const key = g.champion_key;
+    if (!key) continue;
+    const a = acc.get(key) || {
+      key, name: g.champion, classic: g.classic, games: 0, n: 0,
+      kills: 0, deaths: 0, assists: 0, seconds: 0, funSum: 0, funN: 0,
+    };
+    a.games += 1;
+    a.kills += g.kills || 0;
+    a.deaths += g.deaths || 0;
+    a.assists += g.assists || 0;
+    a.seconds += g.duration_seconds || 0;
+    if (g.rated) { a.funSum += g.fun_score; a.funN += 1; }
+    acc.set(key, a);
+  }
+  return [...acc.values()].map((a) => ({
+    key: a.key, name: a.name, classic: a.classic, games: a.games, n: a.funN,
+    kills: a.kills, deaths: a.deaths, assists: a.assists, seconds: a.seconds,
+    avgFun: a.funN ? a.funSum / a.funN : null,
+  }));
+}
+
+/* One champion per category — "spotlight" tiles pick the max, "kills"/etc.
+   need no MIN_N gate (a raw total, not an average), but "vibe" does: an
+   average from one lucky game isn't a career highlight, it's noise. Matches
+   the MIN_N threshold the existing "Certified Banger" card already uses. */
+function categoryLeaders(rows) {
+  const top = (fn) => rows.length ? rows.reduce((best, r) => (fn(r) > fn(best) ? r : best)) : null;
+  const vibeRows = rows.filter((r) => r.avgFun != null && r.n >= MIN_N);
+  return {
+    vibe: vibeRows.length ? vibeRows.reduce((best, r) => (r.avgFun > best.avgFun ? r : best)) : null,
+    kills: top((r) => r.kills),
+    deaths: top((r) => r.deaths),
+    assists: top((r) => r.assists),
+    hours: top((r) => r.seconds),
+  };
+}
+
+/* Career sums across every champion, plus the earliest game's day for the
+   "since <date>" caption. Deliberately computed from whatever `games` this
+   is called with (the filtered set, same as the rest of Overview) rather
+   than always ALL — consistent with how "Certified Banger" et al. already
+   respond to the filter bar; only ARAM God is the documented exception. */
+function lifetimeTotals(games) {
+  if (!games.length) return { kills: 0, deaths: 0, assists: 0, seconds: 0, since: null };
+  let kills = 0, deaths = 0, assists = 0, seconds = 0, since = games[0].day;
+  for (const g of games) {
+    kills += g.kills || 0;
+    deaths += g.deaths || 0;
+    assists += g.assists || 0;
+    seconds += g.duration_seconds || 0;
+    if (g.day < since) since = g.day;
+  }
+  return { kills, deaths, assists, seconds, since };
+}
+
+function champSplashUrl(name, classic) {
+  if (!name) return null;
+  return `/api/champ-splash/${encodeURIComponent(name)}${classic ? "?classic=1" : ""}`;
+}
+
+function formatHours(seconds) {
+  return `${Math.round(seconds / 3600)}h`;
+}
+
+function formatSince(day) {
+  if (!day) return "no games yet";
+  const d = new Date(day);
+  return `since ${d.toLocaleString("en-US", { month: "short", year: "numeric" })}`;
+}
+
 /* ---------------- chart helpers ---------------- */
 
 function destroyChart(id) {
