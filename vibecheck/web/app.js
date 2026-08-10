@@ -269,6 +269,42 @@ function formatSince(day) {
   return `since ${d.toLocaleString("en-US", { month: "short", year: "numeric" })}`;
 }
 
+const OV_ICONS = {
+  kills: '<path d="M4 20L14 10M14 10L11 7M14 10L17 13M20 4L10 14M10 14L13 17M10 14L7 11"/>',
+  deaths: '<path d="M7 21V13a5 5 0 0110 0v8M4 21h16"/>',
+  assists: '<circle cx="8" cy="12" r="4"/><circle cx="16" cy="12" r="4"/>',
+  hours: '<path d="M12 3a9 9 0 100 18 9 9 0 000-18z"/><path d="M12 7v5l4 2"/>',
+};
+
+function ovIcon(kind) {
+  return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${OV_ICONS[kind]}</svg>`;
+}
+
+function ovSplashImg(leaderRow) {
+  if (!leaderRow) return "";
+  const url = champSplashUrl(leaderRow.name, leaderRow.classic);
+  return `<img class="ov-splash-img" src="${escapeAttr(url)}" alt="" loading="lazy" data-on-error="remove">`;
+}
+
+function renderLifetimeTotals(games, leaders) {
+  const totals = lifetimeTotals(games);
+  const since = formatSince(totals.since);
+  const card = (kind, label, value, leaderRow) => `
+    <div class="ov-tcard">
+      ${ovSplashImg(leaderRow)}
+      <div class="ov-scrim"></div>
+      <div class="ov-content">
+        <div>${ovIcon(kind)}<span class="ov-label">${label}</span></div>
+        <div><div class="ov-value">${value}</div><div class="ov-since">${since}</div></div>
+      </div>
+    </div>`;
+  document.getElementById("ov-totals").innerHTML =
+    card("kills", "Kills", totals.kills.toLocaleString(), leaders.kills) +
+    card("deaths", "Deaths", totals.deaths.toLocaleString(), leaders.deaths) +
+    card("assists", "Assists", totals.assists.toLocaleString(), leaders.assists) +
+    card("hours", "Time played", formatHours(totals.seconds), leaders.hours);
+}
+
 /* ---------------- chart helpers ---------------- */
 
 function destroyChart(id) {
@@ -474,59 +510,14 @@ function card(k, v, d, gold = false) {
 }
 
 function renderOverview(games) {
-  const rated = games.filter((g) => g.rated);
-  const facts = [];
-  if (rated.length) {
-    const avg = rated.reduce((s, g) => s + g.fun_score, 0) / rated.length;
-    facts.push(card("Vibe-o-meter", `${avg.toFixed(2)} <span class="emoji">${EMOJI[Math.round(avg)]}</span>`, `${GRADES[Math.round(avg)]} · ${rated.length} rated games`, true));
-  } else {
-    facts.push(card("Vibe-o-meter", "—", "no rated games in this filter (rookie numbers)"));
-  }
-  const champs = aggregate(games, (g) => g.champion_key).filter((r) => r.avgFun != null);
-  const bigChamps = champs.filter((r) => r.n >= MIN_N).sort((a, b) => b.avgFun - a.avgFun);
-  facts.push(bigChamps.length
-    ? card("Certified banger", `${bigChamps[0].key} ${EMOJI[Math.round(bigChamps[0].avgFun)]}`, `${bigChamps[0].avgFun.toFixed(2)} avg over ${bigChamps[0].n} games — this one's for the soul`, true)
-    : card("Certified banger", "…", `not enough data yet (needs ${MIN_N} rated games on one champ)`));
-  if (bigChamps.length > 1) {
-    const w = bigChamps[bigChamps.length - 1];
-    facts.push(card("Certified yikes", `${w.key} ${EMOJI[Math.round(w.avgFun)]}`, `${w.avgFun.toFixed(2)} avg over ${w.n} games — why do you keep doing this`));
-  }
-  const withP = rated.filter((g) => g.premades.length);
-  const solo = rated.filter((g) => !g.premades.length);
-  facts.push(withP.length >= MIN_N && solo.length >= MIN_N
-    ? card("Squad buff",
-        `${(withP.reduce((s, g) => s + g.fun_score, 0) / withP.length).toFixed(2)} vs ${(solo.reduce((s, g) => s + g.fun_score, 0) / solo.length).toFixed(2)}`,
-        `with the squad vs. solo queue despair (${withP.length}/${solo.length} games)`, true)
-    : card("Squad buff", "…", "not enough data yet (play more with & without the squad)"));
-  const cov = games.length ? Math.round((100 * rated.length) / games.filter((g) => !g.is_remake).length) : 0;
-  facts.push(card("No games left on read", `${cov}%`, "of games rated — aim for 90%, don't leave games on read"));
-  document.getElementById("fun-facts").innerHTML = facts.join("");
-
-  // trend: rolling average (window 5) over rated games in chronological order
-  destroyChart("chart-trend");
-  const seq = rated.slice().sort((a, b) => a.date - b.date);
-  const points = seq.map((g, i) => {
-    const win = seq.slice(Math.max(0, i - 4), i + 1);
-    return { x: i + 1, y: win.reduce((s, x) => s + x.fun_score, 0) / win.length, g };
-  });
-  charts["chart-trend"] = new Chart(document.getElementById("chart-trend"), {
-    type: "line",
-    data: { datasets: [{
-      data: points, borderColor: GOLD, borderWidth: 2, pointRadius: 3,
-      pointBackgroundColor: GOLD, tension: 0.3, fill: false,
-    }] },
-    options: {
-      maintainAspectRatio: false,
-      scales: {
-        x: { type: "linear", title: { display: true, text: "rated game #" }, ticks: { stepSize: 1 } },
-        y: { min: 1, max: 5, ticks: { callback: (v) => EMOJI[v] || v } },
-      },
-      plugins: { tooltip: { callbacks: {
-        label: (c) => ` ${c.raw.g.champion_key || "?"} ${EMOJI[c.raw.g.fun_score]} — rolling avg ${c.raw.y.toFixed(2)}`,
-        title: (items) => items[0].raw.g.day,
-      } } },
-    },
-  });
+  // Computed once and shared: Task 5's spotlight needs this exact same
+  // result, and championTotals()/categoryLeaders() aren't free to redo
+  // twice on every filter-bar keystroke.
+  const leaders = categoryLeaders(championTotals(games));
+  renderLifetimeTotals(games, leaders);
+  // renderSpotlight(games, leaders) — Task 5
+  // renderAramGodCompact() — Task 6
+  // renderVibeTrend(games) — Task 7
 }
 
 function renderChampions(games) {
