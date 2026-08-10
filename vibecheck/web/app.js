@@ -624,7 +624,7 @@ function renderHeader(games) {
 }
 
 function renderOverview(games) {
-  // Computed once and shared: Task 5's spotlight needs this exact same
+  // Computed once and shared: the spotlight below needs this exact same
   // result, and championTotals()/categoryLeaders() aren't free to redo
   // twice on every filter-bar keystroke.
   const leaders = categoryLeaders(championTotals(games));
