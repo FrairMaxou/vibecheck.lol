@@ -558,3 +558,19 @@ tr.low-n td { color: var(--ink-3); }
 .ov-tier2 { background: rgba(249,115,22,.35); color: #ffcda3; }
 .ov-tier1 { background: rgba(239,68,68,.35); color: #ffaba3; }
 .ov-empty-note { color: var(--vc-text-muted); font-size: 12.5px; }
+
+.ov-aram-card {
+  background: var(--vc-bg-surface); border: 1px solid var(--vc-border); border-radius: 12px;
+  padding: 14px 18px; margin-top: 26px; display: flex; align-items: center; gap: 16px;
+}
+.ov-aram-card .ov-aram-badge {
+  width: 40px; height: 40px; border-radius: 10px; background: rgba(229,169,60,.15);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--vc-gold-hl);
+}
+.ov-aram-card .ov-aram-body { flex: 1; }
+.ov-aram-card .ov-aram-title-row { display: flex; justify-content: space-between; align-items: baseline; }
+.ov-aram-card .ov-aram-title { font-size: 14px; font-weight: 600; color: var(--vc-text-main); }
+.ov-aram-card .ov-aram-count { font-family: "JetBrains Mono", "Consolas", monospace; font-size: 13px; color: var(--vc-gold-hl); }
+.ov-aram-card .ov-aram-hint { font-size: 11px; color: var(--vc-text-muted); margin-top: 2px; }
+.ov-aram-card .ov-aram-bar { height: 8px; border-radius: 5px; background: var(--vc-bg-surface-hover); margin-top: 8px; overflow: hidden; }
+.ov-aram-card .ov-aram-fill { height: 100%; background: linear-gradient(90deg, var(--vc-gold), var(--vc-gold-hl)); border-radius: 5px; }

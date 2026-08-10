@@ -354,6 +354,40 @@ function renderSpotlight(games, leaders) {
     ["vibe", "kills", "deaths", "assists", "hours"].map((cat) => ovSpotlightTile(cat, leaders[cat])).join("");
 }
 
+const ARAM_GOD_ICON = '<path d="M12 2l2.5 5.5L20 8l-4.5 4 1.5 6L12 15l-5 3 1.5-6L4 8l5.5-.5z"/>';
+
+async function renderAramGodCompact() {
+  const host = document.getElementById("ov-aram");
+  let d;
+  try {
+    d = ARAM_GOD = ARAM_GOD || (await fetchAramGod());
+  } catch {
+    host.innerHTML = "";
+    return;
+  }
+  const badge = `<div class="ov-aram-badge"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">${ARAM_GOD_ICON}</svg></div>`;
+  if (!d.tracked || !d.total) {
+    host.innerHTML = `
+      <div class="ov-aram-card">${badge}
+        <div class="ov-aram-body">
+          <div class="ov-aram-title-row"><div class="ov-aram-title">ARAM God run</div><div class="ov-aram-count">not tracked yet</div></div>
+          <div class="ov-aram-hint">Open the League client once with VibeCheck running to start tracking this</div>
+          <div class="ov-aram-bar"><div class="ov-aram-fill" style="width:0%"></div></div>
+        </div>
+      </div>`;
+    return;
+  }
+  const pct = d.total ? Math.round((d.completed / d.total) * 100) : 0;
+  host.innerHTML = `
+    <div class="ov-aram-card">${badge}
+      <div class="ov-aram-body">
+        <div class="ov-aram-title-row"><div class="ov-aram-title">ARAM God run</div><div class="ov-aram-count">${d.completed} / ${d.total}</div></div>
+        <div class="ov-aram-hint">S- or better on every ARAM champion — the long one</div>
+        <div class="ov-aram-bar"><div class="ov-aram-fill" style="width:${pct}%"></div></div>
+      </div>
+    </div>`;
+}
+
 /* ---------------- chart helpers ---------------- */
 
 function destroyChart(id) {
@@ -565,7 +599,7 @@ function renderOverview(games) {
   const leaders = categoryLeaders(championTotals(games));
   renderLifetimeTotals(games, leaders);
   renderSpotlight(games, leaders);
-  // renderAramGodCompact() — Task 6
+  renderAramGodCompact();
   // renderVibeTrend(games) — Task 7
 }
 
@@ -588,20 +622,22 @@ let ARAM_GOD = null;
 let ARAM_GOD_PENDING = null; // in-flight fetch, so rapid re-renders share one request
 let ARAM_GOD_DRAWN = null; // what's currently on screen
 
+/* Shared by the full grid (Champions tab) and the compact widget (Overview)
+   — both read the same lifetime figure, so this in-flight-request guard
+   must be shared too, or a render of each panel back-to-back fires two
+   requests instead of one. */
+function fetchAramGod() {
+  ARAM_GOD_PENDING = ARAM_GOD_PENDING || fetchJSON("/api/aram-god");
+  return ARAM_GOD_PENDING.finally(() => { ARAM_GOD_PENDING = null; });
+}
+
 async function renderAramGod() {
   const host = document.getElementById("aram-god");
-  if (!ARAM_GOD) {
-    try {
-      // renderChampions runs on every filter keystroke; without this the same
-      // request goes out several times before the first one lands.
-      ARAM_GOD_PENDING = ARAM_GOD_PENDING || fetchJSON("/api/aram-god");
-      ARAM_GOD = await ARAM_GOD_PENDING;
-    } catch {
-      host.innerHTML = '<div class="empty-note">Couldn\'t read your ARAM God progress.</div>';
-      return;
-    } finally {
-      ARAM_GOD_PENDING = null;
-    }
+  try {
+    if (!ARAM_GOD) ARAM_GOD = await fetchAramGod();
+  } catch {
+    host.innerHTML = '<div class="empty-note">Couldn\'t read your ARAM God progress.</div>';
+    return;
   }
   const d = ARAM_GOD;
   // The grid is ~173 cells and as many <img>s. Rebuilding it on every keystroke
