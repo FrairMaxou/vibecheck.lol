@@ -328,7 +328,7 @@ function ovSpotlightTile(cat, row) {
   const vibeLabel = tierRound ? `${row.avgFun.toFixed(2)} · ${GRADES[tierRound]}` : "not enough rated games";
   return `
     <div class="ov-stile">
-      <img class="ov-splash-img" src="${escapeAttr(champSplashUrl(row.name, row.classic))}" alt="" loading="lazy" data-on-error="remove">
+      ${ovSplashImg(row)}
       <div class="ov-scrim"></div>
       <div class="ov-cat-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${OV_CAT_ICON[cat]}</svg>${OV_CAT_LABEL[cat]}</div>
       <div class="ov-headline">
