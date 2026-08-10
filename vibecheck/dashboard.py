@@ -122,6 +122,7 @@ def create_app(
     update_job = updater.UpdateJob()
     _warm_lock = threading.Lock()
     _warming = False
+    _warming_splash = False
 
     def _settings() -> dict:
         is_paused = controls.get("is_paused")
@@ -234,6 +235,43 @@ def create_app(
                     _warming = False
 
         threading.Thread(target=worker, name="champ-icons", daemon=True).start()
+
+    @app.get("/api/champ-splash/{name}")
+    def champ_splash(name: str, classic: bool = False):
+        """A champion's loading-screen splash, served from the local cache
+        only — same never-block-on-network contract as champ_icon."""
+        path = ddragon.splash_path(name, classic=classic)
+        if not path:
+            _warm_splashes()
+            raise HTTPException(404)
+        return FileResponse(path)
+
+    def _warm_splashes() -> None:
+        """Download any splash art the store needs but the cache doesn't have.
+
+        Mirrors _warm_icons exactly, including the same guard-flag caveat:
+        it clears when the pass finishes rather than latching permanently.
+        """
+        nonlocal _warming_splash
+        with _warm_lock:
+            if _warming_splash:
+                return
+            _warming_splash = True
+
+        def worker():
+            nonlocal _warming_splash
+            try:
+                ddragon.warm_splash(
+                    (g["champion"], capture.is_classic(g.get("queue_id"), g.get("queue_type")))
+                    for g in store.games_with_details()
+                )
+            except Exception:
+                log.debug("Champion splash warm-up failed", exc_info=True)
+            finally:
+                with _warm_lock:
+                    _warming_splash = False
+
+        threading.Thread(target=worker, name="champ-splashes", daemon=True).start()
 
     @app.get("/api/aram-god")
     def aram_god():
