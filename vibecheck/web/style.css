@@ -574,3 +574,16 @@ tr.low-n td { color: var(--ink-3); }
 .ov-aram-card .ov-aram-hint { font-size: 11px; color: var(--vc-text-muted); margin-top: 2px; }
 .ov-aram-card .ov-aram-bar { height: 8px; border-radius: 5px; background: var(--vc-bg-surface-hover); margin-top: 8px; overflow: hidden; }
 .ov-aram-card .ov-aram-fill { height: 100%; background: linear-gradient(90deg, var(--vc-gold), var(--vc-gold-hl)); border-radius: 5px; }
+
+.ov-trend-chart { position: relative; height: 130px; margin-top: 6px; }
+.ov-trend-chart svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.ov-trend-point { position: absolute; transform: translate(-50%, -50%); width: 30px; height: 30px; }
+.ov-trend-point img {
+  width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block;
+  box-shadow: 0 2px 6px rgba(0,0,0,.5);
+}
+.ov-trend-point .ov-ring { position: absolute; inset: -3px; border-radius: 50%; border: 2.5px solid var(--ring); pointer-events: none; }
+.ov-trend-legend { display: flex; gap: 16px; margin-top: 14px; flex-wrap: wrap; }
+.ov-trend-legend span { font-size: 10px; color: var(--vc-text-muted); display: flex; align-items: center; gap: 5px; }
+.ov-trend-legend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.ov-trend-empty { color: var(--vc-text-muted); font-size: 12.5px; padding: 20px 0; text-align: center; }

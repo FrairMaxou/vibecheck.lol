@@ -388,6 +388,41 @@ async function renderAramGodCompact() {
     </div>`;
 }
 
+const OV_TIER_HEX = { 1: "#EF4444", 2: "#F97316", 3: "#EAB308", 4: "#10B981", 5: "#8B5CF6" };
+
+function renderVibeTrend(games) {
+  const host = document.getElementById("ov-trend");
+  const rated = games.filter((g) => g.rated).slice().sort((a, b) => a.date - b.date);
+  if (!rated.length) {
+    host.innerHTML = '<div class="ov-trend-empty">Rate a few games and your vibe trend shows up here.</div>';
+    return;
+  }
+  const n = rated.length;
+  const points = rated.map((g, i) => ({
+    x: n > 1 ? (100 * i) / (n - 1) : 50,
+    // Plot 1–5 into the 8–92% band, inverted (SVG y grows downward, and a
+    // high score should sit near the top of the chart).
+    y: 92 - ((g.fun_score - 1) / 4) * 84,
+    g,
+  }));
+  const line = points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+  const dots = points.map((p) => `
+    <div class="ov-trend-point" style="left:${p.x.toFixed(1)}%;top:${p.y.toFixed(1)}%;--ring:${OV_TIER_HEX[p.g.fun_score]}"
+         title="${escapeAttr(p.g.champion_key || "?")} — ${escapeAttr(p.g.day)} — ${GRADES[p.g.fun_score]}">
+      <div class="ov-ring"></div>
+      <img src="/api/champ-icon/${encodeURIComponent(p.g.champion || "")}${p.g.classic ? "?classic=1" : ""}"
+           alt="" loading="lazy" data-on-error="remove">
+    </div>`).join("");
+  host.innerHTML = `
+    <div class="ov-trend-chart">
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <polyline fill="none" stroke="${OV_TIER_HEX[3]}22" stroke-width="1.2" vector-effect="non-scaling-stroke" points="${line}"/>
+      </svg>
+      ${dots}
+    </div>
+    <div class="ov-trend-legend">${[1, 2, 3, 4, 5].map((t) => `<span><i style="background:${OV_TIER_HEX[t]}"></i>${GRADES[t]}</span>`).join("")}</div>`;
+}
+
 /* ---------------- chart helpers ---------------- */
 
 function destroyChart(id) {
@@ -588,10 +623,6 @@ function renderHeader(games) {
   } else banner.classList.add("hidden");
 }
 
-function card(k, v, d, gold = false) {
-  return `<div class="card${gold ? " gold" : ""}"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div></div>`;
-}
-
 function renderOverview(games) {
   // Computed once and shared: Task 5's spotlight needs this exact same
   // result, and championTotals()/categoryLeaders() aren't free to redo
@@ -600,7 +631,7 @@ function renderOverview(games) {
   renderLifetimeTotals(games, leaders);
   renderSpotlight(games, leaders);
   renderAramGodCompact();
-  // renderVibeTrend(games) — Task 7
+  renderVibeTrend(games);
 }
 
 function renderChampions(games) {
