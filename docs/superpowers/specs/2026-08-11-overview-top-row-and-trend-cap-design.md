@@ -97,9 +97,10 @@ game. Change:
   either, e.g. the spotlight overlay).
 - If `rated.length <= 20`, no link — behavior is identical to today.
 - Expanded/collapsed is transient UI state (a module-level flag, not
-  persisted) — it resets to collapsed on the next full re-render (tab
-  switch, filter change, new game), consistent with how this app doesn't
-  persist other UI toggles across reloads.
+  persisted) — it resets to collapsed only on a real data refresh (e.g. a
+  new game arriving via `pollRev`), not on tab switch or filter change,
+  consistent with how this app doesn't persist other UI toggles across
+  reloads.
 - The legend, ring colors, portrait rendering, and the "not squished"
   crisp-icon requirement from the original trend spec are all unchanged —
   this only changes which subset of `rated` gets passed into the existing

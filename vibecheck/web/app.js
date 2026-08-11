@@ -99,7 +99,7 @@ function champIcon(name, classic) {
 // first request would otherwise stay broken for the rest of the session,
 // since nothing else re-renders the tile until a filter/tab change or a new
 // game. Retrying with backoff covers that warm-up window without polling.
-const SPLASH_RETRY_DELAYS_MS = [1500, 3000, 6000];
+const SPLASH_RETRY_DELAYS_MS = [1500, 3000, 6000, 12000, 24000];
 
 const ON_ERROR = {
   remove: (el) => el.remove(),

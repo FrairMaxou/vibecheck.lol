@@ -564,7 +564,7 @@ tr.low-n td { color: var(--ink-3); }
 .ov-aram-card {
   background: var(--vc-bg-surface); border: 1px solid var(--vc-border); border-radius: 14px;
   padding: 20px; text-align: center; aspect-ratio: 1; box-sizing: border-box;
-  display: flex; flex-direction: column; justify-content: center;
+  display: flex; flex-direction: column; justify-content: center; min-height: fit-content;
 }
 .ov-aram-sq-label {
   font-size: 11px; letter-spacing: 2px; color: var(--vc-text-muted);
@@ -576,7 +576,7 @@ tr.low-n td { color: var(--ink-3); }
 }
 .ov-aram-sq-pill {
   display: inline-block; padding: 4px 12px; border-radius: 16px; font-size: 11px; font-weight: 700;
-  letter-spacing: .5px; margin-bottom: 16px;
+  letter-spacing: .5px; margin-bottom: 16px; align-self: center;
   background: rgba(229, 169, 60, .15); color: var(--vc-gold-hl); border: 1px solid rgba(229, 169, 60, .4);
 }
 .ov-aram-empty .ov-aram-sq-pill { background: var(--vc-bg-surface-hover); color: var(--vc-text-muted); border-color: var(--vc-border); }
@@ -602,7 +602,7 @@ tr.low-n td { color: var(--ink-3); }
 .ov-vibemeter-card {
   background: var(--vc-bg-surface); border: 1px solid var(--vc-border); border-radius: 14px;
   padding: 20px; text-align: center; aspect-ratio: 1; box-sizing: border-box;
-  display: flex; flex-direction: column; justify-content: center;
+  display: flex; flex-direction: column; justify-content: center; min-height: fit-content;
 }
 .ov-vm-label {
   font-size: 11px; letter-spacing: 2px; color: var(--vc-text-muted);
@@ -614,7 +614,7 @@ tr.low-n td { color: var(--ink-3); }
 }
 .ov-vm-pill {
   display: inline-block; padding: 4px 12px; border-radius: 16px; font-size: 11px; font-weight: 700;
-  letter-spacing: .5px; margin-bottom: 16px;
+  letter-spacing: .5px; margin-bottom: 16px; align-self: center;
 }
 .ov-vm-empty .ov-vm-pill { background: var(--vc-bg-surface-hover); color: var(--vc-text-muted); }
 .ov-vm-bar { position: relative; display: flex; gap: 3px; height: 14px; margin: 0 4px; }
