@@ -639,10 +639,13 @@ tr.low-n td { color: var(--ink-3); }
 
 .ov-trend-panel { margin-top: 26px; }
 
-.ov-trend-row { display: flex; gap: 8px; }
-.ov-trend-yaxis { display: flex; flex-direction: column; justify-content: space-between; padding: 2px 0; }
+.ov-trend-row { display: flex; gap: 8px; align-items: flex-start; }
+.ov-trend-yaxis {
+  height: 130px; margin-top: 6px;
+  display: flex; flex-direction: column; justify-content: space-between;
+}
 .ov-trend-yaxis span { font-size: 10px; color: var(--vc-text-muted); font-family: "JetBrains Mono", "Consolas", monospace; }
-.ov-trend-col { flex: 1; min-width: 0; }
+.ov-trend-col { flex: 1; min-width: 0; padding: 0 16px; }
 .ov-trend-xaxis { display: flex; justify-content: space-between; margin-top: 6px; }
 .ov-trend-xaxis span { font-size: 10px; color: var(--vc-text-muted); font-family: "JetBrains Mono", "Consolas", monospace; }
 .ov-trend-readout {
