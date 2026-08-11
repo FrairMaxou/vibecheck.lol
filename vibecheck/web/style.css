@@ -637,13 +637,7 @@ tr.low-n td { color: var(--ink-3); }
 .ov-vm-caption { margin-top: 18px; font-size: 12px; color: var(--vc-text-muted); }
 .ov-vm-caption b { font-family: "JetBrains Mono", "Consolas", monospace; color: var(--vc-text-main); font-weight: 700; }
 
-.ov-trend-expand {
-  display: block; margin: 12px auto 0; padding: 6px 14px; border-radius: 8px;
-  background: var(--vc-bg-surface-hover); border: 1px solid var(--vc-border);
-  color: var(--vc-text-muted); font-size: 12px; cursor: pointer;
-}
 .ov-trend-panel { margin-top: 26px; }
-.ov-trend-expand:hover { color: var(--vc-text-main); border-color: var(--vc-gold); }
 
 .ov-trend-row { display: flex; gap: 8px; }
 .ov-trend-yaxis { display: flex; flex-direction: column; justify-content: space-between; padding: 2px 0; }
@@ -658,3 +652,21 @@ tr.low-n td { color: var(--ink-3); }
 .ov-trend-readout-dot { width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0; }
 .ov-trend-readout-meta { font-size: 11px; color: var(--vc-text-muted); }
 .ov-trend-readout-meta b { display: block; color: var(--vc-text-main); font-size: 12px; margin-bottom: 1px; }
+
+.ov-trend-filter { position: relative; margin-top: 10px; text-align: center; }
+.ov-trend-filter-btn {
+  padding: 6px 14px; border-radius: 8px; background: var(--vc-bg-surface-hover); border: 1px solid var(--vc-border);
+  color: var(--vc-text-muted); font-size: 12px; cursor: pointer;
+}
+.ov-trend-filter-btn:hover { color: var(--vc-text-main); border-color: var(--vc-gold); }
+.ov-trend-filter-menu {
+  position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(100% + 6px);
+  background: var(--vc-bg-surface); border: 1px solid var(--vc-border); border-radius: 8px; padding: 4px;
+  display: flex; flex-direction: column; min-width: 140px; z-index: 5;
+}
+.ov-trend-filter-menu.hidden { display: none; }
+.ov-trend-filter-menu button {
+  background: none; border: none; color: var(--vc-text-main); font-size: 12px; text-align: left;
+  padding: 6px 10px; border-radius: 6px; cursor: pointer;
+}
+.ov-trend-filter-menu button:hover { background: var(--vc-bg-surface-hover); }

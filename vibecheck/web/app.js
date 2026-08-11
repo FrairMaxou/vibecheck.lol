@@ -424,11 +424,11 @@ function trendReadoutHtml(g) {
     <div class="ov-trend-readout-meta"><b>${escapeAttr(g.champion_key || "?")} — ${formatTrendDate(g.day)}</b>${GRADES[g.fun_score]} (${g.fun_score})</div>`;
 }
 
-// Transient UI state, not persisted: resets to collapsed whenever refresh()
-// pulls new data (see refresh(), which sets this back to false alongside
-// its other per-load resets), but NOT on a plain tab switch or filter
-// change, so expanding doesn't get silently undone by clicking a filter.
-let ovTrendExpanded = false;
+// Transient UI state, not persisted: a deliberate filter choice, so unlike
+// last round's one-way "expand" it survives a real data refresh (see
+// refresh() — no longer resets this) and only goes back to the default on
+// a full page reload.
+let ovTrendWindow = 20; // 20 | 50 | "all"
 function renderVibeTrend(games) {
   const host = document.getElementById("ov-trend");
   const rated = games.filter((g) => g.rated).slice().sort((a, b) => a.date - b.date);
@@ -436,10 +436,9 @@ function renderVibeTrend(games) {
     host.innerHTML = '<div class="ov-trend-empty">Rate a few games and your vibe trend shows up here.</div>';
     return;
   }
-  // "How have I been doing lately" is the point of a trend, so a cap keeps
-  // the most recent games (slice(-20)), not the oldest.
-  const capped = !ovTrendExpanded && rated.length > 20;
-  const shown = capped ? rated.slice(-20) : rated;
+  // "How have I been doing lately" is the point of a trend, so a window
+  // keeps the most recent games (slice(-N)), not the oldest.
+  const shown = ovTrendWindow === "all" ? rated : rated.slice(-ovTrendWindow);
   const n = shown.length;
   const points = shown.map((g, i) => ({
     x: n > 1 ? (100 * i) / (n - 1) : 50,
@@ -467,11 +466,7 @@ function renderVibeTrend(games) {
     ? [0]
     : [...new Set(Array.from({ length: idxCount }, (_, i) => Math.round((i * (n - 1)) / (idxCount - 1))))];
   const xAxisHtml = labelIndices.map((i) => `<span>${formatTrendDate(shown[i].day)}</span>`).join("");
-  // No "collapse back" control once expanded — nothing else on this page
-  // has a collapse affordance either (e.g. the spotlight hover overlay).
-  const expandHtml = capped
-    ? `<button type="button" class="ov-trend-expand" id="ov-trend-expand">Show all ${rated.length} games</button>`
-    : "";
+  const windowLabel = ovTrendWindow === "all" ? "All" : String(ovTrendWindow);
 
   host.innerHTML = `
     <div class="ov-trend-row">
@@ -488,7 +483,14 @@ function renderVibeTrend(games) {
     </div>
     <div class="ov-trend-legend">${[1, 2, 3, 4, 5].map((t) => `<span><i style="background:${OV_TIER_HEX[t]}"></i>${GRADES[t]}</span>`).join("")}</div>
     <div class="ov-trend-readout" id="ov-trend-readout">${trendReadoutHtml(shown[n - 1])}</div>
-    ${expandHtml}`;
+    <div class="ov-trend-filter">
+      <button type="button" class="ov-trend-filter-btn" id="ov-trend-filter-btn">${windowLabel} ▾</button>
+      <div class="ov-trend-filter-menu hidden" id="ov-trend-filter-menu">
+        <button type="button" data-window="20">Last 20 games</button>
+        <button type="button" data-window="50">Last 50 games</button>
+        <button type="button" data-window="all">All games</button>
+      </div>
+    </div>`;
 
   // Hover a point -> show its exact detail; leave -> back to the most
   // recent game, so the readout is never blank.
@@ -501,12 +503,24 @@ function renderVibeTrend(games) {
       document.getElementById("ov-trend-readout").innerHTML = trendReadoutHtml(shown[n - 1]);
     });
   });
-  if (capped) {
-    document.getElementById("ov-trend-expand").addEventListener("click", () => {
-      ovTrendExpanded = true;
+
+  // The button's own toggle listener is safe to re-attach every render
+  // (it's attached to an element destroyed/recreated together with any
+  // old listener on it). The menu's OUTSIDE-click-closes listener is NOT
+  // here — see the one-time registration near the profile-menu wiring,
+  // per this plan's Global Constraints.
+  document.getElementById("ov-trend-filter-btn").addEventListener("click", (e) => {
+    e.stopPropagation();
+    document.getElementById("ov-trend-filter-menu").classList.toggle("hidden");
+  });
+  document.querySelectorAll("#ov-trend-filter-menu button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const w = btn.dataset.window;
+      ovTrendWindow = w === "all" ? "all" : Number(w);
+      document.getElementById("ov-trend-filter-menu").classList.add("hidden");
       renderVibeTrend(games);
     });
-  }
+  });
 }
 
 /* ---------------- chart helpers ---------------- */
@@ -1628,7 +1642,6 @@ async function refresh() {
   await loadData();
   ARAM_GOD = null; // a new game may have completed a champion — refetch it too
   ARAM_GOD_DRAWN = null;
-  ovTrendExpanded = false; // a genuinely new dataset re-earns the cap
   document.getElementById("offline-banner").classList.add("hidden");
   buildFilters();
   renderAll();
@@ -1683,6 +1696,15 @@ document.getElementById("profile-btn").addEventListener("click", (e) => {
 document.addEventListener("click", (e) => {
   const menu = document.getElementById("profile-menu");
   if (!menu.classList.contains("hidden") && !e.target.closest(".profile")) menu.classList.add("hidden");
+});
+
+// Vibe trend filter menu: unlike the profile menu above, #ov-trend-filter-menu
+// is rebuilt by renderVibeTrend on every render (not a static element), so this
+// listener is registered exactly ONCE here rather than inside renderVibeTrend —
+// doing it there would register a new document-level listener on every render.
+document.addEventListener("click", (e) => {
+  const menu = document.getElementById("ov-trend-filter-menu");
+  if (menu && !menu.classList.contains("hidden") && !e.target.closest(".ov-trend-filter")) menu.classList.add("hidden");
 });
 document.getElementById("pm-uninstall").addEventListener("click", doUninstall);
 document.getElementById("pm-update-btn").addEventListener("click", startUpdate);
