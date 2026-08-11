@@ -644,3 +644,17 @@ tr.low-n td { color: var(--ink-3); }
 }
 .ov-trend-panel { margin-top: 26px; }
 .ov-trend-expand:hover { color: var(--vc-text-main); border-color: var(--vc-gold); }
+
+.ov-trend-row { display: flex; gap: 8px; }
+.ov-trend-yaxis { display: flex; flex-direction: column; justify-content: space-between; padding: 2px 0; }
+.ov-trend-yaxis span { font-size: 10px; color: var(--vc-text-muted); font-family: "JetBrains Mono", "Consolas", monospace; }
+.ov-trend-col { flex: 1; min-width: 0; }
+.ov-trend-xaxis { display: flex; justify-content: space-between; margin-top: 6px; }
+.ov-trend-xaxis span { font-size: 10px; color: var(--vc-text-muted); font-family: "JetBrains Mono", "Consolas", monospace; }
+.ov-trend-readout {
+  display: flex; align-items: center; gap: 10px; margin-top: 12px;
+  background: var(--vc-bg-surface-hover); border: 1px solid var(--vc-border); border-radius: 10px; padding: 8px 12px;
+}
+.ov-trend-readout-dot { width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0; }
+.ov-trend-readout-meta { font-size: 11px; color: var(--vc-text-muted); }
+.ov-trend-readout-meta b { display: block; color: var(--vc-text-main); font-size: 12px; margin-bottom: 1px; }

@@ -410,6 +410,20 @@ async function renderAramGodCompact() {
 
 const OV_TIER_HEX = { 1: "#EF4444", 2: "#F97316", 3: "#EAB308", 4: "#10B981", 5: "#8B5CF6" };
 
+function formatTrendDate(day) {
+  const d = new Date(day);
+  return d.toLocaleString("en-US", { month: "short", day: "numeric" });
+}
+
+/* The chart's default reading when nothing is hovered, and what every
+   hovered point swaps in — one function so the two states can never
+   drift out of sync with each other's markup. */
+function trendReadoutHtml(g) {
+  return `
+    <div class="ov-trend-readout-dot" style="background:${OV_TIER_HEX[g.fun_score]}"></div>
+    <div class="ov-trend-readout-meta"><b>${escapeAttr(g.champion_key || "?")} — ${formatTrendDate(g.day)}</b>${GRADES[g.fun_score]} (${g.fun_score})</div>`;
+}
+
 // Transient UI state, not persisted: resets to collapsed whenever refresh()
 // pulls new data (see refresh(), which sets this back to false alongside
 // its other per-load resets), but NOT on a plain tab switch or filter
@@ -435,13 +449,24 @@ function renderVibeTrend(games) {
     g,
   }));
   const line = points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
-  const dots = points.map((p) => `
-    <div class="ov-trend-point" style="left:${p.x.toFixed(1)}%;top:${p.y.toFixed(1)}%;--ring:${OV_TIER_HEX[p.g.fun_score]}"
+  const dots = points.map((p, i) => `
+    <div class="ov-trend-point" data-idx="${i}" style="left:${p.x.toFixed(1)}%;top:${p.y.toFixed(1)}%;--ring:${OV_TIER_HEX[p.g.fun_score]}"
          title="${escapeAttr(p.g.champion_key || "?")} — ${escapeAttr(p.g.day)} — ${GRADES[p.g.fun_score]}">
       <div class="ov-ring"></div>
       <img src="/api/champ-icon/${encodeURIComponent(p.g.champion || "")}${p.g.classic ? "?classic=1" : ""}"
            alt="" loading="lazy" data-on-error="remove">
     </div>`).join("");
+  // y-axis is fixed (every chart plots the same 1-5 band). x-axis labels
+  // are the real dates of up to 5 actual points, picked at evenly-spaced
+  // INDICES (deduped) rather than independently computed positions, so a
+  // label always matches a real game and a short array just yields fewer
+  // labels instead of crowded/duplicate ones.
+  const yAxisHtml = [5, 4, 3, 2, 1].map((t) => `<span>${t}</span>`).join("");
+  const idxCount = Math.min(5, n);
+  const labelIndices = idxCount <= 1
+    ? [0]
+    : [...new Set(Array.from({ length: idxCount }, (_, i) => Math.round((i * (n - 1)) / (idxCount - 1))))];
+  const xAxisHtml = labelIndices.map((i) => `<span>${formatTrendDate(shown[i].day)}</span>`).join("");
   // No "collapse back" control once expanded — nothing else on this page
   // has a collapse affordance either (e.g. the spotlight hover overlay).
   const expandHtml = capped
@@ -449,14 +474,33 @@ function renderVibeTrend(games) {
     : "";
 
   host.innerHTML = `
-    <div class="ov-trend-chart">
-      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
-        <polyline fill="none" stroke="${OV_TIER_HEX[3]}22" stroke-width="1.2" vector-effect="non-scaling-stroke" points="${line}"/>
-      </svg>
-      ${dots}
+    <div class="ov-trend-row">
+      <div class="ov-trend-yaxis">${yAxisHtml}</div>
+      <div class="ov-trend-col">
+        <div class="ov-trend-chart">
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+            <polyline fill="none" stroke="${OV_TIER_HEX[3]}22" stroke-width="1.2" vector-effect="non-scaling-stroke" points="${line}"/>
+          </svg>
+          ${dots}
+        </div>
+        <div class="ov-trend-xaxis">${xAxisHtml}</div>
+      </div>
     </div>
     <div class="ov-trend-legend">${[1, 2, 3, 4, 5].map((t) => `<span><i style="background:${OV_TIER_HEX[t]}"></i>${GRADES[t]}</span>`).join("")}</div>
+    <div class="ov-trend-readout" id="ov-trend-readout">${trendReadoutHtml(shown[n - 1])}</div>
     ${expandHtml}`;
+
+  // Hover a point -> show its exact detail; leave -> back to the most
+  // recent game, so the readout is never blank.
+  document.querySelectorAll("#ov-trend .ov-trend-point").forEach((el) => {
+    const idx = Number(el.dataset.idx);
+    el.addEventListener("mouseenter", () => {
+      document.getElementById("ov-trend-readout").innerHTML = trendReadoutHtml(points[idx].g);
+    });
+    el.addEventListener("mouseleave", () => {
+      document.getElementById("ov-trend-readout").innerHTML = trendReadoutHtml(shown[n - 1]);
+    });
+  });
   if (capped) {
     document.getElementById("ov-trend-expand").addEventListener("click", () => {
       ovTrendExpanded = true;
