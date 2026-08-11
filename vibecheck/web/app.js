@@ -623,7 +623,55 @@ function renderHeader(games) {
   } else banner.classList.add("hidden");
 }
 
+/* Lifetime average, always — reads ALL directly rather than the filtered
+   `games` renderOverview receives, same reasoning as #profile-vibe above:
+   this is the one number on Overview that shouldn't move when you filter. */
+function vibeMeterStats() {
+  const total = ALL.filter((g) => !g.is_remake).length;
+  const rated = ALL.filter((g) => g.rated && !g.is_remake);
+  const avg = rated.length ? rated.reduce((s, g) => s + g.fun_score, 0) / rated.length : null;
+  return { avg, n: rated.length, total };
+}
+
+function renderVibeMeter() {
+  const { avg, n, total } = vibeMeterStats();
+  const host = document.getElementById("ov-vibemeter");
+  const segs = [1, 2, 3, 4, 5].map((t) => `<div class="ov-vm-seg" style="background:var(--vc-t${t})"></div>`).join("");
+  const ticks = [1, 2, 3, 4, 5].map((t) => `<span>${t}</span>`).join("");
+  const caption = `<b>${total}</b> games · <b>${n}</b> rated`;
+  if (avg == null) {
+    host.innerHTML = `
+      <div class="ov-vibemeter-card ov-vm-empty">
+        <div class="ov-vm-label">Vibe-o-meter</div>
+        <div class="ov-vm-number">—</div>
+        <div class="ov-vm-pill">No rated games yet</div>
+        <div class="ov-vm-bar">${segs}</div>
+        <div class="ov-vm-ticks">${ticks}</div>
+        <div class="ov-vm-caption">${caption}</div>
+      </div>`;
+    return;
+  }
+  const tier = Math.round(avg);
+  const pct = ((avg - 1) / 4) * 100;
+  host.innerHTML = `
+    <div class="ov-vibemeter-card">
+      <div class="ov-vm-label">Vibe-o-meter</div>
+      <div class="ov-vm-number">${avg.toFixed(2)}</div>
+      <div class="ov-vm-pill ${OV_TIER_CLASS[tier]}">${GRADES[tier]}</div>
+      <div class="ov-vm-bar">
+        <div class="ov-vm-marker" style="left:${pct.toFixed(1)}%"></div>
+        ${segs}
+      </div>
+      <div class="ov-vm-ticks">${ticks}</div>
+      <div class="ov-vm-caption">${caption}</div>
+    </div>`;
+}
+
 function renderOverview(games) {
+  // Deliberately first and reading ALL, not `games` — the vibe-o-meter is
+  // lifetime-average and does not react to the filter bar (see
+  // vibeMeterStats' doc comment). Everything below it does.
+  renderVibeMeter();
   // Computed once and shared: the spotlight below needs this exact same
   // result, and championTotals()/categoryLeaders() aren't free to redo
   // twice on every filter-bar keystroke.

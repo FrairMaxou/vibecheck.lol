@@ -587,3 +587,42 @@ tr.low-n td { color: var(--ink-3); }
 .ov-trend-legend span { font-size: 10px; color: var(--vc-text-muted); display: flex; align-items: center; gap: 5px; }
 .ov-trend-legend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
 .ov-trend-empty { color: var(--vc-text-muted); font-size: 12.5px; padding: 20px 0; text-align: center; }
+
+/* ---------- VIBE-O-METER: lifetime-average hero card, top of Overview.
+   Deliberately not filter-reactive — see renderVibeMeter() in app.js. ---------- */
+.ov-vibemeter-card {
+  background: var(--vc-bg-surface); border: 1px solid var(--vc-border); border-radius: 14px;
+  padding: 26px 30px 22px; text-align: center; margin-bottom: 26px;
+}
+.ov-vm-label {
+  font-size: 12px; letter-spacing: 2.5px; color: var(--vc-text-muted);
+  text-transform: uppercase; margin-bottom: 14px;
+}
+.ov-vm-number {
+  font-family: "JetBrains Mono", "Consolas", monospace; font-size: 48px; font-weight: 700;
+  color: var(--vc-text-main); line-height: 1; margin-bottom: 8px;
+}
+.ov-vm-pill {
+  display: inline-block; padding: 5px 16px; border-radius: 20px; font-size: 13px; font-weight: 700;
+  letter-spacing: .5px; margin-bottom: 22px;
+}
+.ov-vm-empty .ov-vm-pill { background: var(--vc-bg-surface-hover); color: var(--vc-text-muted); }
+.ov-vm-bar { position: relative; display: flex; gap: 3px; height: 14px; margin: 0 4px; }
+.ov-vm-seg { flex: 1; border-radius: 3px; }
+.ov-vm-seg:first-child { border-radius: 7px 3px 3px 7px; }
+.ov-vm-seg:last-child { border-radius: 3px 7px 7px 3px; }
+.ov-vm-empty .ov-vm-seg { opacity: .28; }
+.ov-vm-marker {
+  position: absolute; top: -7px; width: 0; height: 0; transform: translateX(-50%);
+  border-left: 8px solid transparent; border-right: 8px solid transparent;
+  border-top: 10px solid var(--vc-text-main);
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,.5));
+}
+.ov-vm-ticks { display: flex; justify-content: space-between; margin-top: 8px; padding: 0 4px; }
+.ov-vm-ticks span {
+  font-family: "JetBrains Mono", "Consolas", monospace; font-size: 11px; color: var(--vc-text-muted); width: 20px;
+}
+.ov-vm-ticks span:first-child { text-align: left; }
+.ov-vm-ticks span:last-child { text-align: right; }
+.ov-vm-caption { margin-top: 18px; font-size: 12px; color: var(--vc-text-muted); }
+.ov-vm-caption b { font-family: "JetBrains Mono", "Consolas", monospace; color: var(--vc-text-main); font-weight: 700; }
