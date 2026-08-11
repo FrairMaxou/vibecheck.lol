@@ -113,6 +113,34 @@ class SettingsIn(BaseModel):
     telemetry: bool | None = None
 
 
+def _spawn_guarded_warm(
+    lock: threading.Lock, in_progress: list[bool], work, thread_name: str, label: str
+) -> None:
+    """Fire a background warm-up thread unless one for this asset kind is
+    already running. The flag guards against a page-load's worth of misses
+    each starting their own thread — it is NOT a once-per-process latch; it
+    clears when the pass finishes, or the first warm-up would permanently
+    block every later one. `in_progress` is a one-element list used as a
+    mutable flag cell so this module-level helper (no closure over a
+    caller's locals) can flip it from inside the spawned thread.
+    """
+    with lock:
+        if in_progress[0]:
+            return
+        in_progress[0] = True
+
+    def worker():
+        try:
+            work()
+        except Exception:
+            log.debug("Champion %s warm-up failed", label, exc_info=True)
+        finally:
+            with lock:
+                in_progress[0] = False
+
+    threading.Thread(target=worker, name=thread_name, daemon=True).start()
+
+
 def create_app(
     store: GameStore, squad: SquadService | None = None, controls: dict | None = None
 ) -> FastAPI:
@@ -122,7 +150,7 @@ def create_app(
     update_job = updater.UpdateJob()
     _warm_lock = threading.Lock()
     _warming = False
-    _warming_splash = False
+    _warming_splash = [False]  # list cell: see _spawn_guarded_warm
 
     def _settings() -> dict:
         is_paused = controls.get("is_paused")
@@ -247,31 +275,17 @@ def create_app(
         return FileResponse(path)
 
     def _warm_splashes() -> None:
-        """Download any splash art the store needs but the cache doesn't have.
-
-        Mirrors _warm_icons exactly, including the same guard-flag caveat:
-        it clears when the pass finishes rather than latching permanently.
-        """
-        nonlocal _warming_splash
-        with _warm_lock:
-            if _warming_splash:
-                return
-            _warming_splash = True
-
-        def worker():
-            nonlocal _warming_splash
-            try:
-                ddragon.warm_splash(
-                    (g["champion"], capture.is_classic(g.get("queue_id"), g.get("queue_type")))
-                    for g in store.games_with_details()
-                )
-            except Exception:
-                log.debug("Champion splash warm-up failed", exc_info=True)
-            finally:
-                with _warm_lock:
-                    _warming_splash = False
-
-        threading.Thread(target=worker, name="champ-splashes", daemon=True).start()
+        """Download any splash art the store needs but the cache doesn't have."""
+        _spawn_guarded_warm(
+            _warm_lock,
+            _warming_splash,
+            lambda: ddragon.warm_splash(
+                (g["champion"], capture.is_classic(g.get("queue_id"), g.get("queue_type")))
+                for g in store.games_with_details()
+            ),
+            "champ-splashes",
+            "splash",
+        )
 
     @app.get("/api/aram-god")
     def aram_god():

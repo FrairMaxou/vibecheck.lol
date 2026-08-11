@@ -561,22 +561,28 @@ tr.low-n td { color: var(--ink-3); }
 
 .ov-top-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 320px)); gap: 14px; margin-bottom: 26px; justify-content: center; }
 
-.ov-aram-card {
+/* ---------- Shared "square card" anatomy: label / big number / pill / caption.
+   Both the ARAM God run and VIBE-O-METER cards share this frame — only the
+   pill color and the bar/marker underneath (segmented tier bar vs. a single
+   progress fill) differ, so those stay in each card's own rules below. ---------- */
+.ov-aram-card, .ov-vibemeter-card {
   background: var(--vc-bg-surface); border: 1px solid var(--vc-border); border-radius: 14px;
   padding: 20px; text-align: center; aspect-ratio: 1; box-sizing: border-box;
   display: flex; flex-direction: column; justify-content: center; min-height: fit-content;
 }
-.ov-aram-sq-label {
+.ov-aram-sq-label, .ov-vm-label {
   font-size: 11px; letter-spacing: 2px; color: var(--vc-text-muted);
   text-transform: uppercase; margin-bottom: 10px;
 }
-.ov-aram-sq-number {
+.ov-aram-sq-number, .ov-vm-number {
   font-family: "JetBrains Mono", "Consolas", monospace; font-size: 40px; font-weight: 700;
   color: var(--vc-text-main); line-height: 1; margin-bottom: 8px;
 }
-.ov-aram-sq-pill {
+.ov-aram-sq-pill, .ov-vm-pill {
   display: inline-block; padding: 4px 12px; border-radius: 16px; font-size: 11px; font-weight: 700;
   letter-spacing: .5px; margin-bottom: 16px; align-self: center;
+}
+.ov-aram-sq-pill {
   background: rgba(229, 169, 60, .15); color: var(--vc-gold-hl); border: 1px solid rgba(229, 169, 60, .4);
 }
 .ov-aram-empty .ov-aram-sq-pill { background: var(--vc-bg-surface-hover); color: var(--vc-text-muted); border-color: var(--vc-border); }
@@ -584,7 +590,7 @@ tr.low-n td { color: var(--ink-3); }
 .ov-aram-sq-fill { height: 100%; background: linear-gradient(90deg, var(--vc-gold), var(--vc-gold-hl)); border-radius: 5px; }
 .ov-aram-sq-caption { margin-top: 14px; font-size: 11px; color: var(--vc-text-muted); }
 
-.ov-trend-chart { position: relative; height: 130px; margin-top: 6px; }
+.ov-trend-chart { position: relative; height: var(--ov-trend-chart-h); margin-top: var(--ov-trend-chart-mt); }
 .ov-trend-chart svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .ov-trend-point { position: absolute; transform: translate(-50%, -50%); width: 30px; height: 30px; }
 .ov-trend-point img {
@@ -599,23 +605,6 @@ tr.low-n td { color: var(--ink-3); }
 
 /* ---------- VIBE-O-METER: lifetime-average hero card, top of Overview.
    Deliberately not filter-reactive — see renderVibeMeter() in app.js. ---------- */
-.ov-vibemeter-card {
-  background: var(--vc-bg-surface); border: 1px solid var(--vc-border); border-radius: 14px;
-  padding: 20px; text-align: center; aspect-ratio: 1; box-sizing: border-box;
-  display: flex; flex-direction: column; justify-content: center; min-height: fit-content;
-}
-.ov-vm-label {
-  font-size: 11px; letter-spacing: 2px; color: var(--vc-text-muted);
-  text-transform: uppercase; margin-bottom: 10px;
-}
-.ov-vm-number {
-  font-family: "JetBrains Mono", "Consolas", monospace; font-size: 40px; font-weight: 700;
-  color: var(--vc-text-main); line-height: 1; margin-bottom: 8px;
-}
-.ov-vm-pill {
-  display: inline-block; padding: 4px 12px; border-radius: 16px; font-size: 11px; font-weight: 700;
-  letter-spacing: .5px; margin-bottom: 16px; align-self: center;
-}
 .ov-vm-empty .ov-vm-pill { background: var(--vc-bg-surface-hover); color: var(--vc-text-muted); }
 .ov-vm-bar { position: relative; display: flex; gap: 3px; height: 14px; margin: 0 4px; }
 .ov-vm-seg { flex: 1; border-radius: 3px; }
@@ -639,9 +628,12 @@ tr.low-n td { color: var(--ink-3); }
 
 .ov-trend-panel { margin-top: 26px; }
 
-.ov-trend-row { display: flex; gap: 8px; align-items: flex-start; }
+/* --ov-trend-chart-h/-mt drive both the chart and the y-axis (below), so the
+   two can't drift out of alignment the way they did once already — see the
+   "align the vibe trend's y-axis with its chart" fix this replaces. */
+.ov-trend-row { display: flex; gap: 8px; align-items: flex-start; --ov-trend-chart-h: 130px; --ov-trend-chart-mt: 6px; }
 .ov-trend-yaxis {
-  height: 130px; margin-top: 6px;
+  height: var(--ov-trend-chart-h); margin-top: var(--ov-trend-chart-mt);
   display: flex; flex-direction: column; justify-content: space-between;
 }
 .ov-trend-yaxis span { font-size: 10px; color: var(--vc-text-muted); font-family: "JetBrains Mono", "Consolas", monospace; }

@@ -116,6 +116,10 @@ const ON_ERROR = {
     el.dataset.retryAttempt = String(attempt);
     const src = el.src;
     setTimeout(() => {
+      // A filter/tab change can rebuild #ov-totals/#ov-spotlight (and thus
+      // destroy this <img>) before the retry fires — don't burn a request
+      // fetching an image nothing is displaying anymore.
+      if (!el.isConnected) return;
       el.src = ""; // forces a fresh request even if the browser would otherwise reuse the failed one
       el.src = src;
     }, SPLASH_RETRY_DELAYS_MS[attempt - 1]);
@@ -282,6 +286,15 @@ function champSplashUrl(name, classic) {
 
 function formatHours(seconds) {
   return `${Math.round(seconds / 3600)}h`;
+}
+
+/* Average fun_score over an already-filtered list of rated games — the
+   caller decides what "rated" means for its purpose (this session's
+   filter, lifetime, remakes excluded or not); this just does the division
+   the same way everywhere so the three "avg vibe" readouts on this page
+   can't quietly drift apart. */
+function avgFun(rated) {
+  return rated.length ? rated.reduce((s, g) => s + g.fun_score, 0) / rated.length : null;
 }
 
 function formatSince(day) {
@@ -706,13 +719,13 @@ function funScatterChart(id, rows) {
 
 function renderHeader(games) {
   const rated = games.filter((g) => g.rated);
-  const avg = rated.length ? rated.reduce((s, g) => s + g.fun_score, 0) / rated.length : null;
+  const avg = avgFun(rated);
   document.getElementById("pm-stats").innerHTML =
     `<b>${games.length}</b> games · <b>${rated.length}</b> rated` +
     (avg != null ? ` · avg vibe <b>${avg.toFixed(2)}</b>` : "");
   // The profile button shows the overall (unfiltered) vibe as an identity stat.
   const allRated = ALL.filter((g) => g.rated);
-  const allAvg = allRated.length ? allRated.reduce((s, g) => s + g.fun_score, 0) / allRated.length : null;
+  const allAvg = avgFun(allRated);
   document.getElementById("profile-vibe").textContent =
     allAvg != null ? `avg vibe ${allAvg.toFixed(2)} ${EMOJI[Math.round(allAvg)]}` : "no ratings yet";
   const banner = document.getElementById("low-data-banner");
@@ -729,8 +742,7 @@ function renderHeader(games) {
 function vibeMeterStats() {
   const total = ALL.filter((g) => !g.is_remake).length;
   const rated = ALL.filter((g) => g.rated && !g.is_remake);
-  const avg = rated.length ? rated.reduce((s, g) => s + g.fun_score, 0) / rated.length : null;
-  return { avg, n: rated.length, total };
+  return { avg: avgFun(rated), n: rated.length, total };
 }
 
 function renderVibeMeter() {
