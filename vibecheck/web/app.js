@@ -412,7 +412,7 @@ const OV_TIER_HEX = { 1: "#EF4444", 2: "#F97316", 3: "#EAB308", 4: "#10B981", 5:
 
 function formatTrendDate(day) {
   const d = new Date(day);
-  return d.toLocaleString("en-US", { month: "short", day: "numeric" });
+  return d.toLocaleString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 }
 
 /* The chart's default reading when nothing is hovered, and what every
