@@ -93,11 +93,32 @@ function champIcon(name, classic) {
    The sweep below is not redundant: an image can fail before this file has even
    run, and a listener registered afterwards never hears about it. A decoded
    image has naturalWidth > 0, so a *complete* image with zero width failed. */
+// Splash art is served from a local cache the backend fills lazily on the
+// first-ever miss (see /api/champ-splash in dashboard.py) — a background
+// thread that takes a few seconds. A splash <img> that fails on that very
+// first request would otherwise stay broken for the rest of the session,
+// since nothing else re-renders the tile until a filter/tab change or a new
+// game. Retrying with backoff covers that warm-up window without polling.
+const SPLASH_RETRY_DELAYS_MS = [1500, 3000, 6000];
+
 const ON_ERROR = {
   remove: (el) => el.remove(),
   "reveal-title": (el) => {
     el.remove();
     document.getElementById("app-title").classList.remove("visually-hidden");
+  },
+  "retry-then-remove": (el) => {
+    const attempt = (Number(el.dataset.retryAttempt) || 0) + 1;
+    if (attempt > SPLASH_RETRY_DELAYS_MS.length) {
+      el.remove();
+      return;
+    }
+    el.dataset.retryAttempt = String(attempt);
+    const src = el.src;
+    setTimeout(() => {
+      el.src = ""; // forces a fresh request even if the browser would otherwise reuse the failed one
+      el.src = src;
+    }, SPLASH_RETRY_DELAYS_MS[attempt - 1]);
   },
 };
 
@@ -283,7 +304,7 @@ function ovIcon(kind) {
 function ovSplashImg(leaderRow) {
   if (!leaderRow) return "";
   const url = champSplashUrl(leaderRow.name, leaderRow.classic);
-  return `<img class="ov-splash-img" src="${escapeAttr(url)}" alt="" loading="lazy" data-on-error="remove">`;
+  return `<img class="ov-splash-img" src="${escapeAttr(url)}" alt="" loading="lazy" data-on-error="retry-then-remove">`;
 }
 
 function renderLifetimeTotals(games, leaders) {
@@ -1521,8 +1542,12 @@ function isEditingWithin(containerId) {
 
 function renderAll() {
   const games = filtered();
+  // Baseline excludes remakes (F5) same as filtered() does — remakes are a
+  // permanent exclusion, not a user filter, so they must not make this text
+  // appear when no filter chip or date range is actually selected.
+  const baseline = ALL.filter((g) => !g.is_remake).length;
   document.getElementById("f-count").textContent =
-    games.length === ALL.length ? "" : `${games.length} of ${ALL.length} games match`;
+    games.length === baseline ? "" : `${games.length} of ${baseline} games match`;
   renderHeader(games);
   if (!isEditingWithin("pending-list")) renderPending();
   const t = state.tab;
