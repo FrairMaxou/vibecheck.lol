@@ -410,15 +410,24 @@ async function renderAramGodCompact() {
 
 const OV_TIER_HEX = { 1: "#EF4444", 2: "#F97316", 3: "#EAB308", 4: "#10B981", 5: "#8B5CF6" };
 
+// Transient UI state, not persisted: resets to collapsed whenever refresh()
+// pulls new data (see refresh(), which sets this back to false alongside
+// its other per-load resets), but NOT on a plain tab switch or filter
+// change, so expanding doesn't get silently undone by clicking a filter.
+let ovTrendExpanded = false;
 function renderVibeTrend(games) {
   const host = document.getElementById("ov-trend");
   const rated = games.filter((g) => g.rated).slice().sort((a, b) => a.date - b.date);
   if (!rated.length) {
     host.innerHTML = '<div class="ov-trend-empty">Rate a few games and your vibe trend shows up here.</div>';
     return;
+  // "How have I been doing lately" is the point of a trend, so a cap keeps
+  // the most recent games (slice(-20)), not the oldest.
+  const capped = !ovTrendExpanded && rated.length > 20;
+  const shown = capped ? rated.slice(-20) : rated;
   }
-  const n = rated.length;
-  const points = rated.map((g, i) => ({
+  const n = shown.length;
+  const points = shown.map((g, i) => ({
     x: n > 1 ? (100 * i) / (n - 1) : 50,
     // Plot 1–5 into the 8–92% band, inverted (SVG y grows downward, and a
     // high score should sit near the top of the chart).
@@ -433,6 +442,12 @@ function renderVibeTrend(games) {
       <img src="/api/champ-icon/${encodeURIComponent(p.g.champion || "")}${p.g.classic ? "?classic=1" : ""}"
            alt="" loading="lazy" data-on-error="remove">
     </div>`).join("");
+  // No "collapse back" control once expanded — nothing else on this page
+  // has a collapse affordance either (e.g. the spotlight hover overlay).
+  const expandHtml = capped
+    ? `<button type="button" class="ov-trend-expand" id="ov-trend-expand">Show all ${rated.length} games</button>`
+    : "";
+
   host.innerHTML = `
     <div class="ov-trend-chart">
       <svg viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -440,7 +455,14 @@ function renderVibeTrend(games) {
       </svg>
       ${dots}
     </div>
-    <div class="ov-trend-legend">${[1, 2, 3, 4, 5].map((t) => `<span><i style="background:${OV_TIER_HEX[t]}"></i>${GRADES[t]}</span>`).join("")}</div>`;
+    <div class="ov-trend-legend">${[1, 2, 3, 4, 5].map((t) => `<span><i style="background:${OV_TIER_HEX[t]}"></i>${GRADES[t]}</span>`).join("")}</div>
+    ${expandHtml}`;
+  if (capped) {
+    document.getElementById("ov-trend-expand").addEventListener("click", () => {
+      ovTrendExpanded = true;
+      renderVibeTrend(games);
+    });
+  }
 }
 
 /* ---------------- chart helpers ---------------- */
@@ -1558,6 +1580,7 @@ function renderAll() {
   if (t === "tags" && !isEditingWithin("tags-games")) renderTags(games);
 }
 
+  ovTrendExpanded = false; // a genuinely new dataset re-earns the cap
 async function refresh() {
   await loadData();
   ARAM_GOD = null; // a new game may have completed a champion — refetch it too

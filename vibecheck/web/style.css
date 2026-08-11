@@ -636,3 +636,10 @@ tr.low-n td { color: var(--ink-3); }
 .ov-vm-ticks span:last-child { text-align: right; }
 .ov-vm-caption { margin-top: 18px; font-size: 12px; color: var(--vc-text-muted); }
 .ov-vm-caption b { font-family: "JetBrains Mono", "Consolas", monospace; color: var(--vc-text-main); font-weight: 700; }
+
+.ov-trend-expand {
+  display: block; margin: 12px auto 0; padding: 6px 14px; border-radius: 8px;
+  background: var(--vc-bg-surface-hover); border: 1px solid var(--vc-border);
+  color: var(--vc-text-muted); font-size: 12px; cursor: pointer;
+}
+.ov-trend-expand:hover { color: var(--vc-text-main); border-color: var(--vc-gold); }
