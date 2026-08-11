@@ -509,7 +509,7 @@ tr.low-n td { color: var(--ink-3); }
 
 .ov-spotlight { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }
 .ov-stile {
-  aspect-ratio: 3 / 4; position: relative; border-radius: 12px; overflow: hidden;
+  aspect-ratio: 11 / 20; position: relative; border-radius: 12px; overflow: hidden;
   border: 1px solid var(--vc-border); background: var(--vc-bg-surface); cursor: default;
 }
 .ov-stile .ov-splash-img {
@@ -559,7 +559,7 @@ tr.low-n td { color: var(--ink-3); }
 .ov-tier1 { background: rgba(239,68,68,.35); color: #ffaba3; }
 .ov-empty-note { color: var(--vc-text-muted); font-size: 12.5px; }
 
-.ov-top-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 320px)); gap: 14px; margin-bottom: 26px; }
+.ov-top-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 320px)); gap: 14px; margin-bottom: 26px; justify-content: center; }
 
 .ov-aram-card {
   background: var(--vc-bg-surface); border: 1px solid var(--vc-border); border-radius: 14px;
@@ -642,4 +642,5 @@ tr.low-n td { color: var(--ink-3); }
   background: var(--vc-bg-surface-hover); border: 1px solid var(--vc-border);
   color: var(--vc-text-muted); font-size: 12px; cursor: pointer;
 }
+.ov-trend-panel { margin-top: 26px; }
 .ov-trend-expand:hover { color: var(--vc-text-main); border-color: var(--vc-gold); }
