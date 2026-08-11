@@ -421,11 +421,11 @@ function renderVibeTrend(games) {
   if (!rated.length) {
     host.innerHTML = '<div class="ov-trend-empty">Rate a few games and your vibe trend shows up here.</div>';
     return;
+  }
   // "How have I been doing lately" is the point of a trend, so a cap keeps
   // the most recent games (slice(-20)), not the oldest.
   const capped = !ovTrendExpanded && rated.length > 20;
   const shown = capped ? rated.slice(-20) : rated;
-  }
   const n = shown.length;
   const points = shown.map((g, i) => ({
     x: n > 1 ? (100 * i) / (n - 1) : 50,
@@ -1580,11 +1580,11 @@ function renderAll() {
   if (t === "tags" && !isEditingWithin("tags-games")) renderTags(games);
 }
 
-  ovTrendExpanded = false; // a genuinely new dataset re-earns the cap
 async function refresh() {
   await loadData();
   ARAM_GOD = null; // a new game may have completed a champion — refetch it too
   ARAM_GOD_DRAWN = null;
+  ovTrendExpanded = false; // a genuinely new dataset re-earns the cap
   document.getElementById("offline-banner").classList.add("hidden");
   buildFilters();
   renderAll();
