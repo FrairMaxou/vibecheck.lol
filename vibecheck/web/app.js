@@ -191,6 +191,238 @@ function aggregate(games, keyFn) {
   }));
 }
 
+/* Per-champion career totals (raw sums, not averages) — feeds the Overview
+   lifetime strip and spotlight tiles. Separate from aggregate() rather than
+   extending it: aggregate() is shared by every tab's fun/winrate charts and
+   deliberately stays narrow, while these sums (kills/deaths/assists/seconds)
+   are Overview-specific. */
+function championTotals(games) {
+  const acc = new Map();
+  for (const g of games) {
+    const key = g.champion_key;
+    if (!key) continue;
+    const a = acc.get(key) || {
+      key, name: g.champion, classic: g.classic, games: 0, n: 0,
+      kills: 0, deaths: 0, assists: 0, seconds: 0, funSum: 0, funN: 0,
+    };
+    a.games += 1;
+    a.kills += g.kills || 0;
+    a.deaths += g.deaths || 0;
+    a.assists += g.assists || 0;
+    a.seconds += g.duration_seconds || 0;
+    if (g.rated) { a.funSum += g.fun_score; a.funN += 1; }
+    acc.set(key, a);
+  }
+  return [...acc.values()].map((a) => ({
+    key: a.key, name: a.name, classic: a.classic, games: a.games, n: a.funN,
+    kills: a.kills, deaths: a.deaths, assists: a.assists, seconds: a.seconds,
+    avgFun: a.funN ? a.funSum / a.funN : null,
+  }));
+}
+
+/* One champion per category — "spotlight" tiles pick the max, "kills"/etc.
+   need no MIN_N gate (a raw total, not an average), but "vibe" does: an
+   average from one lucky game isn't a career highlight, it's noise. Matches
+   the MIN_N threshold the existing "Certified Banger" card already uses. */
+function categoryLeaders(rows) {
+  const top = (fn) => rows.length ? rows.reduce((best, r) => (fn(r) > fn(best) ? r : best)) : null;
+  const vibeRows = rows.filter((r) => r.avgFun != null && r.n >= MIN_N);
+  return {
+    vibe: vibeRows.length ? vibeRows.reduce((best, r) => (r.avgFun > best.avgFun ? r : best)) : null,
+    kills: top((r) => r.kills),
+    deaths: top((r) => r.deaths),
+    assists: top((r) => r.assists),
+    hours: top((r) => r.seconds),
+  };
+}
+
+/* Career sums across every champion, plus the earliest game's day for the
+   "since <date>" caption. Deliberately computed from whatever `games` this
+   is called with (the filtered set, same as the rest of Overview) rather
+   than always ALL — consistent with how "Certified Banger" et al. already
+   respond to the filter bar; only ARAM God is the documented exception. */
+function lifetimeTotals(games) {
+  if (!games.length) return { kills: 0, deaths: 0, assists: 0, seconds: 0, since: null };
+  let kills = 0, deaths = 0, assists = 0, seconds = 0, since = games[0].day;
+  for (const g of games) {
+    kills += g.kills || 0;
+    deaths += g.deaths || 0;
+    assists += g.assists || 0;
+    seconds += g.duration_seconds || 0;
+    if (g.day < since) since = g.day;
+  }
+  return { kills, deaths, assists, seconds, since };
+}
+
+function champSplashUrl(name, classic) {
+  if (!name) return null;
+  return `/api/champ-splash/${encodeURIComponent(name)}${classic ? "?classic=1" : ""}`;
+}
+
+function formatHours(seconds) {
+  return `${Math.round(seconds / 3600)}h`;
+}
+
+function formatSince(day) {
+  if (!day) return "no games yet";
+  const d = new Date(day);
+  return `since ${d.toLocaleString("en-US", { month: "short", year: "numeric" })}`;
+}
+
+const OV_ICONS = {
+  kills: '<path d="M4 20L14 10M14 10L11 7M14 10L17 13M20 4L10 14M10 14L13 17M10 14L7 11"/>',
+  deaths: '<path d="M7 21V13a5 5 0 0110 0v8M4 21h16"/>',
+  assists: '<circle cx="8" cy="12" r="4"/><circle cx="16" cy="12" r="4"/>',
+  hours: '<path d="M12 3a9 9 0 100 18 9 9 0 000-18z"/><path d="M12 7v5l4 2"/>',
+};
+
+function ovIcon(kind) {
+  return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${OV_ICONS[kind]}</svg>`;
+}
+
+function ovSplashImg(leaderRow) {
+  if (!leaderRow) return "";
+  const url = champSplashUrl(leaderRow.name, leaderRow.classic);
+  return `<img class="ov-splash-img" src="${escapeAttr(url)}" alt="" loading="lazy" data-on-error="remove">`;
+}
+
+function renderLifetimeTotals(games, leaders) {
+  const totals = lifetimeTotals(games);
+  const since = formatSince(totals.since);
+  const card = (kind, label, value, leaderRow) => `
+    <div class="ov-tcard">
+      ${ovSplashImg(leaderRow)}
+      <div class="ov-scrim"></div>
+      <div class="ov-content">
+        <div>${ovIcon(kind)}<span class="ov-label">${label}</span></div>
+        <div><div class="ov-value">${value}</div><div class="ov-since">${since}</div></div>
+      </div>
+    </div>`;
+  document.getElementById("ov-totals").innerHTML =
+    card("kills", "Kills", totals.kills.toLocaleString(), leaders.kills) +
+    card("deaths", "Deaths", totals.deaths.toLocaleString(), leaders.deaths) +
+    card("assists", "Assists", totals.assists.toLocaleString(), leaders.assists) +
+    card("hours", "Time played", formatHours(totals.seconds), leaders.hours);
+}
+
+const OV_TIER_CLASS = { 1: "ov-tier1", 2: "ov-tier2", 3: "ov-tier3", 4: "ov-tier4", 5: "ov-tier5" };
+const OV_CAT_ICON = {
+  vibe: '<path d="M12 2l2.5 5.5L20 8l-4.5 4 1.5 6L12 15l-5 3 1.5-6L4 8l5.5-.5z"/>',
+  kills: OV_ICONS.kills, deaths: OV_ICONS.deaths, assists: OV_ICONS.assists, hours: OV_ICONS.hours,
+};
+const OV_CAT_LABEL = { vibe: "Best vibe", kills: "Most kills", deaths: "Most deaths", assists: "Most assists", hours: "Most hours" };
+const OV_CAT_HEADLINE = {
+  vibe: (r) => r.avgFun.toFixed(1),
+  kills: (r) => String(r.kills),
+  deaths: (r) => String(r.deaths),
+  assists: (r) => String(r.assists),
+  hours: (r) => formatHours(r.seconds),
+};
+
+function ovSpotlightTile(cat, row) {
+  if (!row) {
+    return `<div class="ov-stile"><div class="ov-overlay" style="opacity:1"><div class="ov-empty-note">not enough data yet</div></div></div>`;
+  }
+  const tierRound = row.avgFun != null ? Math.round(row.avgFun) : null;
+  const tierClass = tierRound ? OV_TIER_CLASS[tierRound] : "ov-tier3";
+  const vibeLabel = tierRound ? `${row.avgFun.toFixed(2)} · ${GRADES[tierRound]}` : "not enough rated games";
+  return `
+    <div class="ov-stile">
+      ${ovSplashImg(row)}
+      <div class="ov-scrim"></div>
+      <div class="ov-cat-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${OV_CAT_ICON[cat]}</svg>${OV_CAT_LABEL[cat]}</div>
+      <div class="ov-headline">
+        <div class="ov-champ-name">${escapeAttr(row.key)}</div>
+        <div class="ov-stat-big">${OV_CAT_HEADLINE[cat](row)}</div>
+      </div>
+      <div class="ov-overlay">
+        <div class="ov-name">${escapeAttr(row.key)}</div>
+        <div class="ov-games">${row.games} game${row.games === 1 ? "" : "s"}</div>
+        <div class="ov-grow">
+          <div class="ov-g"><b>${row.kills}</b>Kills</div>
+          <div class="ov-g"><b>${row.deaths}</b>Deaths</div>
+          <div class="ov-g"><b>${row.assists}</b>Assists</div>
+          <div class="ov-g"><b>${formatHours(row.seconds)}</b>Played</div>
+        </div>
+        <div class="ov-vibe-row ${tierClass}">${vibeLabel}</div>
+      </div>
+    </div>`;
+}
+
+function renderSpotlight(games, leaders) {
+  document.getElementById("ov-spotlight").innerHTML =
+    ["vibe", "kills", "deaths", "assists", "hours"].map((cat) => ovSpotlightTile(cat, leaders[cat])).join("");
+}
+
+const ARAM_GOD_ICON = '<path d="M12 2l2.5 5.5L20 8l-4.5 4 1.5 6L12 15l-5 3 1.5-6L4 8l5.5-.5z"/>';
+
+async function renderAramGodCompact() {
+  const host = document.getElementById("ov-aram");
+  let d;
+  try {
+    d = ARAM_GOD = ARAM_GOD || (await fetchAramGod());
+  } catch {
+    host.innerHTML = "";
+    return;
+  }
+  const badge = `<div class="ov-aram-badge"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">${ARAM_GOD_ICON}</svg></div>`;
+  if (!d.tracked || !d.total) {
+    host.innerHTML = `
+      <div class="ov-aram-card">${badge}
+        <div class="ov-aram-body">
+          <div class="ov-aram-title-row"><div class="ov-aram-title">ARAM God run</div><div class="ov-aram-count">not tracked yet</div></div>
+          <div class="ov-aram-hint">Open the League client once with VibeCheck running to start tracking this</div>
+          <div class="ov-aram-bar"><div class="ov-aram-fill" style="width:0%"></div></div>
+        </div>
+      </div>`;
+    return;
+  }
+  const pct = d.total ? Math.round((d.completed / d.total) * 100) : 0;
+  host.innerHTML = `
+    <div class="ov-aram-card">${badge}
+      <div class="ov-aram-body">
+        <div class="ov-aram-title-row"><div class="ov-aram-title">ARAM God run</div><div class="ov-aram-count">${d.completed} / ${d.total}</div></div>
+        <div class="ov-aram-hint">S- or better on every ARAM champion — the long one</div>
+        <div class="ov-aram-bar"><div class="ov-aram-fill" style="width:${pct}%"></div></div>
+      </div>
+    </div>`;
+}
+
+const OV_TIER_HEX = { 1: "#EF4444", 2: "#F97316", 3: "#EAB308", 4: "#10B981", 5: "#8B5CF6" };
+
+function renderVibeTrend(games) {
+  const host = document.getElementById("ov-trend");
+  const rated = games.filter((g) => g.rated).slice().sort((a, b) => a.date - b.date);
+  if (!rated.length) {
+    host.innerHTML = '<div class="ov-trend-empty">Rate a few games and your vibe trend shows up here.</div>';
+    return;
+  }
+  const n = rated.length;
+  const points = rated.map((g, i) => ({
+    x: n > 1 ? (100 * i) / (n - 1) : 50,
+    // Plot 1–5 into the 8–92% band, inverted (SVG y grows downward, and a
+    // high score should sit near the top of the chart).
+    y: 92 - ((g.fun_score - 1) / 4) * 84,
+    g,
+  }));
+  const line = points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+  const dots = points.map((p) => `
+    <div class="ov-trend-point" style="left:${p.x.toFixed(1)}%;top:${p.y.toFixed(1)}%;--ring:${OV_TIER_HEX[p.g.fun_score]}"
+         title="${escapeAttr(p.g.champion_key || "?")} — ${escapeAttr(p.g.day)} — ${GRADES[p.g.fun_score]}">
+      <div class="ov-ring"></div>
+      <img src="/api/champ-icon/${encodeURIComponent(p.g.champion || "")}${p.g.classic ? "?classic=1" : ""}"
+           alt="" loading="lazy" data-on-error="remove">
+    </div>`).join("");
+  host.innerHTML = `
+    <div class="ov-trend-chart">
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <polyline fill="none" stroke="${OV_TIER_HEX[3]}22" stroke-width="1.2" vector-effect="non-scaling-stroke" points="${line}"/>
+      </svg>
+      ${dots}
+    </div>
+    <div class="ov-trend-legend">${[1, 2, 3, 4, 5].map((t) => `<span><i style="background:${OV_TIER_HEX[t]}"></i>${GRADES[t]}</span>`).join("")}</div>`;
+}
+
 /* ---------------- chart helpers ---------------- */
 
 function destroyChart(id) {
@@ -391,64 +623,63 @@ function renderHeader(games) {
   } else banner.classList.add("hidden");
 }
 
-function card(k, v, d, gold = false) {
-  return `<div class="card${gold ? " gold" : ""}"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div></div>`;
+/* Lifetime average, always — reads ALL directly rather than the filtered
+   `games` renderOverview receives, same reasoning as #profile-vibe above:
+   this is the one number on Overview that shouldn't move when you filter. */
+function vibeMeterStats() {
+  const total = ALL.filter((g) => !g.is_remake).length;
+  const rated = ALL.filter((g) => g.rated && !g.is_remake);
+  const avg = rated.length ? rated.reduce((s, g) => s + g.fun_score, 0) / rated.length : null;
+  return { avg, n: rated.length, total };
+}
+
+function renderVibeMeter() {
+  const { avg, n, total } = vibeMeterStats();
+  const host = document.getElementById("ov-vibemeter");
+  const segs = [1, 2, 3, 4, 5].map((t) => `<div class="ov-vm-seg" style="background:var(--vc-t${t})"></div>`).join("");
+  const ticks = [1, 2, 3, 4, 5].map((t) => `<span>${t}</span>`).join("");
+  const caption = `<b>${total}</b> games · <b>${n}</b> rated`;
+  if (avg == null) {
+    host.innerHTML = `
+      <div class="ov-vibemeter-card ov-vm-empty">
+        <div class="ov-vm-label">Vibe-o-meter</div>
+        <div class="ov-vm-number">—</div>
+        <div class="ov-vm-pill">No rated games yet</div>
+        <div class="ov-vm-bar">${segs}</div>
+        <div class="ov-vm-ticks">${ticks}</div>
+        <div class="ov-vm-caption">${caption}</div>
+      </div>`;
+    return;
+  }
+  const tier = Math.round(avg);
+  const pct = ((avg - 1) / 4) * 100;
+  host.innerHTML = `
+    <div class="ov-vibemeter-card">
+      <div class="ov-vm-label">Vibe-o-meter</div>
+      <div class="ov-vm-number">${avg.toFixed(2)}</div>
+      <div class="ov-vm-pill ${OV_TIER_CLASS[tier]}">${GRADES[tier]}</div>
+      <div class="ov-vm-bar">
+        <div class="ov-vm-marker" style="left:${pct.toFixed(1)}%"></div>
+        ${segs}
+      </div>
+      <div class="ov-vm-ticks">${ticks}</div>
+      <div class="ov-vm-caption">${caption}</div>
+    </div>`;
 }
 
 function renderOverview(games) {
-  const rated = games.filter((g) => g.rated);
-  const facts = [];
-  if (rated.length) {
-    const avg = rated.reduce((s, g) => s + g.fun_score, 0) / rated.length;
-    facts.push(card("Vibe-o-meter", `${avg.toFixed(2)} <span class="emoji">${EMOJI[Math.round(avg)]}</span>`, `${GRADES[Math.round(avg)]} · ${rated.length} rated games`, true));
-  } else {
-    facts.push(card("Vibe-o-meter", "—", "no rated games in this filter (rookie numbers)"));
-  }
-  const champs = aggregate(games, (g) => g.champion_key).filter((r) => r.avgFun != null);
-  const bigChamps = champs.filter((r) => r.n >= MIN_N).sort((a, b) => b.avgFun - a.avgFun);
-  facts.push(bigChamps.length
-    ? card("Certified banger", `${bigChamps[0].key} ${EMOJI[Math.round(bigChamps[0].avgFun)]}`, `${bigChamps[0].avgFun.toFixed(2)} avg over ${bigChamps[0].n} games — this one's for the soul`, true)
-    : card("Certified banger", "…", `not enough data yet (needs ${MIN_N} rated games on one champ)`));
-  if (bigChamps.length > 1) {
-    const w = bigChamps[bigChamps.length - 1];
-    facts.push(card("Certified yikes", `${w.key} ${EMOJI[Math.round(w.avgFun)]}`, `${w.avgFun.toFixed(2)} avg over ${w.n} games — why do you keep doing this`));
-  }
-  const withP = rated.filter((g) => g.premades.length);
-  const solo = rated.filter((g) => !g.premades.length);
-  facts.push(withP.length >= MIN_N && solo.length >= MIN_N
-    ? card("Squad buff",
-        `${(withP.reduce((s, g) => s + g.fun_score, 0) / withP.length).toFixed(2)} vs ${(solo.reduce((s, g) => s + g.fun_score, 0) / solo.length).toFixed(2)}`,
-        `with the squad vs. solo queue despair (${withP.length}/${solo.length} games)`, true)
-    : card("Squad buff", "…", "not enough data yet (play more with & without the squad)"));
-  const cov = games.length ? Math.round((100 * rated.length) / games.filter((g) => !g.is_remake).length) : 0;
-  facts.push(card("No games left on read", `${cov}%`, "of games rated — aim for 90%, don't leave games on read"));
-  document.getElementById("fun-facts").innerHTML = facts.join("");
-
-  // trend: rolling average (window 5) over rated games in chronological order
-  destroyChart("chart-trend");
-  const seq = rated.slice().sort((a, b) => a.date - b.date);
-  const points = seq.map((g, i) => {
-    const win = seq.slice(Math.max(0, i - 4), i + 1);
-    return { x: i + 1, y: win.reduce((s, x) => s + x.fun_score, 0) / win.length, g };
-  });
-  charts["chart-trend"] = new Chart(document.getElementById("chart-trend"), {
-    type: "line",
-    data: { datasets: [{
-      data: points, borderColor: GOLD, borderWidth: 2, pointRadius: 3,
-      pointBackgroundColor: GOLD, tension: 0.3, fill: false,
-    }] },
-    options: {
-      maintainAspectRatio: false,
-      scales: {
-        x: { type: "linear", title: { display: true, text: "rated game #" }, ticks: { stepSize: 1 } },
-        y: { min: 1, max: 5, ticks: { callback: (v) => EMOJI[v] || v } },
-      },
-      plugins: { tooltip: { callbacks: {
-        label: (c) => ` ${c.raw.g.champion_key || "?"} ${EMOJI[c.raw.g.fun_score]} — rolling avg ${c.raw.y.toFixed(2)}`,
-        title: (items) => items[0].raw.g.day,
-      } } },
-    },
-  });
+  // Deliberately first and reading ALL, not `games` — the vibe-o-meter is
+  // lifetime-average and does not react to the filter bar (see
+  // vibeMeterStats' doc comment). Everything below it does.
+  renderVibeMeter();
+  // Computed once and shared: the spotlight below needs this exact same
+  // result, and championTotals()/categoryLeaders() aren't free to redo
+  // twice on every filter-bar keystroke.
+  const leaders = categoryLeaders(championTotals(games));
+  renderLifetimeTotals(games, leaders);
+  renderSpotlight(games, leaders);
+  renderAramGodCompact();
+  renderVibeTrend(games);
 }
 
 function renderChampions(games) {
@@ -470,20 +701,22 @@ let ARAM_GOD = null;
 let ARAM_GOD_PENDING = null; // in-flight fetch, so rapid re-renders share one request
 let ARAM_GOD_DRAWN = null; // what's currently on screen
 
+/* Shared by the full grid (Champions tab) and the compact widget (Overview)
+   — both read the same lifetime figure, so this in-flight-request guard
+   must be shared too, or a render of each panel back-to-back fires two
+   requests instead of one. */
+function fetchAramGod() {
+  ARAM_GOD_PENDING = ARAM_GOD_PENDING || fetchJSON("/api/aram-god");
+  return ARAM_GOD_PENDING.finally(() => { ARAM_GOD_PENDING = null; });
+}
+
 async function renderAramGod() {
   const host = document.getElementById("aram-god");
-  if (!ARAM_GOD) {
-    try {
-      // renderChampions runs on every filter keystroke; without this the same
-      // request goes out several times before the first one lands.
-      ARAM_GOD_PENDING = ARAM_GOD_PENDING || fetchJSON("/api/aram-god");
-      ARAM_GOD = await ARAM_GOD_PENDING;
-    } catch {
-      host.innerHTML = '<div class="empty-note">Couldn\'t read your ARAM God progress.</div>';
-      return;
-    } finally {
-      ARAM_GOD_PENDING = null;
-    }
+  try {
+    if (!ARAM_GOD) ARAM_GOD = await fetchAramGod();
+  } catch {
+    host.innerHTML = '<div class="empty-note">Couldn\'t read your ARAM God progress.</div>';
+    return;
   }
   const d = ARAM_GOD;
   // The grid is ~173 cells and as many <img>s. Rebuilding it on every keystroke

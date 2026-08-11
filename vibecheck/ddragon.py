@@ -39,6 +39,7 @@ log = logging.getLogger(__name__)
 
 CACHE_DIR = DATA_DIR / "ddragon"
 ICON_DIR = CACHE_DIR / "icons"
+SPLASH_DIR = CACHE_DIR / "splash"
 MANIFEST_PATH = CACHE_DIR / "manifest.json"
 
 VERSIONS_URL = "https://ddragon.leagueoflegends.com/api/versions.json"
@@ -53,6 +54,7 @@ _lock = threading.Lock()
 _manifest: dict | None = None
 _failed_at = 0.0
 _missing: set[str] = set()  # icons the CDN didn't have; don't ask twice
+_missing_splash: set[str] = set()  # splash art the CDN didn't have; don't ask twice
 
 
 def _norm(name: str) -> str:
@@ -200,6 +202,73 @@ def fetch_icon(name: str, classic: bool = False) -> Path | None:
         _missing.add(key)
         log.debug("Could not fetch icon for %s: %s", name, exc)
         return None
+
+
+def splash_path(name: str, classic: bool = False) -> Path | None:
+    """The on-disk loading-screen splash for a champion, or None if it isn't
+    cached yet. Same disk-only contract as icon_path — safe to call per tile
+    while rendering; downloading is fetch_splash's job, off the request path.
+    """
+    man = manifest(refresh=False)
+    if not man:
+        return None
+    key = _key_for(man, name, classic)
+    if not key:
+        return None
+    path = SPLASH_DIR / f"{key}_0.jpg"
+    return path if path.exists() else None
+
+
+def fetch_splash(name: str, classic: bool = False) -> Path | None:
+    """Download one champion's loading-screen splash if it isn't cached.
+
+    Unlike the square icon, loading art lives under a version-independent
+    CDN path (no /cdn/{version}/ segment) — Data Dragon serves the current
+    splash for every champion at the same URL regardless of patch.
+    """
+    man = manifest()
+    if not man:
+        return None
+    key = _key_for(man, name, classic)
+    if not key or key in _missing_splash:
+        return None
+    path = SPLASH_DIR / f"{key}_0.jpg"
+    if path.exists():
+        return path
+
+    url = f"https://{ALLOWED_HOST}/cdn/img/champion/loading/{key}_0.jpg"
+    try:
+        with _get(url) as resp:
+            data = resp.read()
+        SPLASH_DIR.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(".part")
+        tmp.write_bytes(data)
+        tmp.replace(path)
+        return path
+    except Exception as exc:
+        _missing_splash.add(key)
+        log.debug("Could not fetch splash for %s: %s", name, exc)
+        return None
+
+
+def warm_splash(picks) -> int:
+    """Pre-download splash art for the champions someone actually plays.
+
+    Mirrors warm() exactly — see its docstring for why picks is (name,
+    classic) pairs and why this runs off the request path.
+    """
+    added = 0
+    try:
+        for name, classic in {(n, bool(c)) for n, c in picks if n}:
+            if splash_path(name, classic):
+                continue
+            if fetch_splash(name, classic):
+                added += 1
+        if added:
+            log.info("Cached %d champion splash(es)", added)
+    except Exception:
+        log.debug("Champion splash warm-up stopped early", exc_info=True)
+    return added
 
 
 def warm(picks) -> int:
