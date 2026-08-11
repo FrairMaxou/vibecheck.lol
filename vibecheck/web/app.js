@@ -375,8 +375,6 @@ function renderSpotlight(games, leaders) {
     ["vibe", "kills", "deaths", "assists", "hours"].map((cat) => ovSpotlightTile(cat, leaders[cat])).join("");
 }
 
-const ARAM_GOD_ICON = '<path d="M12 2l2.5 5.5L20 8l-4.5 4 1.5 6L12 15l-5 3 1.5-6L4 8l5.5-.5z"/>';
-
 async function renderAramGodCompact() {
   const host = document.getElementById("ov-aram");
   let d;
@@ -386,26 +384,27 @@ async function renderAramGodCompact() {
     host.innerHTML = "";
     return;
   }
-  const badge = `<div class="ov-aram-badge"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">${ARAM_GOD_ICON}</svg></div>`;
+  // Both conditions matter and must not collapse into one: a 0 total before
+  // the client has ever synced is "we don't know yet", not "zero progress".
   if (!d.tracked || !d.total) {
     host.innerHTML = `
-      <div class="ov-aram-card">${badge}
-        <div class="ov-aram-body">
-          <div class="ov-aram-title-row"><div class="ov-aram-title">ARAM God run</div><div class="ov-aram-count">not tracked yet</div></div>
-          <div class="ov-aram-hint">Open the League client once with VibeCheck running to start tracking this</div>
-          <div class="ov-aram-bar"><div class="ov-aram-fill" style="width:0%"></div></div>
-        </div>
+      <div class="ov-aram-card ov-aram-empty">
+        <div class="ov-aram-sq-label">ARAM god run</div>
+        <div class="ov-aram-sq-number">—</div>
+        <div class="ov-aram-sq-pill">Not tracked yet</div>
+        <div class="ov-aram-sq-bar"><div class="ov-aram-sq-fill" style="width:0%"></div></div>
+        <div class="ov-aram-sq-caption">Open the League client once with VibeCheck running to start tracking this</div>
       </div>`;
     return;
   }
-  const pct = d.total ? Math.round((d.completed / d.total) * 100) : 0;
+  const pct = Math.round((d.completed / d.total) * 100);
   host.innerHTML = `
-    <div class="ov-aram-card">${badge}
-      <div class="ov-aram-body">
-        <div class="ov-aram-title-row"><div class="ov-aram-title">ARAM God run</div><div class="ov-aram-count">${d.completed} / ${d.total}</div></div>
-        <div class="ov-aram-hint">S- or better on every ARAM champion — the long one</div>
-        <div class="ov-aram-bar"><div class="ov-aram-fill" style="width:${pct}%"></div></div>
-      </div>
+    <div class="ov-aram-card">
+      <div class="ov-aram-sq-label">ARAM god run</div>
+      <div class="ov-aram-sq-number">${d.completed}/${d.total}</div>
+      <div class="ov-aram-sq-pill">${pct}% complete</div>
+      <div class="ov-aram-sq-bar"><div class="ov-aram-sq-fill" style="width:${pct}%"></div></div>
+      <div class="ov-aram-sq-caption">S- or better on every ARAM champion</div>
     </div>`;
 }
 

@@ -559,21 +559,30 @@ tr.low-n td { color: var(--ink-3); }
 .ov-tier1 { background: rgba(239,68,68,.35); color: #ffaba3; }
 .ov-empty-note { color: var(--vc-text-muted); font-size: 12.5px; }
 
+.ov-top-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 320px)); gap: 14px; margin-bottom: 26px; }
+
 .ov-aram-card {
-  background: var(--vc-bg-surface); border: 1px solid var(--vc-border); border-radius: 12px;
-  padding: 14px 18px; margin-top: 26px; display: flex; align-items: center; gap: 16px;
+  background: var(--vc-bg-surface); border: 1px solid var(--vc-border); border-radius: 14px;
+  padding: 20px; text-align: center; aspect-ratio: 1; box-sizing: border-box;
+  display: flex; flex-direction: column; justify-content: center;
 }
-.ov-aram-card .ov-aram-badge {
-  width: 40px; height: 40px; border-radius: 10px; background: rgba(229,169,60,.15);
-  display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--vc-gold-hl);
+.ov-aram-sq-label {
+  font-size: 11px; letter-spacing: 2px; color: var(--vc-text-muted);
+  text-transform: uppercase; margin-bottom: 10px;
 }
-.ov-aram-card .ov-aram-body { flex: 1; }
-.ov-aram-card .ov-aram-title-row { display: flex; justify-content: space-between; align-items: baseline; }
-.ov-aram-card .ov-aram-title { font-size: 14px; font-weight: 600; color: var(--vc-text-main); }
-.ov-aram-card .ov-aram-count { font-family: "JetBrains Mono", "Consolas", monospace; font-size: 13px; color: var(--vc-gold-hl); }
-.ov-aram-card .ov-aram-hint { font-size: 11px; color: var(--vc-text-muted); margin-top: 2px; }
-.ov-aram-card .ov-aram-bar { height: 8px; border-radius: 5px; background: var(--vc-bg-surface-hover); margin-top: 8px; overflow: hidden; }
-.ov-aram-card .ov-aram-fill { height: 100%; background: linear-gradient(90deg, var(--vc-gold), var(--vc-gold-hl)); border-radius: 5px; }
+.ov-aram-sq-number {
+  font-family: "JetBrains Mono", "Consolas", monospace; font-size: 40px; font-weight: 700;
+  color: var(--vc-text-main); line-height: 1; margin-bottom: 8px;
+}
+.ov-aram-sq-pill {
+  display: inline-block; padding: 4px 12px; border-radius: 16px; font-size: 11px; font-weight: 700;
+  letter-spacing: .5px; margin-bottom: 16px;
+  background: rgba(229, 169, 60, .15); color: var(--vc-gold-hl); border: 1px solid rgba(229, 169, 60, .4);
+}
+.ov-aram-empty .ov-aram-sq-pill { background: var(--vc-bg-surface-hover); color: var(--vc-text-muted); border-color: var(--vc-border); }
+.ov-aram-sq-bar { height: 10px; border-radius: 5px; background: var(--vc-bg-surface-hover); margin: 0 2px; overflow: hidden; }
+.ov-aram-sq-fill { height: 100%; background: linear-gradient(90deg, var(--vc-gold), var(--vc-gold-hl)); border-radius: 5px; }
+.ov-aram-sq-caption { margin-top: 14px; font-size: 11px; color: var(--vc-text-muted); }
 
 .ov-trend-chart { position: relative; height: 130px; margin-top: 6px; }
 .ov-trend-chart svg { position: absolute; inset: 0; width: 100%; height: 100%; }
@@ -592,19 +601,20 @@ tr.low-n td { color: var(--ink-3); }
    Deliberately not filter-reactive — see renderVibeMeter() in app.js. ---------- */
 .ov-vibemeter-card {
   background: var(--vc-bg-surface); border: 1px solid var(--vc-border); border-radius: 14px;
-  padding: 26px 30px 22px; text-align: center; margin-bottom: 26px;
+  padding: 20px; text-align: center; aspect-ratio: 1; box-sizing: border-box;
+  display: flex; flex-direction: column; justify-content: center;
 }
 .ov-vm-label {
-  font-size: 12px; letter-spacing: 2.5px; color: var(--vc-text-muted);
-  text-transform: uppercase; margin-bottom: 14px;
+  font-size: 11px; letter-spacing: 2px; color: var(--vc-text-muted);
+  text-transform: uppercase; margin-bottom: 10px;
 }
 .ov-vm-number {
-  font-family: "JetBrains Mono", "Consolas", monospace; font-size: 48px; font-weight: 700;
+  font-family: "JetBrains Mono", "Consolas", monospace; font-size: 40px; font-weight: 700;
   color: var(--vc-text-main); line-height: 1; margin-bottom: 8px;
 }
 .ov-vm-pill {
-  display: inline-block; padding: 5px 16px; border-radius: 20px; font-size: 13px; font-weight: 700;
-  letter-spacing: .5px; margin-bottom: 22px;
+  display: inline-block; padding: 4px 12px; border-radius: 16px; font-size: 11px; font-weight: 700;
+  letter-spacing: .5px; margin-bottom: 16px;
 }
 .ov-vm-empty .ov-vm-pill { background: var(--vc-bg-surface-hover); color: var(--vc-text-muted); }
 .ov-vm-bar { position: relative; display: flex; gap: 3px; height: 14px; margin: 0 4px; }
