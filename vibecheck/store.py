@@ -8,6 +8,7 @@ import json
 import logging
 import sqlite3
 import threading
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
@@ -83,10 +84,32 @@ CREATE TABLE IF NOT EXISTS achievement_progress (
 """
 
 
+def _step_v1_added_columns(conn: sqlite3.Connection) -> None:
+    """v1: the pre-versioning ALTER-by-existence-check pass, unchanged in
+    behavior from before schema_version existed. Idempotent by column
+    existence, so a database mid-way through the old scheme (some columns
+    already added by an earlier build) still ends up complete no matter what
+    version it starts this migration at.
+    """
+    existing = {r["name"] for r in conn.execute("PRAGMA table_info(games)")}
+    for name, decl in (
+        ("enemy_champions", "TEXT"),
+        ("augments", "TEXT"),
+        ("items", "TEXT"),
+        ("damage_to_champs", "INTEGER"),
+        ("gold", "INTEGER"),
+    ):
+        if name not in existing:
+            # Names are fixed literals above, never user input.
+            conn.execute(f"ALTER TABLE games ADD COLUMN {name} {decl}")  # noqa: S608
+            log.info("Migrated games table: added column %s", name)
+
+
 class GameStore:
     def __init__(self, db_path: Path = DB_PATH):
         db_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
+        self._db_path = db_path
         self._db = sqlite3.connect(db_path, check_same_thread=False)
         self._db.row_factory = sqlite3.Row
         with self._lock, self._db:
@@ -94,25 +117,64 @@ class GameStore:
         self._migrate()
         self._seed_default_tags()
 
-    # Columns added after v1 shipped; existing databases get them via ALTER.
-    _ADDED_COLUMNS = (
-        ("enemy_champions", "TEXT"),
-        ("augments", "TEXT"),
-        ("items", "TEXT"),
-        ("damage_to_champs", "INTEGER"),
-        ("gold", "INTEGER"),
+    # ---------------- schema migrations (issue #49) ----------------
+    #
+    # Each entry is (target_version, description, step). A step receives the
+    # raw sqlite3.Connection and runs DDL/DML against it directly — it already
+    # runs inside a lock+transaction held by _migrate(), so it must never call
+    # a public helper like get_meta/set_meta (self._lock is not reentrant).
+    _MIGRATIONS: tuple[tuple[int, str, Callable[[sqlite3.Connection], None]], ...] = (
+        (
+            1,
+            "add enemy_champions/augments/items/damage_to_champs/gold columns",
+            _step_v1_added_columns,
+        ),
     )
     # Fields stored as JSON arrays.
     _JSON_COLUMNS = ("enemy_champions", "augments", "items")
 
+    def _read_schema_version(self) -> int:
+        value = self.get_meta("schema_version")
+        return int(value) if value else 0
+
     def _migrate(self) -> None:
-        with self._lock, self._db:
-            existing = {r["name"] for r in self._db.execute("PRAGMA table_info(games)")}
-            for name, decl in self._ADDED_COLUMNS:
-                if name not in existing:
-                    # Names are fixed literals above, never user input.
-                    self._db.execute(f"ALTER TABLE games ADD COLUMN {name} {decl}")  # noqa: S608
-                    log.info("Migrated games table: added column %s", name)
+        current = self._read_schema_version()
+        pending = [step for step in self._MIGRATIONS if step[0] > current]
+        self._schema_version = current
+        self._migration_failed = False
+        if not pending:
+            return
+
+        for version, description, step_fn in pending:
+            try:
+                with self._lock, self._db:
+                    step_fn(self._db)
+                    self._db.execute(
+                        "INSERT INTO meta (key, value) VALUES ('schema_version', ?) "
+                        "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                        (str(version),),
+                    )
+            except Exception:
+                # A migration step must never take the app down: a user seeing
+                # an empty dashboard reads as "it deleted everything", so this
+                # logs loudly and keeps running on the last version that
+                # worked rather than propagating. self._schema_version already
+                # reflects that version — updated per-step below, not just
+                # once at the end — so it stays truthful even when an earlier
+                # step in this same pass committed before a later one failed.
+                log.exception(
+                    "Schema migration to v%d (%s) failed; staying on v%d",
+                    version,
+                    description,
+                    self._schema_version,
+                )
+                self._migration_failed = True
+                return
+            # Updated after each successful step, not once after the whole
+            # loop — a later step can still fail, and self._schema_version
+            # must reflect what actually got committed, not what was intended.
+            current = version
+            self._schema_version = current
 
     def _seed_default_tags(self) -> None:
         with self._lock, self._db:
