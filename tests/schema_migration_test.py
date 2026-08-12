@@ -88,6 +88,65 @@ def test_failing_step_leaves_the_database_usable_and_version_unchanged(root):
         GameStore._MIGRATIONS = original
 
 
+def test_ddl_step_failure_rolls_back_its_own_schema_change(root):
+    """A step that mutates the schema before raising must not leave that
+    change committed. sqlite3's isolation_level="" only opens an implicit
+    transaction ahead of DML (INSERT/UPDATE/DELETE), never ahead of DDL, so a
+    bare `with self._db:` would let an ALTER TABLE autocommit immediately —
+    surviving even though the `with` block rolls back on the exception raised
+    right after it. Regression test for the final review of issue #49:
+    _migrate() now opens an explicit BEGIN so DDL joins the same transaction.
+    """
+    db_path = root / "ddl-rollback.sqlite3"
+
+    def add_column_then_boom(conn):
+        conn.execute("ALTER TABLE games ADD COLUMN doomed_column TEXT")
+        raise RuntimeError("simulated failure after DDL")
+
+    original = GameStore._MIGRATIONS
+    GameStore._MIGRATIONS = (
+        *original,
+        (original[-1][0] + 1, "adds a column then fails", add_column_then_boom),
+    )
+    try:
+        store = GameStore(db_path)
+        assert store._migration_failed is True
+        assert store._schema_version == original[-1][0]
+        store.close()
+
+        # A fresh connection (not the GameStore's own) rules out anything about
+        # the in-process connection hiding an uncommitted change.
+        conn = sqlite3.connect(db_path)
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(games)")}
+        conn.close()
+        assert "doomed_column" not in cols, (
+            "the failed step's own DDL must have rolled back, not autocommitted"
+        )
+    finally:
+        GameStore._MIGRATIONS = original
+
+
+def test_partial_multi_step_pass_stops_at_last_successful_version(root):
+    """Two pending steps, the second one broken: the first must fully commit
+    (schema_version advances to it) while the pass stops there rather than
+    reverting everything — retry-every-launch depends on this being true.
+    """
+    db_path = root / "partial-pass.sqlite3"
+
+    def boom(conn):
+        raise RuntimeError("simulated migration bug")
+
+    original = GameStore._MIGRATIONS
+    GameStore._MIGRATIONS = (*original, (original[-1][0] + 1, "deliberately broken step", boom))
+    try:
+        store = GameStore(db_path)
+        assert store._schema_version == 1, "the first (real) step must have committed"
+        assert store._migration_failed is True
+        store.close()
+    finally:
+        GameStore._MIGRATIONS = original
+
+
 def test_pending_migration_backs_up_the_database_first(root):
     db_path = root / "backup-me.sqlite3"
     conn = sqlite3.connect(db_path)
@@ -195,6 +254,8 @@ TESTS = [
     test_old_partial_columns_database_still_completes,
     test_second_launch_is_a_noop,
     test_failing_step_leaves_the_database_usable_and_version_unchanged,
+    test_ddl_step_failure_rolls_back_its_own_schema_change,
+    test_partial_multi_step_pass_stops_at_last_successful_version,
     test_pending_migration_backs_up_the_database_first,
     test_up_to_date_database_creates_no_further_backup,
     test_persistently_failing_step_backs_up_on_every_launch,

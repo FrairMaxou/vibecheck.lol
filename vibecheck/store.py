@@ -17,6 +17,12 @@ from .config import DB_PATH, DEFAULT_TAGS, SESSION_GAP_SECONDS
 
 log = logging.getLogger(__name__)
 
+# Baseline table creation only — applied unconditionally on every launch, with
+# no backup and no version gate. New structural changes (new columns, new
+# tables, anything that mutates an existing shape) belong in `_MIGRATIONS`
+# below, not here: that's what gets a pre-change backup and a schema_version
+# bump. `CREATE TABLE IF NOT EXISTS` is safe to run forever unversioned;
+# anything less idempotent than that does not belong in this constant.
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS games (
     id INTEGER PRIMARY KEY,
@@ -115,7 +121,11 @@ class GameStore:
         self._db.row_factory = sqlite3.Row
 
         # Check if migrations are pending before applying schema — if so, back up
-        # the database in its current state before any structural changes.
+        # the database in its current state before any structural changes. This
+        # is the single computation of "pending": _migrate() takes the list
+        # below rather than recomputing it, so the backup's target version and
+        # the migration loop's target version can never diverge, and _migrate()
+        # can't run without first going through this backup gate.
         current = self._read_schema_version()
         pending = [step for step in self._MIGRATIONS if step[0] > current]
         self._schema_version = current
@@ -125,7 +135,13 @@ class GameStore:
             target_version = pending[-1][0]
             try:
                 self._backup_before_migration(target_version)
-            except OSError:
+            except Exception:
+                # Broad on purpose, same as the step loop below: a migration
+                # step (and the backup step that guards it) must never crash
+                # the app. Narrowing this to OSError would let anything else
+                # _backup_before_migration raises propagate out of the
+                # constructor and take app startup down with it — the exact
+                # failure mode this framework exists to prevent.
                 log.exception(
                     "Could not back up database before migrating to v%d; skipping this launch",
                     target_version,
@@ -135,8 +151,8 @@ class GameStore:
 
         with self._lock, self._db:
             self._db.executescript(_SCHEMA)
-        if backup_succeeded:
-            self._migrate()
+        if pending and backup_succeeded:
+            self._migrate(pending)
         self._seed_default_tags()
 
     # ---------------- schema migrations (issue #49) ----------------
@@ -176,20 +192,28 @@ class GameStore:
         shutil.copy2(self._db_path, dest)
         log.info("Backed up database to %s before migrating to schema v%d", dest, target_version)
 
-    def _migrate(self) -> None:
-        current = self._read_schema_version()
-        pending = [step for step in self._MIGRATIONS if step[0] > current]
-        if not pending:
-            # No pending migrations, but ensure _schema_version is current.
-            self._schema_version = current
-            return
+    def _migrate(
+        self, pending: list[tuple[int, str, Callable[[sqlite3.Connection], None]]]
+    ) -> None:
+        """Run each pending migration step in its own transaction.
 
-        # Backup already happened in __init__ before _SCHEMA was applied, if needed.
-        # This method runs the actual migration steps.
-
+        Only called from __init__, after the backup gate there has already
+        run for this exact `pending` list — never call this directly, and
+        never recompute "pending" here, or the backup's target version and
+        this loop's target version could diverge.
+        """
         for version, description, step_fn in pending:
             try:
                 with self._lock, self._db:
+                    # isolation_level="" (the default) only opens an implicit
+                    # transaction before DML (INSERT/UPDATE/DELETE) — never
+                    # before DDL. A bare `with self._db:` here would let a
+                    # step's ALTER TABLE/CREATE TABLE autocommit immediately,
+                    # so it would survive even though the `with` block rolls
+                    # back on a later exception in the same step. BEGIN
+                    # explicitly so DDL joins the same transaction as the rest
+                    # of the step and actually rolls back with it.
+                    self._db.execute("BEGIN")
                     step_fn(self._db)
                     self._db.execute(
                         "INSERT INTO meta (key, value) VALUES ('schema_version', ?) "
@@ -215,8 +239,7 @@ class GameStore:
             # Updated after each successful step, not once after the whole
             # loop — a later step can still fail, and self._schema_version
             # must reflect what actually got committed, not what was intended.
-            current = version
-            self._schema_version = current
+            self._schema_version = version
 
     def _seed_default_tags(self) -> None:
         with self._lock, self._db:
