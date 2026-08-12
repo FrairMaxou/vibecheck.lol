@@ -14,6 +14,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
+from vibecheck import telemetry  # noqa: E402
 from vibecheck.store import GameStore  # noqa: E402
 
 LATEST_VERSION = GameStore._MIGRATIONS[-1][0]
@@ -181,6 +182,14 @@ def test_backup_failure_skips_migration_this_launch(root):
         GameStore._backup_before_migration = original_backup
 
 
+def test_telemetry_payload_carries_schema_health(root):
+    store = GameStore(root / "telemetry.sqlite3")
+    payload = telemetry._payload(store)
+    assert payload["schema_version"] == LATEST_VERSION, payload
+    assert payload["schema_migration_failed"] is False, payload
+    store.close()
+
+
 TESTS = [
     test_fresh_database_lands_on_latest_version,
     test_old_partial_columns_database_still_completes,
@@ -190,6 +199,7 @@ TESTS = [
     test_up_to_date_database_creates_no_further_backup,
     test_persistently_failing_step_backs_up_on_every_launch,
     test_backup_failure_skips_migration_this_launch,
+    test_telemetry_payload_carries_schema_health,
 ]
 
 

@@ -230,6 +230,16 @@ class GameStore:
         with self._lock:
             self._db.close()
 
+    def schema_version(self) -> int:
+        """Current schema version, after whatever migration ran at open."""
+        return self._schema_version
+
+    def schema_migration_failed(self) -> bool:
+        """Whether the most recent startup's migration attempt failed, leaving
+        the database on an older version than the code expects.
+        """
+        return self._migration_failed
+
     def _bump_rev(self) -> None:
         """Mark the dataset as changed. Call only from inside a `with self._lock,
         self._db:` block already held by the caller (see every write method below) —
