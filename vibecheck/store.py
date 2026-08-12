@@ -120,6 +120,7 @@ class GameStore:
         pending = [step for step in self._MIGRATIONS if step[0] > current]
         self._schema_version = current
         self._migration_failed = False
+        backup_succeeded = True
         if pending:
             target_version = pending[-1][0]
             try:
@@ -130,12 +131,12 @@ class GameStore:
                     target_version,
                 )
                 self._migration_failed = True
-                # Continue anyway — if the database is damaged, we want to keep
-                # trying; if it's just a permissions issue, a later launch might succeed.
+                backup_succeeded = False
 
         with self._lock, self._db:
             self._db.executescript(_SCHEMA)
-        self._migrate()
+        if backup_succeeded:
+            self._migrate()
         self._seed_default_tags()
 
     # ---------------- schema migrations (issue #49) ----------------

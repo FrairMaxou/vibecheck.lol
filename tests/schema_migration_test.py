@@ -144,6 +144,43 @@ def test_persistently_failing_step_backs_up_on_every_launch(root):
         GameStore._MIGRATIONS = original
 
 
+def test_backup_failure_skips_migration_this_launch(root):
+    """If backup fails (disk full, permissions, etc.), the database must not be
+    migrated unprotected this launch. Schema version stays on the pre-migration
+    value and no DDL step runs.
+    """
+    db_path = root / "no-backup.sqlite3"
+    conn = sqlite3.connect(db_path)
+    conn.executescript(
+        """
+        CREATE TABLE games (id INTEGER PRIMARY KEY, riot_match_id TEXT UNIQUE,
+                             played_at TEXT NOT NULL);
+        CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
+        """
+    )
+    conn.commit()
+    conn.close()
+
+    original_backup = GameStore._backup_before_migration
+
+    def failing_backup(self, target_version):
+        # Simulate a backup failure (disk full, permission denied, etc.)
+        raise OSError("Simulated backup failure")
+
+    GameStore._backup_before_migration = failing_backup
+    try:
+        store = GameStore(db_path)
+        # Despite the failed backup, the store should be usable on the old version
+        assert store._schema_version == 0, "must stay on pre-migration version"
+        assert store._migration_failed is True, "must flag that migration was skipped"
+        # The games table must not have been altered by the v1 migration step
+        cols = {r["name"] for r in store._db.execute("PRAGMA table_info(games)")}
+        assert "enemy_champions" not in cols, "v1 migration must not have run when backup failed"
+        store.close()
+    finally:
+        GameStore._backup_before_migration = original_backup
+
+
 TESTS = [
     test_fresh_database_lands_on_latest_version,
     test_old_partial_columns_database_still_completes,
@@ -152,6 +189,7 @@ TESTS = [
     test_pending_migration_backs_up_the_database_first,
     test_up_to_date_database_creates_no_further_backup,
     test_persistently_failing_step_backs_up_on_every_launch,
+    test_backup_failure_skips_migration_this_launch,
 ]
 
 
