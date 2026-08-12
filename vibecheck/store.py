@@ -6,6 +6,7 @@ future "also sync to server" backend can plug in behind it.
 
 import json
 import logging
+import shutil
 import sqlite3
 import threading
 from collections.abc import Callable
@@ -112,6 +113,26 @@ class GameStore:
         self._db_path = db_path
         self._db = sqlite3.connect(db_path, check_same_thread=False)
         self._db.row_factory = sqlite3.Row
+
+        # Check if migrations are pending before applying schema — if so, back up
+        # the database in its current state before any structural changes.
+        current = self._read_schema_version()
+        pending = [step for step in self._MIGRATIONS if step[0] > current]
+        self._schema_version = current
+        self._migration_failed = False
+        if pending:
+            target_version = pending[-1][0]
+            try:
+                self._backup_before_migration(target_version)
+            except OSError:
+                log.exception(
+                    "Could not back up database before migrating to v%d; skipping this launch",
+                    target_version,
+                )
+                self._migration_failed = True
+                # Continue anyway — if the database is damaged, we want to keep
+                # trying; if it's just a permissions issue, a later launch might succeed.
+
         with self._lock, self._db:
             self._db.executescript(_SCHEMA)
         self._migrate()
@@ -134,16 +155,36 @@ class GameStore:
     _JSON_COLUMNS = ("enemy_champions", "augments", "items")
 
     def _read_schema_version(self) -> int:
-        value = self.get_meta("schema_version")
-        return int(value) if value else 0
+        try:
+            value = self.get_meta("schema_version")
+            return int(value) if value else 0
+        except sqlite3.OperationalError:
+            # meta table doesn't exist yet (fresh database before _SCHEMA is applied)
+            return 0
+
+    def _backup_before_migration(self, target_version: int) -> None:
+        """Copy the database into <data dir>/backups/ before the first DDL of a
+        new schema version — the safety net for ~100 users' live history if a
+        step turns out to be wrong. Mirrors the naming tools/reset_data.py
+        already uses for its own timestamped backups.
+        """
+        backups_dir = self._db_path.parent / "backups"
+        backups_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+        dest = backups_dir / f"{timestamp}-schema-v{target_version}.sqlite3"
+        shutil.copy2(self._db_path, dest)
+        log.info("Backed up database to %s before migrating to schema v%d", dest, target_version)
 
     def _migrate(self) -> None:
         current = self._read_schema_version()
         pending = [step for step in self._MIGRATIONS if step[0] > current]
-        self._schema_version = current
-        self._migration_failed = False
         if not pending:
+            # No pending migrations, but ensure _schema_version is current.
+            self._schema_version = current
             return
+
+        # Backup already happened in __init__ before _SCHEMA was applied, if needed.
+        # This method runs the actual migration steps.
 
         for version, description, step_fn in pending:
             try:

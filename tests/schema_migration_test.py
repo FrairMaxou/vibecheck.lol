@@ -87,11 +87,71 @@ def test_failing_step_leaves_the_database_usable_and_version_unchanged(root):
         GameStore._MIGRATIONS = original
 
 
+def test_pending_migration_backs_up_the_database_first(root):
+    db_path = root / "backup-me.sqlite3"
+    conn = sqlite3.connect(db_path)
+    conn.executescript(
+        """
+        CREATE TABLE games (id INTEGER PRIMARY KEY, riot_match_id TEXT UNIQUE,
+                             played_at TEXT NOT NULL);
+        CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
+        """
+    )
+    conn.commit()
+    conn.close()
+    pre_migration_bytes = db_path.read_bytes()
+
+    store = GameStore(db_path)
+    store.close()
+
+    backups = list((root / "backups").glob(f"*-schema-v{LATEST_VERSION}.sqlite3"))
+    assert len(backups) == 1, backups
+    assert backups[0].read_bytes() == pre_migration_bytes, (
+        "backup must hold the pre-migration content"
+    )
+
+
+def test_up_to_date_database_creates_no_further_backup(root):
+    db_path = root / "no-backup-needed.sqlite3"
+    # First open starts at schema_version 0 (even a brand-new db), so v1 is
+    # pending and this one DOES back up — that backup is what's under test in
+    # test_pending_migration_backs_up_the_database_first above.
+    GameStore(db_path).close()
+    backups_dir = root / "backups"
+    count_after_first_open = len(list(backups_dir.iterdir()))
+
+    # Second open: schema_version is already LATEST_VERSION, nothing pending.
+    GameStore(db_path).close()
+    assert len(list(backups_dir.iterdir())) == count_after_first_open, (
+        "a database already on the latest version must not accumulate backups"
+    )
+
+
+def test_persistently_failing_step_backs_up_on_every_launch(root):
+    db_path = root / "retry.sqlite3"
+
+    def boom(conn):
+        raise RuntimeError("simulated migration bug")
+
+    original = GameStore._MIGRATIONS
+    GameStore._MIGRATIONS = (*original, (original[-1][0] + 1, "deliberately broken step", boom))
+    try:
+        GameStore(db_path).close()
+        GameStore(db_path).close()
+        backups = list((root / "backups").glob(f"*-schema-v{original[-1][0] + 1}.sqlite3"))
+        assert len(backups) == 2, "retry-every-launch means a fresh backup each attempt"
+    finally:
+        GameStore._MIGRATIONS = original
+
+
 TESTS = [
     test_fresh_database_lands_on_latest_version,
     test_old_partial_columns_database_still_completes,
     test_second_launch_is_a_noop,
     test_failing_step_leaves_the_database_usable_and_version_unchanged,
+    test_pending_migration_backs_up_the_database_first,
+    test_up_to_date_database_creates_no_further_backup,
+    test_persistently_failing_step_backs_up_on_every_launch,
 ]
 
 
