@@ -759,20 +759,23 @@ tr.low-n td { color: var(--ink-3); }
    margin-bottom plus .page-container's 20px top padding) is a fixed 90px
    offset above the grid, measured live via getBoundingClientRect() —
    independent of window height, since the header is a slim fixed-height bar,
-   not content-driven. That's 18px less overhead than the old ~88px hero
-   header. Row 2 (spotlight) spends that reclaimed space directly — it's the
-   intentional size lever (see the comment on .ov-cell-spotlight below) — so
-   it grew from 183px to 202px, the most either row 1 or row 3 could spare a
-   1920x889 window still needing (242+202+305+48gaps=797px vs 799px
-   available, 2px to spare) rather than the razor-thin fit the old header
-   required. No local --header-h override needed here — the root value
-   already matches the real header. Keep this rule's offset in sync with
-   main's above — both must resolve to the same 90px. */
+   not content-driven. No local --header-h override needed here — the root
+   value already matches the real header. Keep this rule's offset in sync
+   with main's above — both must resolve to the same 90px.
+
+   Row 2 (spotlight) is the intentional size lever (see the comment on
+   .ov-cell-spotlight below) — deliberately sized past the zero-scroll
+   budget at 254px (a maintainer-requested ~30% tile-size bump beyond the
+   197px that exactly filled the reclaimed slim-header space). At 1920x889
+   this needs 242+254+305+48gaps=849px against 799px available, so the
+   grid's own overflow-y: auto safety net is expected to activate at that
+   viewport — a deliberate trade of the zero-scroll enhancement for bigger
+   Spotlight art, not a bug. Still zero-scroll on taller/larger windows. */
 @media (min-width: 1400px) and (min-height: 850px) {
   .ov-grid12 {
     max-height: calc(100vh - var(--header-h) - var(--shell-offset));
     overflow-y: auto; margin-bottom: 0;
-    grid-template-rows: 242px 202px 305px;
+    grid-template-rows: 242px 254px 305px;
     grid-template-areas:
       "vibemeter vibemeter vibemeter vibemeter aram aram aram aram totals totals totals totals"
       "spotlight spotlight spotlight spotlight spotlight spotlight spotlight spotlight spotlight spotlight spotlight spotlight"
