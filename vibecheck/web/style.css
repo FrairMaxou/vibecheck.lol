@@ -588,7 +588,10 @@ tr.low-n td { color: var(--ink-3); }
 .ov-tcard .ov-label {
   font-size: 10px; color: var(--vc-text-muted); text-transform: uppercase; letter-spacing: .5px;
 }
-.ov-tcard .ov-value { font-family: "JetBrains Mono", "Consolas", monospace; font-size: 21px; color: var(--vc-text-main); }
+.ov-tcard .ov-value {
+  font-family: "JetBrains Mono", "Consolas", monospace; font-size: 21px; color: var(--vc-text-main);
+  white-space: nowrap;
+}
 .ov-tcard .ov-since { font-size: 10px; color: var(--vc-text-muted); }
 
 .ov-spotlight { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }
@@ -633,6 +636,7 @@ tr.low-n td { color: var(--ink-3); }
 }
 .ov-stile .ov-headline .ov-stat-big {
   font-family: "JetBrains Mono", "Consolas", monospace; font-size: 18px; color: var(--vc-gold-hl); font-weight: 700;
+  white-space: nowrap;
 }
 .ov-stile .ov-overlay {
   position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
@@ -698,21 +702,35 @@ tr.low-n td { color: var(--ink-3); }
 
    Two deliberate deviations from a literal reading of the spec, both in the
    direction of "never hide data the user can't get back":
-   - Row 1 is ~215px, not ~160px. The existing Vibe-O-Meter/ARAM cards need
-     that much to show their label/number/pill/bar/ticks/caption without
-     clipping anything — 160px was checked against their actual layout and
-     doesn't fit.
+   - Row 1 is 242px, not ~160px. The existing Vibe-O-Meter/ARAM/Totals cards
+     need that much to show their label/number/pill/bar/ticks/caption
+     without clipping anything — measured live at 241px natural content
+     height, +1px slack.
    - The container uses max-height + overflow-y: auto, not a hard height +
      overflow: hidden. --header-h below is a fixed estimate, not measured at
      runtime, so if it's ever off (a longer summoner name wraps the header
      to two lines, different font metrics, etc.), the page gains a small
-     scrollbar instead of silently clipping a card's content. */
+     scrollbar instead of silently clipping a card's content.
+
+   All three rows are fixed px, not minmax(...,1fr) — deliberately, not an
+   oversight. An 1fr row grows to fill whatever budget max-height gives the
+   container, which grows the flex-stretched content inside it (spotlight
+   tiles, regret chart), which changes scrollHeight, which changes what
+   "fits" — a moving target that can't be solved for. Fixed rows make the
+   sum stable. Row 2 (spotlight) is intentionally height-driven rather than
+   content-driven: .ov-stile's aspect-ratio ties tile width to this row
+   height, so the row height is the actual design lever, not a fit target.
+   Row heights below (242/183/305) were measured live in Chrome at a real
+   1920x889 viewport (a normal 1080p window after browser chrome) — the
+   realistic case the shipped 215px/minmax version fell short on. */
 @media (min-width: 1400px) and (min-height: 850px) {
   .ov-grid12 {
-    --header-h: 96px;
-    max-height: calc(100vh - var(--header-h) - 120px);
+    --header-h: 88px;
+    /* 20px = body's own top padding (line ~19), same on every page —
+       not part of the header, but part of the fixed budget above the grid. */
+    max-height: calc(100vh - 20px - var(--header-h));
     overflow-y: auto; margin-bottom: 0;
-    grid-template-rows: 215px minmax(200px, 1fr) minmax(200px, 1fr);
+    grid-template-rows: 242px 183px 305px;
     grid-template-areas:
       "vibemeter vibemeter vibemeter vibemeter aram aram aram aram totals totals totals totals"
       "spotlight spotlight spotlight spotlight spotlight spotlight spotlight spotlight spotlight spotlight spotlight spotlight"
@@ -748,6 +766,15 @@ tr.low-n td { color: var(--ink-3); }
      without a way to see the result. */
   .ov-cell-regret { height: 100%; display: flex; flex-direction: column; }
   .ov-cell-regret .ov-regret-wrap { flex: 1; min-height: 0; height: auto; }
+  /* Shrink the trend mini-chart from its default 130px so row 3's natural
+     height (359px) drops to ~304px, fitting the 305px row. Confirmed live
+     that the chart and its y-axis (both driven by this one var) stay
+     aligned at this height — no visual regression at 75px vs. 130px.
+     Extra `.ov-grid12` ancestor (not just `.ov-trend-row`) is load-bearing:
+     the base --ov-trend-chart-h: 130px declaration below (same selector,
+     no media query) sits later in the file, so equal specificity would let
+     source order silently win over this override. */
+  .ov-grid12 .ov-trend-row { --ov-trend-chart-h: 75px; }
 }
 
 /* ---------- Shared hero-card anatomy: label / big number / pill / caption.
