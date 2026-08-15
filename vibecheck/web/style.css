@@ -625,7 +625,7 @@ tr.low-n td { color: var(--ink-3); }
 
 .ov-spotlight { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }
 .ov-stile {
-  aspect-ratio: 11 / 20; position: relative; border-radius: 12px; overflow: hidden;
+  aspect-ratio: 3 / 4; position: relative; border-radius: 12px; overflow: hidden;
   border: 1px solid var(--vc-border); background: var(--vc-bg-surface); cursor: default;
 }
 .ov-stile .ov-splash-img {
