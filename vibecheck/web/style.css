@@ -760,16 +760,19 @@ tr.low-n td { color: var(--ink-3); }
    offset above the grid, measured live via getBoundingClientRect() —
    independent of window height, since the header is a slim fixed-height bar,
    not content-driven. That's 18px less overhead than the old ~88px hero
-   header, so the same 242/183/305 rows now fit with room to spare (778px
-   needed vs. 799px available at 1920x889) rather than the razor-thin fit the
-   old header required. No local --header-h override needed here — the root
-   value already matches the real header. Keep this rule's offset in sync
-   with main's above — both must resolve to the same 90px. */
+   header. Row 2 (spotlight) spends that reclaimed space directly — it's the
+   intentional size lever (see the comment on .ov-cell-spotlight below) — so
+   it grew from 183px to 202px, the most either row 1 or row 3 could spare a
+   1920x889 window still needing (242+202+305+48gaps=797px vs 799px
+   available, 2px to spare) rather than the razor-thin fit the old header
+   required. No local --header-h override needed here — the root value
+   already matches the real header. Keep this rule's offset in sync with
+   main's above — both must resolve to the same 90px. */
 @media (min-width: 1400px) and (min-height: 850px) {
   .ov-grid12 {
     max-height: calc(100vh - var(--header-h) - var(--shell-offset));
     overflow-y: auto; margin-bottom: 0;
-    grid-template-rows: 242px 183px 305px;
+    grid-template-rows: 242px 202px 305px;
     grid-template-areas:
       "vibemeter vibemeter vibemeter vibemeter aram aram aram aram totals totals totals totals"
       "spotlight spotlight spotlight spotlight spotlight spotlight spotlight spotlight spotlight spotlight spotlight spotlight"
