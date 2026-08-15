@@ -283,12 +283,7 @@ h1 { font-size: 26px; letter-spacing: .5px; color: var(--gold); }
 }
 .msel-panel label:hover { background: var(--surface); }
 
-/* ---------- app shell: left rail + content ---------- */
-.app-shell { display: flex; gap: 22px; align-items: flex-start; }
-/* flex: 1 so main fills the remaining width instead of shrink-wrapping its
-   content next to the rail; min-width: 0 lets it actually shrink below that
-   content's intrinsic width (charts/tables) rather than overflowing the
-   shell — the classic flexbox min-width:auto trap. */
+/* ---------- main content ---------- */
 main { flex: 1; min-width: 0; }
 
 /* ---------- tabs (left rail) ---------- */

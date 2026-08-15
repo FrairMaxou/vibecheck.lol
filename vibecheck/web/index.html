@@ -9,18 +9,114 @@
 <link rel="icon" type="image/png" href="/assets/logo.png">
 </head>
 <body data-palette="#b28328,#2f9ac0" data-mode="dark">
+<aside id="sidebar" class="sidebar">
+  <div class="sidebar-top">
+    <a class="sidebar-brand" href="#" aria-label="VibeCheck.lol">
+      <img src="/assets/logo.png" alt="" width="28" height="28">
+      <span class="sidebar-brand-word">VibeCheck.lol</span>
+    </a>
+    <nav id="tabs" class="sidebar-nav">
+      <button data-tab="overview" class="active"><span class="nav-icon">🎯</span><span class="nav-label">The Vibe Check</span></button>
+      <button data-tab="champions"><span class="nav-icon">🏆</span><span class="nav-label">Champions</span></button>
+      <button data-tab="squad"><span class="nav-icon">👥</span><span class="nav-label">The Squad</span></button>
+      <button data-tab="patterns"><span class="nav-icon">📈</span><span class="nav-label">Patterns & Tags</span></button>
+    </nav>
+  </div>
+  <div class="sidebar-bottom">
+    <div class="profile">
+      <button id="profile-btn" class="sidebar-item" aria-haspopup="true">
+        <span class="profile-avatar">🤩</span>
+        <span class="profile-id nav-label">
+          <span id="profile-name">Summoner</span>
+          <span id="profile-vibe" class="profile-vibe"></span>
+        </span>
+        <span id="profile-dot" class="profile-dot hidden" title="An update is available"></span>
+      </button>
+      <div id="profile-menu" class="profile-menu hidden">
+        <div class="pm-head">
+          <div class="pm-name" id="pm-name">Summoner</div>
+          <div class="pm-stats" id="pm-stats"></div>
+        </div>
+
+        <div class="pm-section">
+          <div class="pm-title">Version</div>
+          <div id="update-body" class="pm-muted">Checking for updates…</div>
+          <button id="pm-update-btn" class="primary-btn hidden">Update now</button>
+          <div id="update-progress" class="update-progress hidden"><div id="update-bar"></div></div>
+          <div id="update-msg" class="squad-msg"></div>
+        </div>
+
+        <div class="pm-section">
+          <div class="pm-title">Settings</div>
+          <div class="setting-row">
+            <div class="setting-text">
+              <div class="setting-title">Start with Windows</div>
+              <div class="setting-desc">Launch automatically at login so no game is missed.</div>
+            </div>
+            <label class="switch"><input type="checkbox" id="set-autostart"><span class="slider"></span></label>
+          </div>
+          <div class="setting-row">
+            <div class="setting-text">
+              <div class="setting-title">Pause rating popups</div>
+              <div class="setting-desc">Keep capturing games, but hide the "How was that game?" popup. Rate later from To Rate.</div>
+            </div>
+            <label class="switch"><input type="checkbox" id="set-paused"><span class="slider"></span></label>
+          </div>
+          <div class="setting-row">
+            <div class="setting-text">
+              <div class="setting-title">When you close the window</div>
+              <div class="setting-desc">"Ask" prompts each time. Minimize keeps VibeCheck in the tray; Quit shuts it down.</div>
+            </div>
+            <select id="set-close-action" class="setting-select">
+              <option value="ask">Ask every time</option>
+              <option value="minimize">Minimize to tray</option>
+              <option value="quit">Quit the app</option>
+            </select>
+          </div>
+          <div class="setting-row">
+            <div class="setting-text">
+              <div class="setting-title">Anonymous usage stats</div>
+              <div class="setting-desc">Helps me see how many people use VibeCheck and which version to
+                support. Anonymous — no personal data.</div>
+            </div>
+            <label class="switch"><input type="checkbox" id="set-telemetry"><span class="slider"></span></label>
+          </div>
+          <div id="settings-msg" class="squad-msg"></div>
+        </div>
+
+        <div class="pm-section">
+          <div class="pm-title">Feedback</div>
+          <p class="pm-muted">Found a bug, or want something added? Tell me — it genuinely shapes what gets built.</p>
+          <div class="pm-links">
+            <a id="pm-discord" class="pm-link" href="#" target="_blank" rel="noopener">💬 Join the Discord</a>
+            <a id="pm-feedback" class="pm-link hidden" href="#" target="_blank" rel="noopener">📝 Send feedback</a>
+          </div>
+        </div>
+
+        <div class="pm-section">
+          <div class="pm-title">Your data</div>
+          <p class="pm-muted">Games live in <code>%LOCALAPPDATA%\VibeCheck</code>. Only rated games
+            sync, and only your mutual League friends can see them.</p>
+          <button id="pm-uninstall" class="danger-btn">Uninstall VibeCheck…</button>
+          <div id="uninstall-msg" class="squad-msg"></div>
+        </div>
+      </div>
+    </div>
+    <button id="settings-btn" class="sidebar-item" aria-haspopup="true" title="Settings">
+      <span class="nav-icon">⚙️</span><span class="nav-label">Settings</span>
+    </button>
+    <button id="nav-collapse-toggle" class="sidebar-item nav-collapse-btn" aria-label="Collapse navigation" title="Collapse navigation">
+      <span class="nav-icon">«</span><span class="nav-label">Collapse</span>
+    </button>
+  </div>
+</aside>
+
+<div class="app-content">
 <div class="page-container">
 <header>
   <div class="title-block">
-    <!-- The wordmark is in the image, so the h1 stays for screen readers and
-         document outline only. If the asset ever fails to load, app.js drops
-         the img and unhides the text so the header is never blank — see
-         data-on-error there. It is handled in script rather than with an
-         onerror attribute because the CSP forbids inline handlers. -->
-    <h1 class="visually-hidden" id="app-title">VibeCheck.lol</h1>
-    <img class="app-logo" src="/assets/logo-horizontal.png" alt="VibeCheck.lol"
-         width="403" height="128" data-on-error="reveal-title">
-    <p class="subtitle">Winrate is temporary. The vibes are forever.</p>
+    <h1 id="page-title">The Vibe Check</h1>
+    <p class="subtitle" id="page-subtitle">Winrate is temporary. The vibes are forever.</p>
   </div>
   <div class="header-actions">
     <section id="filters" class="filters">
@@ -54,95 +150,16 @@
           <div class="notif-title">Action required</div>
           <button id="notif-pending-row" class="notif-row hidden">
             <span id="notif-pending-text"></span>
-            <span class="notif-row-arrow">→</span>
+            <span class="notif-row-arrow">Rate now →</span>
           </button>
           <div id="notif-pending-empty" class="notif-empty hidden">All caught up — nothing to rate.</div>
         </div>
         <div class="notif-section">
           <div class="notif-title">Status</div>
           <div id="notif-sync" class="notif-sync"></div>
+          <div id="notif-version" class="notif-sync"></div>
         </div>
       </div>
-    </div>
-    <div class="profile">
-    <button id="profile-btn" class="profile-btn" aria-haspopup="true">
-      <span class="profile-avatar">🤩</span>
-      <span class="profile-id">
-        <span id="profile-name">Summoner</span>
-        <span id="profile-vibe" class="profile-vibe"></span>
-      </span>
-      <span class="chev">▾</span>
-      <span id="profile-dot" class="profile-dot hidden" title="An update is available"></span>
-    </button>
-    <div id="profile-menu" class="profile-menu hidden">
-      <div class="pm-head">
-        <div class="pm-name" id="pm-name">Summoner</div>
-        <div class="pm-stats" id="pm-stats"></div>
-      </div>
-
-      <div class="pm-section">
-        <div class="pm-title">Version</div>
-        <div id="update-body" class="pm-muted">Checking for updates…</div>
-        <button id="pm-update-btn" class="primary-btn hidden">Update now</button>
-        <div id="update-progress" class="update-progress hidden"><div id="update-bar"></div></div>
-        <div id="update-msg" class="squad-msg"></div>
-      </div>
-
-      <div class="pm-section">
-        <div class="pm-title">Settings</div>
-        <div class="setting-row">
-          <div class="setting-text">
-            <div class="setting-title">Start with Windows</div>
-            <div class="setting-desc">Launch automatically at login so no game is missed.</div>
-          </div>
-          <label class="switch"><input type="checkbox" id="set-autostart"><span class="slider"></span></label>
-        </div>
-        <div class="setting-row">
-          <div class="setting-text">
-            <div class="setting-title">Pause rating popups</div>
-            <div class="setting-desc">Keep capturing games, but hide the "How was that game?" popup. Rate later from To Rate.</div>
-          </div>
-          <label class="switch"><input type="checkbox" id="set-paused"><span class="slider"></span></label>
-        </div>
-        <div class="setting-row">
-          <div class="setting-text">
-            <div class="setting-title">When you close the window</div>
-            <div class="setting-desc">"Ask" prompts each time. Minimize keeps VibeCheck in the tray; Quit shuts it down.</div>
-          </div>
-          <select id="set-close-action" class="setting-select">
-            <option value="ask">Ask every time</option>
-            <option value="minimize">Minimize to tray</option>
-            <option value="quit">Quit the app</option>
-          </select>
-        </div>
-        <div class="setting-row">
-          <div class="setting-text">
-            <div class="setting-title">Anonymous usage stats</div>
-            <div class="setting-desc">Helps me see how many people use VibeCheck and which version to
-              support. Anonymous — no personal data.</div>
-          </div>
-          <label class="switch"><input type="checkbox" id="set-telemetry"><span class="slider"></span></label>
-        </div>
-        <div id="settings-msg" class="squad-msg"></div>
-      </div>
-
-      <div class="pm-section">
-        <div class="pm-title">Feedback</div>
-        <p class="pm-muted">Found a bug, or want something added? Tell me — it genuinely shapes what gets built.</p>
-        <div class="pm-links">
-          <a id="pm-discord" class="pm-link" href="#" target="_blank" rel="noopener">💬 Join the Discord</a>
-          <a id="pm-feedback" class="pm-link hidden" href="#" target="_blank" rel="noopener">📝 Send feedback</a>
-        </div>
-      </div>
-
-      <div class="pm-section">
-        <div class="pm-title">Your data</div>
-        <p class="pm-muted">Games live in <code>%LOCALAPPDATA%\VibeCheck</code>. Only rated games
-          sync, and only your mutual League friends can see them.</p>
-        <button id="pm-uninstall" class="danger-btn">Uninstall VibeCheck…</button>
-        <div id="uninstall-msg" class="squad-msg"></div>
-      </div>
-    </div>
     </div>
   </div>
 </header>
@@ -173,15 +190,6 @@
 <div id="offline-banner" class="banner banner-err hidden"></div>
 <div id="update-banner" class="banner banner-update hidden"></div>
 <div id="low-data-banner" class="banner hidden"></div>
-
-<div class="app-shell">
-<nav id="tabs">
-  <button id="nav-collapse-toggle" class="nav-collapse-btn" aria-label="Collapse navigation" title="Collapse navigation">«</button>
-  <button data-tab="overview" class="active"><span class="nav-icon">🎯</span><span class="nav-label">The Vibe Check</span></button>
-  <button data-tab="champions"><span class="nav-icon">🏆</span><span class="nav-label">Champions</span></button>
-  <button data-tab="squad"><span class="nav-icon">👥</span><span class="nav-label">The Squad</span></button>
-  <button data-tab="patterns"><span class="nav-icon">📈</span><span class="nav-label">Patterns & Tags</span></button>
-</nav>
 
 <main>
   <div id="tab-overview" class="tab">
