@@ -110,10 +110,6 @@ const SPLASH_RETRY_DELAYS_MS = [1500, 3000, 6000, 12000, 24000];
 
 const ON_ERROR = {
   remove: (el) => el.remove(),
-  "reveal-title": (el) => {
-    el.remove();
-    document.getElementById("app-title").classList.remove("visually-hidden");
-  },
   "retry-then-remove": (el) => {
     const attempt = (Number(el.dataset.retryAttempt) || 0) + 1;
     if (attempt > SPLASH_RETRY_DELAYS_MS.length) {
@@ -1247,6 +1243,8 @@ function toggleProfileMenu(forceOpen) {
   const menu = document.getElementById("profile-menu");
   const open = forceOpen ?? menu.classList.contains("hidden");
   menu.classList.toggle("hidden", !open);
+  document.getElementById("profile-btn").setAttribute("aria-expanded", open);
+  document.getElementById("settings-btn").setAttribute("aria-expanded", open);
   if (open) { renderSettings(); checkUpdate(); }
 }
 
@@ -1334,7 +1332,7 @@ function renderNotifVersion() {
   const el = document.getElementById("notif-version");
   if (!UPDATE) { el.textContent = ""; return; }
   el.innerHTML = UPDATE.update_available
-    ? `<span class="notif-sync-dot"></span> v${escapeAttr(UPDATE.current)} — update available`
+    ? `<span class="notif-sync-dot is-update"></span> v${escapeAttr(UPDATE.current)} — update available`
     : `<span class="notif-sync-dot is-synced"></span> v${escapeAttr(UPDATE.current)} — up to date`;
 }
 
@@ -1905,6 +1903,7 @@ function switchTab(tabId) {
   document.getElementById(`tab-${tabId}`).classList.remove("hidden");
   const activeBtn = document.querySelector(`#tabs button[data-tab="${tabId}"]`);
   if (activeBtn) document.getElementById("page-title").textContent = activeBtn.querySelector(".nav-label").textContent;
+  else if (tabId === "pending") document.getElementById("page-title").textContent = "Games left on read";
   renderAll();
 }
 document.querySelectorAll("#tabs button[data-tab]").forEach((btn) => {
@@ -1958,7 +1957,7 @@ document.addEventListener("click", (e) => {
 document.getElementById("ex-dim").addEventListener("change", renderAll);
 document.getElementById("ex-type").addEventListener("change", renderAll);
 
-// Profile menu (top-right): open/close, outside-click to dismiss, uninstall.
+// Profile menu (sidebar bottom): open/close, outside-click to dismiss, uninstall.
 document.getElementById("profile-btn").addEventListener("click", (e) => {
   e.stopPropagation();
   toggleProfileMenu();
@@ -1998,7 +1997,6 @@ function handleUpdateDeepLink() {
   if (new URLSearchParams(location.search).get("update") !== "1") return;
   history.replaceState(null, "", location.pathname);
   toggleProfileMenu(true);
-  document.getElementById("profile-menu").scrollIntoView({ block: "start" });
 }
 
 /* One-time welcome. A fresh install lands on empty charts with the next game

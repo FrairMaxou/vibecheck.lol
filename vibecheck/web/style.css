@@ -12,6 +12,7 @@
   --sidebar-w: 220px;
   --sidebar-w-collapsed: 56px;
   --header-h: 56px;
+  --shell-offset: 34px; /* header's 14px margin-bottom + .page-container's 20px top padding */
 }
 
 * { box-sizing: border-box; margin: 0; }
@@ -45,7 +46,7 @@ body {
    calc() here. */
 header {
   display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;
-  height: var(--header-h); margin-bottom: 14px;
+  min-height: var(--header-h); margin-bottom: 14px;
   position: sticky; top: 0; z-index: 25; background: var(--bg);
 }
 .header-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
@@ -58,7 +59,7 @@ h1 {
 .subtitle { display: inline; color: var(--ink-2); font-size: 13px; margin-left: 8px; }
 .subtitle::before { content: "— "; }
 
-/* ---------- profile menu (top-right) ---------- */
+/* ---------- profile menu (sidebar bottom) ---------- */
 .profile { position: relative; }
 .profile-avatar {
   width: 26px; height: 26px; border-radius: 50%; background: var(--surface-2);
@@ -188,9 +189,13 @@ h1 {
 }
 #pm-update-btn { margin-top: 8px; }
 #pm-update-btn:disabled { opacity: .6; cursor: default; }
-/* Unmissable but not loud: a small dot on the avatar when a release is out. */
+/* Unmissable but not loud: a small dot on the avatar when a release is out.
+   Positioned relative to .profile (the whole row), not the avatar itself, so
+   it's pinned to the avatar's top-right corner explicitly — the avatar sits
+   at a fixed left/top inside .sidebar-item's padding in both the expanded
+   and collapsed sidebar states, so this holds in both. */
 .profile-dot {
-  position: absolute; top: 4px; right: 10px;
+  position: absolute; top: 4px; left: 30px;
   width: 9px; height: 9px; border-radius: 50%;
   background: var(--gold); box-shadow: 0 0 0 2px var(--surface);
 }
@@ -266,6 +271,7 @@ h1 {
 .notif-sync-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); flex: none; }
 .notif-sync-dot.is-synced { background: #10B981; }
 .notif-sync-dot.is-error { background: #e2725b; }
+.notif-sync-dot.is-update { background: var(--gold); }
 
 /* multiselect dropdown */
 .msel { position: relative; min-width: 130px; }
@@ -288,8 +294,13 @@ h1 {
 }
 .msel-panel label:hover { background: var(--surface); }
 
+/* --shell-offset accounts for everything above main's own box: header's
+   margin-bottom plus .page-container's top padding. Keep this in sync with
+   the zero-scroll .ov-grid12 rule below, which caps its own max-height with
+   the same --header-h/--shell-offset pair — they must always agree, or main
+   overhangs the real available space and produces a double scrollbar. */
 main {
-  height: calc(100vh - var(--header-h) - 14px);
+  height: calc(100vh - var(--header-h) - var(--shell-offset));
   overflow-y: auto;
 }
 
@@ -725,10 +736,11 @@ tr.low-n td { color: var(--ink-3); }
      without clipping anything — measured live at 241px natural content
      height, +1px slack.
    - The container uses max-height + overflow-y: auto, not a hard height +
-     overflow: hidden. --header-h below is a fixed estimate, not measured at
-     runtime, so if it's ever off (a longer summoner name wraps the header
-     to two lines, different font metrics, etc.), the page gains a small
-     scrollbar instead of silently clipping a card's content.
+     overflow: hidden, as a safety net: if the offset below is ever off in a
+     real browser (different font metrics, header wrapping to a second row
+     now that it's min-height rather than a hard height — see the header
+     rule above), the page gains a small scrollbar instead of silently
+     clipping a card's content.
 
    All three rows are fixed px, not minmax(...,1fr) — deliberately, not an
    oversight. An 1fr row grows to fill whatever budget max-height gives the
@@ -743,18 +755,19 @@ tr.low-n td { color: var(--ink-3); }
    realistic case the shipped 215px/minmax version fell short on.
 
    Container budget re-derived for the fixed-sidebar shell: --header-h
-   (56px, :root) plus header's own 14px margin-bottom
-   plus .page-container's 20px top padding is a fixed 90px offset above the
-   grid, measured live via getBoundingClientRect() — independent of window
-   height, since the header is a slim fixed-height bar, not content-driven.
-   That's 18px less overhead than the old ~88px hero header, so the same
-   242/183/305 rows now fit with room to spare (778px needed vs. 799px
-   available at 1920x889) rather than the razor-thin fit the old header
-   required. No local --header-h override needed here — the root value
-   already matches the real header. */
+   (56px, :root) plus --shell-offset (34px, :root — header's own 14px
+   margin-bottom plus .page-container's 20px top padding) is a fixed 90px
+   offset above the grid, measured live via getBoundingClientRect() —
+   independent of window height, since the header is a slim fixed-height bar,
+   not content-driven. That's 18px less overhead than the old ~88px hero
+   header, so the same 242/183/305 rows now fit with room to spare (778px
+   needed vs. 799px available at 1920x889) rather than the razor-thin fit the
+   old header required. No local --header-h override needed here — the root
+   value already matches the real header. Keep this rule's offset in sync
+   with main's above — both must resolve to the same 90px. */
 @media (min-width: 1400px) and (min-height: 850px) {
   .ov-grid12 {
-    max-height: calc(100vh - var(--header-h) - 14px - 20px);
+    max-height: calc(100vh - var(--header-h) - var(--shell-offset));
     overflow-y: auto; margin-bottom: 0;
     grid-template-rows: 242px 183px 305px;
     grid-template-areas:

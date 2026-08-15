@@ -11,10 +11,10 @@
 <body data-palette="#b28328,#2f9ac0" data-mode="dark">
 <aside id="sidebar" class="sidebar">
   <div class="sidebar-top">
-    <a class="sidebar-brand" href="#" aria-label="VibeCheck.lol">
+    <div class="sidebar-brand" aria-label="VibeCheck.lol">
       <img src="/assets/logo.png" alt="" width="28" height="28">
       <span class="sidebar-brand-word">VibeCheck.lol</span>
-    </a>
+    </div>
     <nav id="tabs" class="sidebar-nav">
       <button data-tab="overview" class="active"><span class="nav-icon">🎯</span><span class="nav-label">The Vibe Check</span></button>
       <button data-tab="champions"><span class="nav-icon">🏆</span><span class="nav-label">Champions</span></button>
@@ -24,7 +24,7 @@
   </div>
   <div class="sidebar-bottom">
     <div class="profile">
-      <button id="profile-btn" class="sidebar-item" aria-haspopup="true">
+      <button id="profile-btn" class="sidebar-item" aria-haspopup="true" aria-controls="profile-menu" aria-expanded="false">
         <span class="profile-avatar">🤩</span>
         <span class="profile-id nav-label">
           <span id="profile-name">Summoner</span>
@@ -102,7 +102,7 @@
         </div>
       </div>
     </div>
-    <button id="settings-btn" class="sidebar-item" aria-haspopup="true" title="Settings">
+    <button id="settings-btn" class="sidebar-item" aria-haspopup="true" aria-controls="profile-menu" aria-expanded="false" title="Settings">
       <span class="nav-icon">⚙️</span><span class="nav-label">Settings</span>
     </button>
     <button id="nav-collapse-toggle" class="sidebar-item nav-collapse-btn" aria-label="Collapse navigation" title="Collapse navigation">
