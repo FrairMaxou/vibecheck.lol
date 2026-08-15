@@ -9,6 +9,9 @@
   --gold: #c8aa6e;
   --teal: #3fa7c4;
   --muted-bar: #4a5058;
+  --sidebar-w: 220px;
+  --sidebar-w-collapsed: 56px;
+  --header-h: 56px;
 }
 
 * { box-sizing: border-box; margin: 0; }
@@ -16,56 +19,58 @@ body {
   background: var(--bg);
   color: var(--ink);
   font: 14px/1.5 "Segoe UI", system-ui, sans-serif;
+}
+
+/* Content area to the right of the fixed sidebar. margin-left (not padding)
+   so .app-content's own box starts exactly at the sidebar's right edge —
+   .page-container inside it then caps at 1400px and does NOT auto-center,
+   so on a wide monitor the content hugs the sidebar and any leftover space
+   falls on the right, never as a gap next to the sidebar. */
+.app-content {
+  margin-left: var(--sidebar-w);
+  min-height: 100vh;
+  transition: margin-left .18s ease;
+}
+.app-content.nav-collapsed { margin-left: var(--sidebar-w-collapsed); }
+
+.page-container {
+  max-width: 1400px; width: 100%;
   padding: 20px clamp(12px, 4vw, 48px) 60px;
 }
 
-/* Caps content at 1400px and centers it so widescreen monitors don't show
-   half the screen as empty background, and content doesn't just cling to
-   the left edge. */
-.page-container { max-width: 1400px; width: 100%; margin: 0 auto; }
-
-/* Persistent bar: stays put while the tab content below scrolls. Only
-   element pinned to top:0 (the nav rail deliberately isn't — see its rule
-   below) so there's no risk of two sticky elements fighting for the same
-   strip of screen. */
+/* Slim page-title bar — replaces the old hero brand banner, which now lives
+   (as an icon only) at the top of the sidebar. Sticky rather than fixed:
+   nothing above it scrolls independently, so top:0 is enough to keep it in
+   place without also having to track the sidebar's width in a right/left
+   calc() here. */
 header {
   display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;
-  margin-bottom: 14px; position: sticky; top: 0; z-index: 25; background: var(--bg); padding: 6px 0;
+  height: var(--header-h); margin-bottom: 14px;
+  position: sticky; top: 0; z-index: 25; background: var(--bg);
 }
 .header-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-h1 { font-size: 26px; letter-spacing: .5px; color: var(--gold); }
-/* Height-driven so the lockup scales with the header rather than a fixed px
-   width; `auto` width keeps the 403x128 aspect ratio. BRAND.md §2 asks for
-   clear space ≈ the height of the cyan gem, hence the small bottom margin. */
-.app-logo { height: 38px; width: auto; display: block; margin-bottom: 4px; }
-/* Off-screen but still read by screen readers — the visible wordmark is the
-   logo image, which carries no text for assistive tech. */
-.visually-hidden {
-  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
-  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+/* Title + tagline share one line at this size — the tagline was the hero
+   header's flourish; demoted to an inline dash-suffix rather than dropped,
+   per the maintainer's call. */
+h1 {
+  display: inline; font-size: 18px; font-weight: 700; letter-spacing: .3px; color: var(--gold);
 }
-.subtitle { color: var(--ink-2); font-size: 13px; }
+.subtitle { display: inline; color: var(--ink-2); font-size: 13px; margin-left: 8px; }
+.subtitle::before { content: "— "; }
 
 /* ---------- profile menu (top-right) ---------- */
 .profile { position: relative; }
-.profile-btn {
-  display: flex; align-items: center; gap: 10px; cursor: pointer;
-  background: var(--surface); border: 1px solid var(--line); border-radius: 999px;
-  padding: 5px 12px 5px 6px; color: var(--ink); font: inherit;
-}
-.profile-btn:hover { border-color: var(--gold); }
 .profile-avatar {
-  width: 30px; height: 30px; border-radius: 50%; background: var(--surface-2);
-  display: grid; place-items: center; font-size: 17px; flex: none;
+  width: 26px; height: 26px; border-radius: 50%; background: var(--surface-2);
+  display: grid; place-items: center; font-size: 15px; flex: none;
 }
-.profile-id { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.15; }
-#profile-name { font-size: 13px; font-weight: 600; }
-.profile-vibe { font-size: 12px; color: var(--ink-2); }
-.profile-btn .chev { color: var(--ink-2); font-size: 12px; }
+.profile-id { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.15; min-width: 0; }
+#profile-name { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; max-width: 130px; }
+.profile-vibe { font-size: 11.5px; color: var(--ink-2); }
 
 .profile-menu {
-  position: absolute; top: calc(100% + 8px); right: 0; z-index: 40; width: 340px;
-  max-height: 78vh; overflow-y: auto;
+  position: absolute; bottom: calc(100% + 8px); left: 0; z-index: 51; width: 340px;
+  max-height: 70vh; overflow-y: auto;
   background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
   box-shadow: 0 12px 32px rgba(0,0,0,.55);
 }
@@ -283,36 +288,54 @@ h1 { font-size: 26px; letter-spacing: .5px; color: var(--gold); }
 }
 .msel-panel label:hover { background: var(--surface); }
 
-/* ---------- main content ---------- */
-main { flex: 1; min-width: 0; }
-
-/* ---------- tabs (left rail) ---------- */
-#tabs {
-  display: flex; flex-direction: column; gap: 2px; flex: none; width: 190px;
-  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
-  padding: 8px; margin-bottom: 14px;
+main {
+  height: calc(100vh - var(--header-h) - 14px);
+  overflow-y: auto;
 }
-#tabs button {
+
+/* ---------- fixed left sidebar ---------- */
+.sidebar {
+  position: fixed; top: 0; left: 0; bottom: 0; z-index: 50;
+  width: var(--sidebar-w);
+  display: flex; flex-direction: column; justify-content: space-between;
+  background: var(--surface); border-right: 1px solid var(--line);
+  transition: width .18s ease;
+}
+.sidebar.collapsed { width: var(--sidebar-w-collapsed); }
+.sidebar.collapsed .nav-label,
+.sidebar.collapsed .sidebar-brand-word { display: none; }
+
+.sidebar-top { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; }
+.sidebar-brand {
+  display: flex; align-items: center; gap: 10px; padding: 16px 14px;
+  color: var(--ink); text-decoration: none; flex: none;
+}
+.sidebar-brand img { width: 28px; height: 28px; flex: none; border-radius: 6px; }
+.sidebar-brand-word { font-size: 15px; font-weight: 700; color: var(--gold); white-space: nowrap; }
+
+.sidebar-nav { display: flex; flex-direction: column; gap: 2px; padding: 4px 8px; }
+.sidebar-nav button {
   display: flex; align-items: center; gap: 10px;
   background: none; border: none; border-left: 2px solid transparent; border-radius: 6px;
   color: var(--ink-2); padding: 9px 10px; cursor: pointer; font: inherit; font-size: 14px;
   text-align: left; white-space: nowrap;
 }
-#tabs button:hover { color: var(--ink); background: var(--surface-2); }
-#tabs button.active { color: var(--gold); border-left-color: var(--gold); background: var(--surface-2); }
-.nav-icon { font-size: 15px; flex: none; }
-.nav-collapse-btn {
-  align-self: flex-end; color: var(--ink-3); margin-bottom: 4px;
-  background: none; border: none; cursor: pointer; font: inherit; padding: 4px 8px;
-}
-.nav-collapse-btn:hover { color: var(--ink); }
+.sidebar-nav button:hover { color: var(--ink); background: var(--surface-2); }
+.sidebar-nav button.active { color: var(--gold); border-left-color: var(--gold); background: var(--surface-2); }
+.nav-icon { font-size: 15px; flex: none; width: 18px; text-align: center; }
 
-/* Icon-only rail. JS (not a media query) owns the collapsed/expanded state,
-   including auto-collapsing near the 900px window minimum, so there is one
-   source of truth instead of a class and a breakpoint fighting each other. */
-#tabs.collapsed { width: 52px; }
-#tabs.collapsed .nav-label { display: none; }
-#tabs.collapsed .nav-collapse-btn { transform: scaleX(-1); }
+.sidebar-bottom {
+  display: flex; flex-direction: column; gap: 2px; padding: 8px; flex: none;
+  border-top: 1px solid var(--line);
+}
+.sidebar-item {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  background: none; border: none; border-radius: 6px;
+  color: var(--ink-2); padding: 9px 10px; cursor: pointer; font: inherit; font-size: 14px;
+  text-align: left; white-space: nowrap;
+}
+.sidebar-item:hover { color: var(--ink); background: var(--surface-2); }
+.sidebar.collapsed .nav-collapse-btn .nav-icon { transform: scaleX(-1); display: inline-block; }
 .badge {
   background: var(--gold); color: #1e2328; border-radius: 10px;
   font-size: 11px; font-weight: 700; padding: 1px 7px; margin-left: 4px;
