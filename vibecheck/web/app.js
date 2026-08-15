@@ -893,6 +893,10 @@ function renderOverview(games) {
   renderSpotlight(rows);
   renderAramGodCompact();
   renderVibeTrend(games);
+  // Compact preview of the full regret curve on Patterns & Tags (chart-sessions)
+  // — same aggregation, same funBarChart helper, just a second, smaller canvas,
+  // since a Chart.js instance is bound 1:1 to its canvas element.
+  funBarChart("chart-ov-regret", aggregate(games, (g) => g.session_index), { fixedOrder: ["1", "2", "3", "4", "5+"] });
 }
 
 function renderChampions(games) {
@@ -1394,32 +1398,36 @@ async function api(path, body) {
   return data;
 }
 
-/* Compact header pill mirroring squad sync state. Reuses the same
-   /api/squad/status the Squad tab's renderOnline() calls — this is just a
-   second, independent read of it on load so the pill has something to show
-   before the user ever opens that tab. Hidden entirely for the advanced/
-   self-host and "no League client seen yet" states: neither is an error, and
-   a persistent header pill nagging about setup would be more clutter than
-   the "Squad Sync" panel already explains well. */
+/* Status line inside the notification drawer's "Status" section. Reuses the
+   same /api/squad/status the Squad tab's renderOnline() calls — this is just
+   a second, independent read of it on load so the drawer has something to
+   show before the user ever opens that tab. Unlike the header pill this
+   replaced, every state gets a line here rather than hiding — a "Status"
+   section that's sometimes just blank would look broken, and the drawer is
+   opened deliberately rather than sitting always-visible. */
 async function renderSyncStatus() {
-  const el = document.getElementById("sync-status");
+  const el = document.getElementById("notif-sync");
   let st;
   try {
     st = SQUAD.status = await api("/api/squad/status");
   } catch {
-    el.classList.add("hidden");
+    el.innerHTML = `<span class="notif-sync-dot is-error"></span> Couldn't reach the backend`;
     return;
   }
-  if (!st.configured || !st.identity_ready) { el.classList.add("hidden"); return; }
-  el.classList.remove("hidden");
+  if (!st.configured) {
+    el.innerHTML = `<span class="notif-sync-dot"></span> Squad Sync not configured`;
+    return;
+  }
+  if (!st.identity_ready) {
+    el.innerHTML = `<span class="notif-sync-dot"></span> Waiting for the League client…`;
+    return;
+  }
   if (st.error) {
-    el.classList.add("is-error"); el.classList.remove("is-synced");
-    el.innerHTML = `<span class="sync-dot"></span> Sync error`;
+    el.innerHTML = `<span class="notif-sync-dot is-error"></span> Squad Sync error`;
     return;
   }
-  el.classList.add("is-synced"); el.classList.remove("is-error");
   const mutual = st.mutual_count || 0;
-  el.innerHTML = `<span class="sync-dot"></span> Synced${mutual ? ` · ${mutual} in squad` : ""}`;
+  el.innerHTML = `<span class="notif-sync-dot is-synced"></span> Squad Sync active — ${mutual} friend${mutual === 1 ? "" : "s"} synced`;
 }
 
 async function renderOnline() {
@@ -1644,6 +1652,16 @@ function renderPending() {
   const badge = document.getElementById("pending-badge");
   if (pending.length) { badge.textContent = pending.length; badge.classList.remove("hidden"); }
   else badge.classList.add("hidden");
+  // Notification drawer's "Action required" section — same count, so it can
+  // never drift from the bell's own badge.
+  const row = document.getElementById("notif-pending-row");
+  const empty = document.getElementById("notif-pending-empty");
+  row.classList.toggle("hidden", !pending.length);
+  empty.classList.toggle("hidden", !!pending.length);
+  if (pending.length) {
+    document.getElementById("notif-pending-text").textContent =
+      `${pending.length} game${pending.length === 1 ? "" : "s"} pending rating`;
+  }
   const list = document.getElementById("pending-list");
   if (!pending.length) { list.innerHTML = '<div class="empty-note">All caught up — not a single un-vibed game. Certified responsible adult. 🏆</div>'; return; }
   list.innerHTML = pending.map((g) => `
@@ -1819,9 +1837,9 @@ async function pollRev() {
   }
 }
 
-// Shared by the nav rail buttons and the header's "To Rate" trigger — "pending"
-// has no rail entry (it's reached from the header instead), so switching to it
-// leaves every rail button unhighlighted, which is expected.
+// Shared by the nav rail buttons and the notification drawer's pending-games
+// row — "pending" has no rail entry (it's reached from the drawer instead),
+// so switching to it leaves every rail button unhighlighted, which is expected.
 function switchTab(tabId) {
   document.querySelectorAll("#tabs button[data-tab]").forEach((b) => b.classList.toggle("active", b.dataset.tab === tabId));
   state.tab = tabId;
@@ -1832,7 +1850,21 @@ function switchTab(tabId) {
 document.querySelectorAll("#tabs button[data-tab]").forEach((btn) => {
   btn.addEventListener("click", () => switchTab(btn.dataset.tab));
 });
-document.getElementById("pending-toggle").addEventListener("click", () => switchTab("pending"));
+
+// Notification drawer: open/close, outside-click to dismiss (same pattern as
+// the profile menu and filters popover), and its one action — jump to To Rate.
+document.getElementById("notif-bell").addEventListener("click", (e) => {
+  e.stopPropagation();
+  document.getElementById("notif-panel").classList.toggle("hidden");
+});
+document.addEventListener("click", (e) => {
+  const panel = document.getElementById("notif-panel");
+  if (!panel.classList.contains("hidden") && !e.target.closest(".notif")) panel.classList.add("hidden");
+});
+document.getElementById("notif-pending-row").addEventListener("click", () => {
+  document.getElementById("notif-panel").classList.add("hidden");
+  switchTab("pending");
+});
 
 // Filters popover: open/close, outside-click to dismiss (same pattern as the
 // profile menu below).

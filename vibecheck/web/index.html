@@ -45,10 +45,25 @@
         <button id="f-clear" class="ghost-btn">Clear filters</button>
       </div>
     </section>
-    <button id="pending-toggle" class="pending-toggle-btn" title="Games left to rate">
-      📮 To Rate <span id="pending-badge" class="badge hidden"></span>
-    </button>
-    <span id="sync-status" class="sync-status hidden"></span>
+    <div class="notif">
+      <button id="notif-bell" class="notif-bell-btn" aria-haspopup="true" title="Notifications">
+        🔔<span id="pending-badge" class="badge hidden"></span>
+      </button>
+      <div id="notif-panel" class="notif-panel hidden">
+        <div class="notif-section">
+          <div class="notif-title">Action required</div>
+          <button id="notif-pending-row" class="notif-row hidden">
+            <span id="notif-pending-text"></span>
+            <span class="notif-row-arrow">→</span>
+          </button>
+          <div id="notif-pending-empty" class="notif-empty hidden">All caught up — nothing to rate.</div>
+        </div>
+        <div class="notif-section">
+          <div class="notif-title">Status</div>
+          <div id="notif-sync" class="notif-sync"></div>
+        </div>
+      </div>
+    </div>
     <div class="profile">
     <button id="profile-btn" class="profile-btn" aria-haspopup="true">
       <span class="profile-avatar">🤩</span>
@@ -170,17 +185,27 @@
 
 <main>
   <div id="tab-overview" class="tab">
-    <div class="ov-top-row">
-      <div id="ov-vibemeter"></div>
-      <div id="ov-aram"></div>
-    </div>
-    <div class="ov-section-label">Lifetime totals <span class="hint">since recording started</span></div>
-    <div id="ov-totals" class="ov-totals"></div>
-    <div class="ov-section-label">Spotlight</div>
-    <div id="ov-spotlight" class="ov-spotlight"></div>
-    <div class="panel ov-trend-panel">
-      <h2>Vibe trend <span class="hint">who's been driving the swings</span></h2>
-      <div id="ov-trend" class="ov-trend"></div>
+    <div class="ov-grid12">
+      <div class="ov-cell-vibemeter" id="ov-vibemeter"></div>
+      <div class="ov-cell-aram" id="ov-aram"></div>
+
+      <div class="ov-cell-spotlight">
+        <div class="ov-section-label">Spotlight</div>
+        <div id="ov-spotlight" class="ov-spotlight"></div>
+      </div>
+      <div class="ov-cell-totals">
+        <div class="ov-section-label">Lifetime totals <span class="hint">since recording started</span></div>
+        <div id="ov-totals" class="ov-totals"></div>
+      </div>
+
+      <div class="ov-cell-trend panel ov-trend-panel">
+        <h2>Vibe trend <span class="hint">who's been driving the swings</span></h2>
+        <div id="ov-trend" class="ov-trend"></div>
+      </div>
+      <div class="ov-cell-regret panel">
+        <h2>Regret curve <span class="hint">vibe by game # in a session</span></h2>
+        <div class="chart-wrap ov-regret-wrap"><canvas id="chart-ov-regret"></canvas></div>
+      </div>
     </div>
   </div>
 
