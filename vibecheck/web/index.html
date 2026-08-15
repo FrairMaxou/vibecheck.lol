@@ -318,12 +318,18 @@
       <div id="pending-list"></div>
     </div>
   </div>
+  <!-- Not a .tab: renders on every tab, same as before this moved inside
+       <main> — switchTab() only toggles .tab elements, so this is
+       unaffected by tab switching and always visible at the scrolled-down
+       end of whichever tab is active. Moved in here (was a sibling after
+       </main>) so it's part of the page's one scroll container instead of
+       needing a second one — see the comment on body/html above. -->
+  <footer id="legal-footer">
+    VibeCheck.lol isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot
+    Games or anyone officially involved in producing or managing Riot Games properties. Riot Games,
+    and all associated properties are trademarks or registered trademarks of Riot Games, Inc.
+  </footer>
 </main>
-<footer id="legal-footer">
-  VibeCheck.lol isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot
-  Games or anyone officially involved in producing or managing Riot Games properties. Riot Games,
-  and all associated properties are trademarks or registered trademarks of Riot Games, Inc.
-</footer>
 </div>
 </div>
 

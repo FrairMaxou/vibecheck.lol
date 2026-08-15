@@ -15,6 +15,14 @@
   --shell-offset: 34px; /* header's 14px margin-bottom + .page-container's 20px top padding */
 }
 
+/* Exactly one scroll container on the page: <main>, below. Locking html/body
+   to the viewport height with overflow hidden is what makes that a hard
+   guarantee rather than a tuning target — previously body could also grow
+   past 100vh (to reach the footer, which sat below main in normal flow),
+   producing two independent scrollbars at once. Fixing that meant moving
+   the footer inside <main> (see index.html) rather than just capping body,
+   since capping alone would have made the footer unreachable. */
+html, body { height: 100%; overflow: hidden; }
 * { box-sizing: border-box; margin: 0; }
 body {
   background: var(--bg);
@@ -29,14 +37,21 @@ body {
    falls on the right, never as a gap next to the sidebar. */
 .app-content {
   margin-left: var(--sidebar-w);
-  min-height: 100vh;
+  height: 100vh;
   transition: margin-left .18s ease;
 }
 .app-content.nav-collapsed { margin-left: var(--sidebar-w-collapsed); }
 
+/* flex column: header and the banner strip take their natural height, main
+   gets everything left over via flex: 1 (see main's rule below) — the
+   browser derives that number, rather than a second calc(100vh - ...) that
+   has to be hand-kept in sync with header's real height, the way main's
+   height used to be computed. Bottom padding moved to main itself (below)
+   so it lands after the scrollable content, not as dead space outside it. */
 .page-container {
-  max-width: 1400px; width: 100%;
-  padding: 20px clamp(12px, 4vw, 48px) 60px;
+  max-width: 1400px; width: 100%; height: 100%;
+  padding: 20px clamp(12px, 4vw, 48px) 0;
+  display: flex; flex-direction: column;
 }
 
 /* Slim page-title bar — replaces the old hero brand banner, which now lives
@@ -294,14 +309,18 @@ h1 {
 }
 .msel-panel label:hover { background: var(--surface); }
 
-/* --shell-offset accounts for everything above main's own box: header's
-   margin-bottom plus .page-container's top padding. Keep this in sync with
-   the zero-scroll .ov-grid12 rule below, which caps its own max-height with
-   the same --header-h/--shell-offset pair — they must always agree, or main
-   overhangs the real available space and produces a double scrollbar. */
+/* flex: 1 inside .page-container's column — main's height is whatever's
+   left after header (and the banner strip, when one's showing), derived by
+   the browser rather than a calc() that has to be kept in sync with
+   header's real height by hand. min-height: 0 is load-bearing: without it
+   a flex child defaults to min-height: auto (its content's natural size),
+   which would make main grow to fit its content instead of shrinking to
+   fit the remaining space — the classic flexbox overflow trap. This is
+   the ONLY scrolling element on the page; the legal footer moved inside
+   it (index.html) specifically so nothing needs a second one. */
 main {
-  height: calc(100vh - var(--header-h) - var(--shell-offset));
-  overflow-y: auto;
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding-bottom: 60px;
 }
 
 /* ---------- fixed left sidebar ---------- */
@@ -760,8 +779,13 @@ tr.low-n td { color: var(--ink-3); }
    offset above the grid, measured live via getBoundingClientRect() —
    independent of window height, since the header is a slim fixed-height bar,
    not content-driven. No local --header-h override needed here — the root
-   value already matches the real header. Keep this rule's offset in sync
-   with main's above — both must resolve to the same 90px.
+   value already matches the real header. main itself no longer computes its
+   own height this way (it's flex: 1 now, see main's rule) — but flex derives
+   the identical number in the common case (no banner showing), so this
+   calc() and main's actual rendered height still agree at 90px. If they
+   ever visibly disagree, the fix is almost certainly a banner eating into
+   main's flex-derived space in a way this fixed calc() doesn't know about —
+   not a return of the old drift bug.
 
    Row 2 (spotlight) is the intentional size lever (see the comment on
    .ov-cell-spotlight below) — deliberately sized past the zero-scroll
