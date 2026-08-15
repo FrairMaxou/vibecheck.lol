@@ -1888,6 +1888,8 @@ function switchTab(tabId) {
   state.tab = tabId;
   document.querySelectorAll(".tab").forEach((el) => el.classList.add("hidden"));
   document.getElementById(`tab-${tabId}`).classList.remove("hidden");
+  const activeBtn = document.querySelector(`#tabs button[data-tab="${tabId}"]`);
+  if (activeBtn) document.getElementById("page-title").textContent = activeBtn.querySelector(".nav-label").textContent;
   renderAll();
 }
 document.querySelectorAll("#tabs button[data-tab]").forEach((btn) => {
@@ -1920,16 +1922,21 @@ document.addEventListener("click", (e) => {
   if (!panel.classList.contains("hidden") && !e.target.closest(".filters")) panel.classList.add("hidden");
 });
 
-// Left nav rail: manual collapse persisted per-device, defaulting to
-// collapsed near the 900px window minimum so the rail doesn't crowd content.
+// Sidebar: manual collapse persisted per-device, defaulting to collapsed
+// near the 900px window minimum so the rail doesn't crowd content. Toggles
+// two elements in lockstep: #sidebar (its own width) and .app-content
+// (its margin-left offset) — see the CSS comment on .app-content.nav-collapsed.
 (function initNavRail() {
-  const nav = document.getElementById("tabs");
+  const sidebar = document.getElementById("sidebar");
+  const content = document.querySelector(".app-content");
   const stored = localStorage.getItem("navCollapsed");
   const collapsed = stored === null ? window.innerWidth < 1000 : stored === "1";
-  nav.classList.toggle("collapsed", collapsed);
+  sidebar.classList.toggle("collapsed", collapsed);
+  content.classList.toggle("nav-collapsed", collapsed);
   document.getElementById("nav-collapse-toggle").addEventListener("click", () => {
-    const next = !nav.classList.contains("collapsed");
-    nav.classList.toggle("collapsed", next);
+    const next = !sidebar.classList.contains("collapsed");
+    sidebar.classList.toggle("collapsed", next);
+    content.classList.toggle("nav-collapsed", next);
     localStorage.setItem("navCollapsed", next ? "1" : "0");
   });
 })();
@@ -1944,6 +1951,18 @@ document.getElementById("profile-btn").addEventListener("click", (e) => {
 document.addEventListener("click", (e) => {
   const menu = document.getElementById("profile-menu");
   if (!menu.classList.contains("hidden") && !e.target.closest(".profile")) menu.classList.add("hidden");
+});
+
+// Settings (sidebar bottom): opens the same profile-menu popover the
+// Profile row does — one panel, two entry points, since Settings already
+// lives inside it (pm-section "Settings") rather than needing its own.
+document.getElementById("settings-btn").addEventListener("click", (e) => {
+  e.stopPropagation(); // must match #profile-btn's own handler — without this,
+                        // the document-level outside-click dismiss (below,
+                        // checks .closest(".profile")) would immediately
+                        // close the menu this same click just opened, since
+                        // #settings-btn sits outside the .profile wrapper.
+  toggleProfileMenu();
 });
 
 // Vibe trend filter menu: unlike the profile menu above, #ov-trend-filter-menu
