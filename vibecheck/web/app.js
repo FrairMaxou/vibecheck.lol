@@ -729,30 +729,57 @@ const champHoverPlugin = {
   },
 };
 
-/* Champions that tie on BOTH vibe and winrate land on identical coordinates,
-   so one portrait hides the other completely — and with small samples, ties are
-   common (two champions at 3.00 and 50% is an ordinary Tuesday). Height can't
-   fix that; only separation can.
+/* Champions that land on the same or near-identical coordinates hide each
+   other's portrait completely — and with small samples this is common, not
+   rare (two champions at 3.00 and 50% is an ordinary Tuesday, and one at
+   2.93 and 47% is visually the same dot). Height can't fix that; only
+   separation can.
 
-   Tied champions are fanned along the winrate axis, which is the secondary
-   metric here — vibe stays exactly where it belongs on the y axis. The spread
-   is a couple of percent, tooltips always report the true value, and groups
-   near 0% or 100% are nudged inward so nobody gets pushed off the plot. */
+   Collision is proximity, not exact match: within COLLISION_PCT winrate
+   points AND COLLISION_VIBE vibe points of each other. Union-find rather
+   than a single pairwise check, so a chain of near-misses (A close to B,
+   B close to C, but A not close to C) still fans together as one group —
+   otherwise A and C could each separately collide with B while the group
+   itself never gets recognized as one cluster.
+
+   Colliding champions are fanned along the winrate axis, which is the
+   secondary metric here — vibe stays exactly where it belongs on the y
+   axis. The spread is a couple of percent, tooltips always report each
+   champion's true value, and groups near 0% or 100% are nudged inward so
+   nobody gets pushed off the plot. */
+const COLLISION_PCT = 5; // winrate percentage points — matches issue #89
+const COLLISION_VIBE = 0.15; // vibe points; small samples cluster on clean fractions (thirds, quarters, ...)
+
 function fanTies(rows) {
-  const groups = new Map();
-  for (const r of rows) {
-    const k = `${r.winrate.toFixed(2)}|${r.avgFun.toFixed(2)}`;
-    (groups.get(k) || groups.set(k, []).get(k)).push(r);
+  const parent = rows.map((_, i) => i);
+  const find = (i) => (parent[i] === i ? i : (parent[i] = find(parent[i])));
+  for (let i = 0; i < rows.length; i++) {
+    for (let j = i + 1; j < rows.length; j++) {
+      if (Math.abs(rows[i].winrate - rows[j].winrate) <= COLLISION_PCT &&
+          Math.abs(rows[i].avgFun - rows[j].avgFun) <= COLLISION_VIBE) {
+        const ri = find(i), rj = find(j);
+        if (ri !== rj) parent[ri] = rj;
+      }
+    }
   }
-  // Winrate % between tied portraits. ~3.6% clears a 36px icon on a typical
+  const groups = new Map();
+  rows.forEach((r, i) => {
+    const root = find(i);
+    (groups.get(root) || groups.set(root, []).get(root)).push(r);
+  });
+  // Winrate % between fanned portraits. ~3.6% clears a 36px icon on a typical
   // window; the fan tightens on narrow ones, which is the right way round.
   const STEP = 3.6;
   for (const tied of groups.values()) {
     if (tied.length < 2) continue;
     // Stable order, so a champion doesn't hop position between renders.
     tied.sort((a, b) => a.key.localeCompare(b.key));
+    // The group's members aren't necessarily at the exact same winrate
+    // (proximity, not equality) — center the fan on their average rather
+    // than picking one member's value arbitrarily.
+    const center = tied.reduce((s, r) => s + r.winrate, 0) / tied.length;
     const span = STEP * (tied.length - 1);
-    let start = tied[0].winrate - span / 2;
+    let start = center - span / 2;
     start = Math.max(0, Math.min(100 - span, start)); // keep the fan on-plot
     tied.forEach((r, i) => { r.plotX = start + i * STEP; });
   }
