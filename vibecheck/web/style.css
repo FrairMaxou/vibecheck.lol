@@ -740,13 +740,21 @@ tr.low-n td { color: var(--ink-3); }
    height, so the row height is the actual design lever, not a fit target.
    Row heights below (242/183/305) were measured live in Chrome at a real
    1920x889 viewport (a normal 1080p window after browser chrome) — the
-   realistic case the shipped 215px/minmax version fell short on. */
+   realistic case the shipped 215px/minmax version fell short on.
+
+   Container budget re-derived for the fixed-sidebar shell: --header-h
+   (56px, :root) plus header's own 14px margin-bottom
+   plus .page-container's 20px top padding is a fixed 90px offset above the
+   grid, measured live via getBoundingClientRect() — independent of window
+   height, since the header is a slim fixed-height bar, not content-driven.
+   That's 18px less overhead than the old ~88px hero header, so the same
+   242/183/305 rows now fit with room to spare (778px needed vs. 799px
+   available at 1920x889) rather than the razor-thin fit the old header
+   required. No local --header-h override needed here — the root value
+   already matches the real header. */
 @media (min-width: 1400px) and (min-height: 850px) {
   .ov-grid12 {
-    --header-h: 88px;
-    /* 20px = body's own top padding (line ~19), same on every page —
-       not part of the header, but part of the fixed budget above the grid. */
-    max-height: calc(100vh - 20px - var(--header-h));
+    max-height: calc(100vh - var(--header-h) - 14px - 20px);
     overflow-y: auto; margin-bottom: 0;
     grid-template-rows: 242px 183px 305px;
     grid-template-areas:
