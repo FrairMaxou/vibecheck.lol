@@ -228,19 +228,21 @@ function championTotals(games) {
     if (!key) continue;
     const a = acc.get(key) || {
       key, name: g.champion, classic: g.classic, games: 0, n: 0,
-      kills: 0, deaths: 0, assists: 0, seconds: 0, funSum: 0, funN: 0,
+      kills: 0, deaths: 0, assists: 0, seconds: 0, damage: 0, funSum: 0, funN: 0,
     };
     a.games += 1;
     a.kills += g.kills || 0;
     a.deaths += g.deaths || 0;
     a.assists += g.assists || 0;
     a.seconds += g.duration_seconds || 0;
+    a.damage += g.damage_to_champs || 0; // null on games captured before this column existed
     if (g.rated) { a.funSum += g.fun_score; a.funN += 1; }
     acc.set(key, a);
   }
   return [...acc.values()].map((a) => ({
     key: a.key, name: a.name, classic: a.classic, games: a.games, n: a.funN,
-    kills: a.kills, deaths: a.deaths, assists: a.assists, seconds: a.seconds,
+    kills: a.kills, deaths: a.deaths, assists: a.assists, seconds: a.seconds, damage: a.damage,
+    killsPerGame: a.kills / a.games,
     avgFun: a.funN ? a.funSum / a.funN : null,
   }));
 }
@@ -265,7 +267,12 @@ function categoryLeaders(rows) {
 
 /* Same categories, but every champion ranked best-to-worst instead of just
    the winner — Spotlight's dedup (below) needs runners-up to fill slots a
-   duplicate champion would otherwise have left empty. */
+   duplicate champion would otherwise have left empty. Two categories here
+   (damage, killsPerGame) exist only to widen this pool: with just kills/
+   deaths/assists/hours, a small chaotic sample (a couple of wild ARAM games)
+   tends to top several of them at once, which starves the fill loop of
+   distinct runners-up and forces it back into a category it already used —
+   more categories makes that far less likely without gating anyone out. */
 function categoryRanked(rows) {
   const byStat = (fn) => rows.slice().sort((a, b) => fn(b) - fn(a));
   const vibeRows = rows.filter((r) => r.avgFun != null && r.n >= MIN_N);
@@ -275,10 +282,12 @@ function categoryRanked(rows) {
     deaths: byStat((r) => r.deaths),
     assists: byStat((r) => r.assists),
     hours: byStat((r) => r.seconds),
+    damage: byStat((r) => r.damage),
+    killsPerGame: byStat((r) => r.killsPerGame),
   };
 }
 
-const SPOTLIGHT_CATS = ["vibe", "kills", "deaths", "assists", "hours"];
+const SPOTLIGHT_CATS = ["vibe", "kills", "deaths", "assists", "hours", "damage", "killsPerGame"];
 const SPOTLIGHT_SLOTS = 5;
 
 /* A champion holding multiple leads (best vibe AND most kills) used to
@@ -286,20 +295,32 @@ const SPOTLIGHT_SLOTS = 5;
    Now: one card per unique champion carrying every badge it earned, and if
    that leaves fewer than SPOTLIGHT_SLOTS cards, the gap is filled with the
    next-best not-yet-featured champion in whichever category still has
-   runners-up — so one dominant champion doesn't shrink the section. */
+   runners-up — so one dominant champion doesn't shrink the section. Each
+   badge remembers whether its champion actually leads that category
+   (isLeader) or is just filling a slot, so the two never look the same on
+   screen — a filled-in runner-up must never read as tied with the real #1. */
 function buildSpotlightCards(rows) {
   const ranked = categoryRanked(rows);
-  const cards = new Map(); // champion key -> { row, cats: [] }
+  const cards = new Map(); // champion key -> { row, cats: [{cat, isLeader}] }
   const order = [];
 
-  const addBadge = (cat, row) => {
+  const addBadge = (cat, row, isLeader) => {
     let c = cards.get(row.key);
     if (!c) { c = { row, cats: [] }; cards.set(row.key, c); order.push(row.key); }
-    c.cats.push(cat);
+    c.cats.push({ cat, isLeader });
   };
 
+  // Merging a badge onto a champion that already has a card is always free
+  // (no new slot spent), but a category whose leader would need a brand-new
+  // card only gets one while room remains — otherwise 7 categories with 7
+  // genuinely distinct leaders would produce 7 cards, blowing past the "up
+  // to SPOTLIGHT_SLOTS" cap. Category priority (SPOTLIGHT_CATS order) decides
+  // what gets dropped when slots run out.
   for (const cat of SPOTLIGHT_CATS) {
-    if (ranked[cat].length) addBadge(cat, ranked[cat][0]);
+    const row = ranked[cat][0];
+    if (!row) continue;
+    if (!cards.has(row.key) && order.length >= SPOTLIGHT_SLOTS) continue;
+    addBadge(cat, row, true);
   }
 
   // Runner-up fill: walk every category's ranking one rank deeper each pass
@@ -309,7 +330,7 @@ function buildSpotlightCards(rows) {
     for (const cat of SPOTLIGHT_CATS) {
       if (order.length >= SPOTLIGHT_SLOTS) break;
       const row = ranked[cat][depth];
-      if (row && !cards.has(row.key)) { addBadge(cat, row); addedThisPass = true; }
+      if (row && !cards.has(row.key)) { addBadge(cat, row, false); addedThisPass = true; }
     }
     if (!addedThisPass) break; // every category's ranking is exhausted
   }
@@ -399,14 +420,28 @@ const OV_TIER_CLASS = { 1: "ov-tier1", 2: "ov-tier2", 3: "ov-tier3", 4: "ov-tier
 const OV_CAT_ICON = {
   vibe: '<path d="M12 2l2.5 5.5L20 8l-4.5 4 1.5 6L12 15l-5 3 1.5-6L4 8l5.5-.5z"/>',
   kills: OV_ICONS.kills, deaths: OV_ICONS.deaths, assists: OV_ICONS.assists, hours: OV_ICONS.hours,
+  damage: '<path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z"/>',
+  killsPerGame: '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
 };
-const OV_CAT_LABEL = { vibe: "Best vibe", kills: "Most kills", deaths: "Most deaths", assists: "Most assists", hours: "Most hours" };
+const OV_CAT_LABEL = {
+  vibe: "Best vibe", kills: "Most kills", deaths: "Most deaths", assists: "Most assists", hours: "Most hours",
+  damage: "Most damage", killsPerGame: "Best kill rate",
+};
+// Short noun form for the "Also: <noun>" runner-up phrasing below — deliberately
+// not a shortened OV_CAT_LABEL, since "Also: Most kills" would still read as a
+// tied #1 claim, which is exactly the confusion this pass exists to remove.
+const OV_CAT_NOUN = {
+  vibe: "Vibe", kills: "Kills", deaths: "Deaths", assists: "Assists", hours: "Hours",
+  damage: "Damage", killsPerGame: "Kill rate",
+};
 const OV_CAT_HEADLINE = {
   vibe: (r) => r.avgFun.toFixed(1),
   kills: (r) => String(r.kills),
   deaths: (r) => String(r.deaths),
   assists: (r) => String(r.assists),
   hours: (r) => formatHours(r.seconds),
+  damage: (r) => r.damage.toLocaleString(),
+  killsPerGame: (r) => r.killsPerGame.toFixed(1),
 };
 
 function ovSpotlightTile(card) {
@@ -417,9 +452,13 @@ function ovSpotlightTile(card) {
   const tierRound = row.avgFun != null ? Math.round(row.avgFun) : null;
   const tierClass = tierRound ? OV_TIER_CLASS[tierRound] : "ov-tier3";
   const vibeLabel = tierRound ? `${row.avgFun.toFixed(2)} · ${GRADES[tierRound]}` : "not enough rated games";
-  const pills = cats.map((cat) =>
-    `<div class="ov-cat-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${OV_CAT_ICON[cat]}</svg>${OV_CAT_LABEL[cat]}</div>`
+  const pills = cats.map(({ cat, isLeader }) =>
+    `<div class="ov-cat-pill${isLeader ? "" : " ov-cat-pill-runnerup"}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${OV_CAT_ICON[cat]}</svg>${isLeader ? OV_CAT_LABEL[cat] : `Also: ${OV_CAT_NOUN[cat]}`}</div>`
   ).join("");
+  // Prefer a genuine leader for the headline number — a card built entirely
+  // from runner-up fills (never led anything outright) falls back to its
+  // first badge, which is still an honest reflection of why it's on screen.
+  const headlineCat = (cats.find((c) => c.isLeader) || cats[0]).cat;
   return `
     <div class="ov-stile">
       ${ovSplashImg(row)}
@@ -427,7 +466,7 @@ function ovSpotlightTile(card) {
       <div class="ov-cat-pills">${pills}</div>
       <div class="ov-headline">
         <div class="ov-champ-name">${escapeAttr(row.key)}</div>
-        <div class="ov-stat-big">${OV_CAT_HEADLINE[cats[0]](row)}</div>
+        <div class="ov-stat-big">${OV_CAT_HEADLINE[headlineCat](row)}</div>
       </div>
       <div class="ov-overlay">
         <div class="ov-name">${escapeAttr(row.key)}</div>

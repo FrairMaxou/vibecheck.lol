@@ -598,6 +598,11 @@ tr.low-n td { color: var(--ink-3); }
   text-transform: uppercase; letter-spacing: .4px; color: var(--vc-gold-hl);
 }
 .ov-stile .ov-cat-pill svg { width: 11px; height: 11px; }
+/* Runner-up fill, not a real category win — visually muted (no gold) so it
+   never reads as tied with a card that actually leads that category. */
+.ov-stile .ov-cat-pill-runnerup {
+  background: rgba(13,16,23,.45); color: var(--vc-text-muted);
+}
 .ov-stile .ov-headline {
   position: absolute; left: 0; right: 0; bottom: 0; padding: 10px; transition: opacity .18s;
 }
