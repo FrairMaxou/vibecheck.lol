@@ -5,6 +5,13 @@
 
 const MIN_N = 5; // PRD F21: below this, a group is "not enough data yet"
 const EMOJI = { 1: "😨", 2: "🤨", 3: "😐", 4: "😎", 5: "👑" };
+// Chart Y-axis tick label for the 1-5 vibe scale (issue #90) — plain numbers,
+// not the EMOJI/GRADES glyphs those stay reserved for tooltips, tables, and
+// the rating popup. GRADES ("Who Let Them Cook?", etc.) was considered as a
+// paired secondary label but skipped: several of those phrases are long
+// enough to risk wrapping or crowding an axis at the 900px window minimum,
+// which the numbers-only version doesn't risk.
+const vibeAxisTick = (v) => v.toFixed(1);
 const GRADES = {
   1: "FF at 15",
   2: "Who Let Them Cook?",
@@ -668,7 +675,7 @@ function funBarChart(id, rows, { horizontal = false, fixedOrder = null } = {}) {
       indexAxis: horizontal ? "y" : "x",
       maintainAspectRatio: false,
       scales: {
-        [horizontal ? "x" : "y"]: { min: 1, max: 5, ticks: { callback: (v) => EMOJI[v] || v } },
+        [horizontal ? "x" : "y"]: { min: 1, max: 5, ticks: { callback: vibeAxisTick } },
         [horizontal ? "y" : "x"]: { grid: { display: false } },
       },
       plugins: { tooltip: { callbacks: {
@@ -829,7 +836,7 @@ function funScatterChart(id, rows) {
       interaction: { mode: "nearest", intersect: true },
       scales: {
         x: { min: 0, max: 100, title: { display: true, text: "winrate %" } },
-        y: { min: 1, max: 5, title: { display: true, text: "avg vibe" }, ticks: { callback: (v) => EMOJI[v] || v } },
+        y: { min: 1, max: 5, title: { display: true, text: "avg vibe" }, ticks: { callback: vibeAxisTick } },
       },
       plugins: { tooltip: { callbacks: {
         label: (c) => {
@@ -1028,7 +1035,7 @@ function renderTierList(rows) {
         <div class="tier-score${thin ? " thin" : ""}">${r.avgFun.toFixed(2)}</div>
       </div>`;
   };
-  const axis = `<div class="tier-axis">${[1, 2, 3, 4, 5].map((v) => `<span>${EMOJI[v]}</span>`).join("")}</div>`;
+  const axis = `<div class="tier-axis">${[1, 2, 3, 4, 5].map((v) => `<span>${vibeAxisTick(v)}</span>`).join("")}</div>`;
   const hidden = list.length - TIER_TOP_N;
   const toggle = hidden > 0
     ? `<button class="tier-toggle" id="tier-toggle" data-open="0">▾ Show all ${list.length}</button>`
@@ -1066,7 +1073,7 @@ function renderSquad(games) {
     },
     options: {
       indexAxis: "y", maintainAspectRatio: false,
-      scales: { x: { min: 1, max: 5, ticks: { callback: (v) => EMOJI[v] || v } }, y: { grid: { display: false } } },
+      scales: { x: { min: 1, max: 5, ticks: { callback: vibeAxisTick } }, y: { grid: { display: false } } },
       plugins: { tooltip: { callbacks: {
         label: (c) => {
           const r = data[c.dataIndex];
