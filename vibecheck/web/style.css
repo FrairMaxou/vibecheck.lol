@@ -754,12 +754,11 @@ tr.low-n td { color: var(--ink-3); }
      need that much to show their label/number/pill/bar/ticks/caption
      without clipping anything — measured live at 241px natural content
      height, +1px slack.
-   - The container uses max-height + overflow-y: auto, not a hard height +
-     overflow: hidden, as a safety net: if the offset below is ever off in a
-     real browser (different font metrics, header wrapping to a second row
-     now that it's min-height rather than a hard height — see the header
-     rule above), the page gains a small scrollbar instead of silently
-     clipping a card's content.
+   - No max-height/overflow-y of its own here — see below for why that
+     changed — so if the offset above is ever off in a real browser
+     (different font metrics, header wrapping to a second row, a banner),
+     the grid just renders taller and main (its scrolling ancestor) gains a
+     scrollbar, instead of silently clipping a card's content.
 
    All three rows are fixed px, not minmax(...,1fr) — deliberately, not an
    oversight. An 1fr row grows to fill whatever budget max-height gives the
@@ -773,32 +772,29 @@ tr.low-n td { color: var(--ink-3); }
    1920x889 viewport (a normal 1080p window after browser chrome) — the
    realistic case the shipped 215px/minmax version fell short on.
 
-   Container budget re-derived for the fixed-sidebar shell: --header-h
-   (56px, :root) plus --shell-offset (34px, :root — header's own 14px
-   margin-bottom plus .page-container's 20px top padding) is a fixed 90px
-   offset above the grid, measured live via getBoundingClientRect() —
-   independent of window height, since the header is a slim fixed-height bar,
-   not content-driven. No local --header-h override needed here — the root
-   value already matches the real header. main itself no longer computes its
-   own height this way (it's flex: 1 now, see main's rule) — but flex derives
-   the identical number in the common case (no banner showing), so this
-   calc() and main's actual rendered height still agree at 90px. If they
-   ever visibly disagree, the fix is almost certainly a banner eating into
-   main's flex-derived space in a way this fixed calc() doesn't know about —
-   not a return of the old drift bug.
-
-   Row 2 (spotlight) is the intentional size lever (see the comment on
-   .ov-cell-spotlight below) — deliberately sized past the zero-scroll
-   budget at 254px (a maintainer-requested ~30% tile-size bump beyond the
-   197px that exactly filled the reclaimed slim-header space). At 1920x889
-   this needs 242+254+305+48gaps=849px against 799px available, so the
-   grid's own overflow-y: auto safety net is expected to activate at that
-   viewport — a deliberate trade of the zero-scroll enhancement for bigger
-   Spotlight art, not a bug. Still zero-scroll on taller/larger windows. */
+   This rule used to carry its own max-height: calc(100vh - var(--header-h)
+   - var(--shell-offset)) + overflow-y: auto, sized against the viewport
+   directly. That formula had no way to know about anything that shrinks
+   main's real available space — a visible banner (#update-banner,
+   #offline-banner, #low-data-banner, the last of which fires for any
+   account under MIN_N rated games — not a rare case) eats into main's
+   flex-derived height, but this grid's own calc() didn't shrink to match,
+   so on a short-enough window the grid could render taller than main's
+   actual box and pop its own scrollbar alongside main's — a second,
+   independent scroll region, exactly the class of bug the rest of this
+   PR/pass exists to eliminate. Fix: removed this rule's own max-height and
+   overflow-y entirely. The grid now renders at its natural content height
+   and main — the page's one and only scrolling element (see main's own
+   rule) — is what gains a scrollbar if that height doesn't fit, banner or
+   no banner. Row 2 (spotlight) is deliberately sized past the plain
+   zero-scroll budget anyway (a maintainer-requested ~30% tile-size bump:
+   242+254+305+48gaps=849px content against roughly 799px of budget at
+   1920x889 with no banner showing), so main's scrollbar was already the
+   real safety net in the common case — this just makes that the ONLY
+   safety net instead of a second one layered on top of it. */
 @media (min-width: 1400px) and (min-height: 850px) {
   .ov-grid12 {
-    max-height: calc(100vh - var(--header-h) - var(--shell-offset));
-    overflow-y: auto; margin-bottom: 0;
+    margin-bottom: 0;
     grid-template-rows: 242px 254px 305px;
     grid-template-areas:
       "vibemeter vibemeter vibemeter vibemeter aram aram aram aram totals totals totals totals"
