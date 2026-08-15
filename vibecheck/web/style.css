@@ -19,7 +19,20 @@ body {
   padding: 20px clamp(12px, 4vw, 48px) 60px;
 }
 
-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+/* Caps content at 1400px and centers it so widescreen monitors don't show
+   half the screen as empty background, and content doesn't just cling to
+   the left edge. */
+.page-container { max-width: 1400px; width: 100%; margin: 0 auto; }
+
+/* Persistent bar: stays put while the tab content below scrolls. Only
+   element pinned to top:0 (the nav rail deliberately isn't — see its rule
+   below) so there's no risk of two sticky elements fighting for the same
+   strip of screen. */
+header {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+  margin-bottom: 14px; position: sticky; top: 0; z-index: 25; background: var(--bg); padding: 6px 0;
+}
+.header-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 h1 { font-size: 26px; letter-spacing: .5px; color: var(--gold); }
 /* Height-driven so the lockup scales with the header rather than a fixed px
    width; `auto` width keeps the 403x128 aspect ratio. BRAND.md §2 asks for
@@ -191,12 +204,20 @@ h1 { font-size: 26px; letter-spacing: .5px; color: var(--gold); }
   margin-right: auto;
 }
 
-/* ---------- filters ---------- */
-.filters {
+/* ---------- filters (header burger + popover) ---------- */
+.filters { position: relative; }
+.filters-toggle-btn {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--surface); border: 1px solid var(--line); color: var(--ink);
+  border-radius: 8px; padding: 8px 14px; cursor: pointer; font: inherit;
+}
+.filters-toggle-btn:hover { border-color: var(--gold); }
+.filters-burger { font-size: 14px; line-height: 1; }
+.filters-panel {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 26; min-width: 320px;
   display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end;
   background: var(--surface); border: 1px solid var(--line);
-  border-radius: 10px; padding: 12px 16px; margin-bottom: 14px;
-  position: sticky; top: 0; z-index: 20;
+  border-radius: 10px; padding: 14px 16px; box-shadow: 0 12px 32px rgba(0,0,0,.55);
 }
 .filter-group label { display: block; font-size: 11px; color: var(--ink-2); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 3px; }
 .filters input[type="date"] {
@@ -208,7 +229,22 @@ h1 { font-size: 26px; letter-spacing: .5px; color: var(--gold); }
   border-radius: 6px; padding: 6px 12px; cursor: pointer; font: inherit;
 }
 .ghost-btn:hover { color: var(--ink); border-color: var(--ink-2); }
-.filter-count { color: var(--ink-2); font-size: 12px; margin-left: auto; }
+.filter-count { color: var(--ink-2); font-size: 12px; }
+
+/* ---------- header: "To Rate" trigger and sync status ---------- */
+.pending-toggle-btn {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--surface); border: 1px solid var(--line); color: var(--ink);
+  border-radius: 8px; padding: 8px 14px; cursor: pointer; font: inherit; font-size: 14px;
+}
+.pending-toggle-btn:hover { border-color: var(--gold); }
+.sync-status {
+  display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-2);
+  padding: 5px 10px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line);
+}
+.sync-status .sync-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); flex: none; }
+.sync-status.is-synced .sync-dot { background: #10B981; }
+.sync-status.is-error .sync-dot { background: #e2725b; }
 
 /* multiselect dropdown */
 .msel { position: relative; min-width: 130px; }
@@ -231,14 +267,41 @@ h1 { font-size: 26px; letter-spacing: .5px; color: var(--gold); }
 }
 .msel-panel label:hover { background: var(--surface); }
 
-/* ---------- tabs ---------- */
-#tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 14px; }
-#tabs button {
-  background: none; border: none; border-bottom: 2px solid transparent;
-  color: var(--ink-2); padding: 8px 14px; cursor: pointer; font: inherit; font-size: 14px;
+/* ---------- app shell: left rail + content ---------- */
+.app-shell { display: flex; gap: 22px; align-items: flex-start; }
+/* flex: 1 so main fills the remaining width instead of shrink-wrapping its
+   content next to the rail; min-width: 0 lets it actually shrink below that
+   content's intrinsic width (charts/tables) rather than overflowing the
+   shell — the classic flexbox min-width:auto trap. */
+main { flex: 1; min-width: 0; }
+
+/* ---------- tabs (left rail) ---------- */
+#tabs {
+  display: flex; flex-direction: column; gap: 2px; flex: none; width: 190px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  padding: 8px; margin-bottom: 14px;
 }
-#tabs button:hover { color: var(--ink); }
-#tabs button.active { color: var(--gold); border-bottom-color: var(--gold); }
+#tabs button {
+  display: flex; align-items: center; gap: 10px;
+  background: none; border: none; border-left: 2px solid transparent; border-radius: 6px;
+  color: var(--ink-2); padding: 9px 10px; cursor: pointer; font: inherit; font-size: 14px;
+  text-align: left; white-space: nowrap;
+}
+#tabs button:hover { color: var(--ink); background: var(--surface-2); }
+#tabs button.active { color: var(--gold); border-left-color: var(--gold); background: var(--surface-2); }
+.nav-icon { font-size: 15px; flex: none; }
+.nav-collapse-btn {
+  align-self: flex-end; color: var(--ink-3); margin-bottom: 4px;
+  background: none; border: none; cursor: pointer; font: inherit; padding: 4px 8px;
+}
+.nav-collapse-btn:hover { color: var(--ink); }
+
+/* Icon-only rail. JS (not a media query) owns the collapsed/expanded state,
+   including auto-collapsing near the 900px window minimum, so there is one
+   source of truth instead of a class and a breakpoint fighting each other. */
+#tabs.collapsed { width: 52px; }
+#tabs.collapsed .nav-label { display: none; }
+#tabs.collapsed .nav-collapse-btn { transform: scaleX(-1); }
 .badge {
   background: var(--gold); color: #1e2328; border-radius: 10px;
   font-size: 11px; font-weight: 700; padding: 1px 7px; margin-left: 4px;

@@ -52,3 +52,10 @@ create policy tp_insert on telemetry_pings for insert to anon with check (true);
 -- cost of a fake row is a slightly wrong count. Not worth defending against.
 
 create index if not exists telemetry_pings_day_idx on telemetry_pings (day desc);
+
+-- Added for issue #49 (schema versioning). Additive and nullable, so a build
+-- older than this keeps posting successfully — these two columns are simply
+-- null for it. Deploy this file in Studio BEFORE releasing the app version
+-- that starts sending these fields, or every ping from that build 400s.
+alter table telemetry_pings add column if not exists schema_version int;
+alter table telemetry_pings add column if not exists schema_migration_failed boolean;

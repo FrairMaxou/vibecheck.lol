@@ -89,6 +89,11 @@ jobs:
         run: python tests/migration_test.py
       - name: Smoke test
         run: python tests/smoke_test.py
+      # Ordered migration steps, backup-before-migrate, and failure isolation
+      # (issue #49) — a regression here means a real user's database gets
+      # stuck retrying a broken step on every launch.
+      - name: Schema migration test
+        run: python tests/schema_migration_test.py
       # The dashboard's guards are invisible in normal use — the app behaves
       # identically with them removed, so only this notices a regression.
       - name: Security checks

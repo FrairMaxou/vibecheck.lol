@@ -1293,6 +1293,34 @@ async function api(path, body) {
   return data;
 }
 
+/* Compact header pill mirroring squad sync state. Reuses the same
+   /api/squad/status the Squad tab's renderOnline() calls — this is just a
+   second, independent read of it on load so the pill has something to show
+   before the user ever opens that tab. Hidden entirely for the advanced/
+   self-host and "no League client seen yet" states: neither is an error, and
+   a persistent header pill nagging about setup would be more clutter than
+   the "Squad Sync" panel already explains well. */
+async function renderSyncStatus() {
+  const el = document.getElementById("sync-status");
+  let st;
+  try {
+    st = SQUAD.status = await api("/api/squad/status");
+  } catch {
+    el.classList.add("hidden");
+    return;
+  }
+  if (!st.configured || !st.identity_ready) { el.classList.add("hidden"); return; }
+  el.classList.remove("hidden");
+  if (st.error) {
+    el.classList.add("is-error"); el.classList.remove("is-synced");
+    el.innerHTML = `<span class="sync-dot"></span> Sync error`;
+    return;
+  }
+  el.classList.add("is-synced"); el.classList.remove("is-error");
+  const mutual = st.mutual_count || 0;
+  el.innerHTML = `<span class="sync-dot"></span> Synced${mutual ? ` · ${mutual} in squad` : ""}`;
+}
+
 async function renderOnline() {
   const body = document.getElementById("squad-body");
   document.getElementById("squad-board-panel").classList.add("hidden");
@@ -1645,9 +1673,12 @@ function renderAll() {
   if (t === "overview") renderOverview(games);
   if (t === "champions") renderChampions(games);
   if (t === "squad") { renderSquad(games); renderOnline(); } // local squad + online gang
-  if (t === "context") { renderContext(games); renderExplorer(games); } // canned + free explore
-  if (t === "sessions") renderSessions(games);
-  if (t === "tags" && !isEditingWithin("tags-games")) renderTags(games);
+  // "Patterns & Tags" folds the old Context, Sessions and Tags tabs into one page.
+  if (t === "patterns") {
+    renderContext(games); renderExplorer(games); // canned + free explore
+    renderSessions(games);
+    if (!isEditingWithin("tags-games")) renderTags(games);
+  }
 }
 
 async function refresh() {
@@ -1687,16 +1718,45 @@ async function pollRev() {
   }
 }
 
-document.querySelectorAll("#tabs button").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll("#tabs button").forEach((b) => b.classList.remove("active"));
-    btn.classList.add("active");
-    state.tab = btn.dataset.tab;
-    document.querySelectorAll(".tab").forEach((el) => el.classList.add("hidden"));
-    document.getElementById(`tab-${state.tab}`).classList.remove("hidden");
-    renderAll();
-  });
+// Shared by the nav rail buttons and the header's "To Rate" trigger — "pending"
+// has no rail entry (it's reached from the header instead), so switching to it
+// leaves every rail button unhighlighted, which is expected.
+function switchTab(tabId) {
+  document.querySelectorAll("#tabs button[data-tab]").forEach((b) => b.classList.toggle("active", b.dataset.tab === tabId));
+  state.tab = tabId;
+  document.querySelectorAll(".tab").forEach((el) => el.classList.add("hidden"));
+  document.getElementById(`tab-${tabId}`).classList.remove("hidden");
+  renderAll();
+}
+document.querySelectorAll("#tabs button[data-tab]").forEach((btn) => {
+  btn.addEventListener("click", () => switchTab(btn.dataset.tab));
 });
+document.getElementById("pending-toggle").addEventListener("click", () => switchTab("pending"));
+
+// Filters popover: open/close, outside-click to dismiss (same pattern as the
+// profile menu below).
+document.getElementById("filters-toggle").addEventListener("click", (e) => {
+  e.stopPropagation();
+  document.getElementById("filters-panel").classList.toggle("hidden");
+});
+document.addEventListener("click", (e) => {
+  const panel = document.getElementById("filters-panel");
+  if (!panel.classList.contains("hidden") && !e.target.closest(".filters")) panel.classList.add("hidden");
+});
+
+// Left nav rail: manual collapse persisted per-device, defaulting to
+// collapsed near the 900px window minimum so the rail doesn't crowd content.
+(function initNavRail() {
+  const nav = document.getElementById("tabs");
+  const stored = localStorage.getItem("navCollapsed");
+  const collapsed = stored === null ? window.innerWidth < 1000 : stored === "1";
+  nav.classList.toggle("collapsed", collapsed);
+  document.getElementById("nav-collapse-toggle").addEventListener("click", () => {
+    const next = !nav.classList.contains("collapsed");
+    nav.classList.toggle("collapsed", next);
+    localStorage.setItem("navCollapsed", next ? "1" : "0");
+  });
+})();
 document.getElementById("ex-dim").addEventListener("change", renderAll);
 document.getElementById("ex-type").addEventListener("change", renderAll);
 
@@ -1813,6 +1873,7 @@ async function closeOnboarding() {
 sweepBrokenImages(); // catches assets that failed before this script ran
 loadProfile();
 updateBadge();
+renderSyncStatus();
 handleUpdateDeepLink();
 showOnboarding();
 showWhatsNew();

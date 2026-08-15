@@ -9,6 +9,7 @@
 <link rel="icon" type="image/png" href="/assets/logo.png">
 </head>
 <body data-palette="#b28328,#2f9ac0" data-mode="dark">
+<div class="page-container">
 <header>
   <div class="title-block">
     <!-- The wordmark is in the image, so the h1 stays for screen readers and
@@ -21,7 +22,34 @@
          width="403" height="128" data-on-error="reveal-title">
     <p class="subtitle">Winrate is temporary. The vibes are forever.</p>
   </div>
-  <div class="profile">
+  <div class="header-actions">
+    <section id="filters" class="filters">
+      <button id="filters-toggle" class="filters-toggle-btn" aria-haspopup="true">
+        <span class="filters-burger">☰</span> Filters <span id="f-count" class="filter-count"></span>
+      </button>
+      <div id="filters-panel" class="filters-panel hidden">
+        <div class="filter-group">
+          <label>From</label>
+          <input type="date" id="f-from">
+        </div>
+        <div class="filter-group">
+          <label>To</label>
+          <input type="date" id="f-to">
+        </div>
+        <div class="filter-group"><label>Queue</label><div id="f-queue"></div></div>
+        <div class="filter-group"><label>Mode</label><div id="f-mode"></div></div>
+        <div class="filter-group"><label>Champion</label><div id="f-champion"></div></div>
+        <div class="filter-group"><label>Role</label><div id="f-role"></div></div>
+        <div class="filter-group"><label>Teammate</label><div id="f-teammate"></div></div>
+        <div class="filter-group"><label>Result</label><div id="f-result"></div></div>
+        <button id="f-clear" class="ghost-btn">Clear filters</button>
+      </div>
+    </section>
+    <button id="pending-toggle" class="pending-toggle-btn" title="Games left to rate">
+      📮 To Rate <span id="pending-badge" class="badge hidden"></span>
+    </button>
+    <span id="sync-status" class="sync-status hidden"></span>
+    <div class="profile">
     <button id="profile-btn" class="profile-btn" aria-haspopup="true">
       <span class="profile-avatar">🤩</span>
       <span class="profile-id">
@@ -100,6 +128,7 @@
         <div id="uninstall-msg" class="squad-msg"></div>
       </div>
     </div>
+    </div>
   </div>
 </header>
 
@@ -130,33 +159,13 @@
 <div id="update-banner" class="banner banner-update hidden"></div>
 <div id="low-data-banner" class="banner hidden"></div>
 
-<section id="filters" class="filters">
-  <div class="filter-group">
-    <label>From</label>
-    <input type="date" id="f-from">
-  </div>
-  <div class="filter-group">
-    <label>To</label>
-    <input type="date" id="f-to">
-  </div>
-  <div class="filter-group"><label>Queue</label><div id="f-queue"></div></div>
-  <div class="filter-group"><label>Mode</label><div id="f-mode"></div></div>
-  <div class="filter-group"><label>Champion</label><div id="f-champion"></div></div>
-  <div class="filter-group"><label>Role</label><div id="f-role"></div></div>
-  <div class="filter-group"><label>Teammate</label><div id="f-teammate"></div></div>
-  <div class="filter-group"><label>Result</label><div id="f-result"></div></div>
-  <button id="f-clear" class="ghost-btn">Clear filters</button>
-  <span id="f-count" class="filter-count"></span>
-</section>
-
+<div class="app-shell">
 <nav id="tabs">
-  <button data-tab="overview" class="active">The Vibe Check</button>
-  <button data-tab="champions">Champions</button>
-  <button data-tab="squad">The Squad</button>
-  <button data-tab="context">Context</button>
-  <button data-tab="sessions">Regret Curve</button>
-  <button data-tab="tags">Tags</button>
-  <button data-tab="pending">To Rate <span id="pending-badge" class="badge hidden"></span></button>
+  <button id="nav-collapse-toggle" class="nav-collapse-btn" aria-label="Collapse navigation" title="Collapse navigation">«</button>
+  <button data-tab="overview" class="active"><span class="nav-icon">🎯</span><span class="nav-label">The Vibe Check</span></button>
+  <button data-tab="champions"><span class="nav-icon">🏆</span><span class="nav-label">Champions</span></button>
+  <button data-tab="squad"><span class="nav-icon">👥</span><span class="nav-label">The Squad</span></button>
+  <button data-tab="patterns"><span class="nav-icon">📈</span><span class="nav-label">Patterns & Tags</span></button>
 </nav>
 
 <main>
@@ -215,7 +224,7 @@
     </div>
   </div>
 
-  <div id="tab-context" class="tab hidden">
+  <div id="tab-patterns" class="tab hidden">
     <div class="grid-2">
       <div class="panel"><h2>By queue</h2><div class="chart-wrap"><canvas id="chart-ctx-queue"></canvas></div></div>
       <div class="panel"><h2>By role</h2><div class="chart-wrap"><canvas id="chart-ctx-role"></canvas></div></div>
@@ -256,16 +265,10 @@
       <div class="chart-wrap tall" id="explorer-wrap"><canvas id="chart-explorer"></canvas></div>
       <div id="explorer-table"></div>
     </div>
-  </div>
-
-  <div id="tab-sessions" class="tab hidden">
     <div class="panel">
       <h2>The "one more game" regret curve <span class="hint">vibe by game number in a session — find where it dies and log off there</span></h2>
       <div class="chart-wrap"><canvas id="chart-sessions"></canvas></div>
     </div>
-  </div>
-
-  <div id="tab-tags" class="tab hidden">
     <div class="panel">
       <h2>Tag energy <span class="hint">average vibe per tag — what actually makes a game good</span></h2>
       <div class="chart-wrap"><canvas id="chart-tags"></canvas></div>
@@ -283,6 +286,8 @@
     </div>
   </div>
 </main>
+</div>
+</div>
 
 <footer id="legal-footer">
   VibeCheck.lol isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot

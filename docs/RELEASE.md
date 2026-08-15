@@ -172,6 +172,10 @@ Because anyone with the key can reach the project's API:
 - [ ] `git grep` finds no `sb_secret`, no `service_role`, no JWT in the repo
 - [ ] Fresh-machine smoke test: install → capture a game → rate → open dashboard
 - [ ] Squad Online shows "start League once" (no key prompt); after a client connect it shows "Synced as …"
+- [ ] If this release adds columns to `supabase/telemetry.sql` (schema versioning,
+      issue #49, added `schema_version` / `schema_migration_failed`): run the
+      updated file in Supabase Studio **before** merging — every ping from this
+      build 400s until those columns exist in production
 - [ ] Published exe not flagged by Defender — see [Antivirus check](#antivirus-check-every-release)
 
 ## Merging the Release PR
