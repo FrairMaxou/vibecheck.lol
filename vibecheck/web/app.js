@@ -459,9 +459,18 @@ function ovSpotlightTile(card) {
   const tierRound = row.avgFun != null ? Math.round(row.avgFun) : null;
   const tierClass = tierRound ? OV_TIER_CLASS[tierRound] : "ov-tier3";
   const vibeLabel = tierRound ? `${row.avgFun.toFixed(2)} · ${GRADES[tierRound]}` : "not enough rated games";
-  const pills = cats.map(({ cat, isLeader }) =>
+  // A champion that leads several categories at once (rare, but real — a
+  // dominant ARAM one-trick can lead vibe/kills/deaths/assists together)
+  // stacks one pill per badge here. Left unbounded, that stack grows tall
+  // enough to run into the bottom headline (name/score) on a short tile.
+  // Cap what's shown and fold the rest into a "+N more" pill rather than
+  // either hiding badges outright or letting them overlap the headline.
+  const MAX_VISIBLE_PILLS = 3;
+  const visibleCats = cats.slice(0, MAX_VISIBLE_PILLS);
+  const hiddenCount = cats.length - visibleCats.length;
+  const pills = visibleCats.map(({ cat, isLeader }) =>
     `<div class="ov-cat-pill${isLeader ? "" : " ov-cat-pill-runnerup"}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${OV_CAT_ICON[cat]}</svg>${isLeader ? OV_CAT_LABEL[cat] : `Also: ${OV_CAT_NOUN[cat]}`}</div>`
-  ).join("");
+  ).join("") + (hiddenCount > 0 ? `<div class="ov-cat-pill ov-cat-pill-runnerup">+${hiddenCount} more</div>` : "");
   // Prefer a genuine leader for the headline number — a card built entirely
   // from runner-up fills (never led anything outright) falls back to its
   // first badge, which is still an honest reflection of why it's on screen.
