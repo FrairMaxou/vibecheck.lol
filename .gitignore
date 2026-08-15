@@ -22,3 +22,6 @@ vibecheck/_bundled.py
 
 # Superpowers brainstorming visual-companion sessions (local mockup scratch).
 .superpowers/
+
+# Superpowers subagent-driven-development isolated workspaces.
+.worktrees/
