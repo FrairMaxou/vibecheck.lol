@@ -110,10 +110,6 @@ const SPLASH_RETRY_DELAYS_MS = [1500, 3000, 6000, 12000, 24000];
 
 const ON_ERROR = {
   remove: (el) => el.remove(),
-  "reveal-title": (el) => {
-    el.remove();
-    document.getElementById("app-title").classList.remove("visually-hidden");
-  },
   "retry-then-remove": (el) => {
     const attempt = (Number(el.dataset.retryAttempt) || 0) + 1;
     if (attempt > SPLASH_RETRY_DELAYS_MS.length) {
@@ -459,9 +455,18 @@ function ovSpotlightTile(card) {
   const tierRound = row.avgFun != null ? Math.round(row.avgFun) : null;
   const tierClass = tierRound ? OV_TIER_CLASS[tierRound] : "ov-tier3";
   const vibeLabel = tierRound ? `${row.avgFun.toFixed(2)} · ${GRADES[tierRound]}` : "not enough rated games";
-  const pills = cats.map(({ cat, isLeader }) =>
+  // A champion that leads several categories at once (rare, but real — a
+  // dominant ARAM one-trick can lead vibe/kills/deaths/assists together)
+  // stacks one pill per badge here. Left unbounded, that stack grows tall
+  // enough to run into the bottom headline (name/score) on a short tile.
+  // Cap what's shown and fold the rest into a "+N more" pill rather than
+  // either hiding badges outright or letting them overlap the headline.
+  const MAX_VISIBLE_PILLS = 3;
+  const visibleCats = cats.slice(0, MAX_VISIBLE_PILLS);
+  const hiddenCount = cats.length - visibleCats.length;
+  const pills = visibleCats.map(({ cat, isLeader }) =>
     `<div class="ov-cat-pill${isLeader ? "" : " ov-cat-pill-runnerup"}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${OV_CAT_ICON[cat]}</svg>${isLeader ? OV_CAT_LABEL[cat] : `Also: ${OV_CAT_NOUN[cat]}`}</div>`
-  ).join("");
+  ).join("") + (hiddenCount > 0 ? `<div class="ov-cat-pill ov-cat-pill-runnerup">+${hiddenCount} more</div>` : "");
   // Prefer a genuine leader for the headline number — a card built entirely
   // from runner-up fills (never led anything outright) falls back to its
   // first badge, which is still an honest reflection of why it's on screen.
@@ -1238,6 +1243,8 @@ function toggleProfileMenu(forceOpen) {
   const menu = document.getElementById("profile-menu");
   const open = forceOpen ?? menu.classList.contains("hidden");
   menu.classList.toggle("hidden", !open);
+  document.getElementById("profile-btn").setAttribute("aria-expanded", open);
+  document.getElementById("settings-btn").setAttribute("aria-expanded", open);
   if (open) { renderSettings(); checkUpdate(); }
 }
 
@@ -1292,6 +1299,7 @@ async function checkUpdate() {
   try {
     const u = await api("/api/update");
     UPDATE = u;
+    renderNotifVersion();
     if (!u.update_available) {
       body.innerHTML = `You're on <b>v${escapeAttr(u.current)}</b> — up to date. 🎉`;
       btn.classList.add("hidden");
@@ -1313,6 +1321,19 @@ async function checkUpdate() {
   } catch {
     body.textContent = "Couldn't check for updates right now.";
   }
+}
+
+/* Passive "Status" line in the notification drawer, mirroring the same
+   /api/update read the profile menu's Version section already does —
+   independent read, same pattern as renderSyncStatus() above it, so the
+   drawer has something to show without the user ever opening the profile
+   menu first. */
+function renderNotifVersion() {
+  const el = document.getElementById("notif-version");
+  if (!UPDATE) { el.textContent = ""; return; }
+  el.innerHTML = UPDATE.update_available
+    ? `<span class="notif-sync-dot is-update"></span> v${escapeAttr(UPDATE.current)} — update available`
+    : `<span class="notif-sync-dot is-synced"></span> v${escapeAttr(UPDATE.current)} — up to date`;
 }
 
 const UPDATE_STATES = {
@@ -1379,6 +1400,7 @@ async function updateBadge() {
   try {
     const u = await api("/api/update");
     UPDATE = u;
+    renderNotifVersion();
     if (!u.update_available) return;
     document.getElementById("profile-dot").classList.remove("hidden");
     if (localStorage.getItem("dismissedUpdate") === u.latest) return;
@@ -1879,6 +1901,9 @@ function switchTab(tabId) {
   state.tab = tabId;
   document.querySelectorAll(".tab").forEach((el) => el.classList.add("hidden"));
   document.getElementById(`tab-${tabId}`).classList.remove("hidden");
+  const activeBtn = document.querySelector(`#tabs button[data-tab="${tabId}"]`);
+  if (activeBtn) document.getElementById("page-title").textContent = activeBtn.querySelector(".nav-label").textContent;
+  else if (tabId === "pending") document.getElementById("page-title").textContent = "Games left on read";
   renderAll();
 }
 document.querySelectorAll("#tabs button[data-tab]").forEach((btn) => {
@@ -1911,23 +1936,28 @@ document.addEventListener("click", (e) => {
   if (!panel.classList.contains("hidden") && !e.target.closest(".filters")) panel.classList.add("hidden");
 });
 
-// Left nav rail: manual collapse persisted per-device, defaulting to
-// collapsed near the 900px window minimum so the rail doesn't crowd content.
+// Sidebar: manual collapse persisted per-device, defaulting to collapsed
+// near the 900px window minimum so the rail doesn't crowd content. Toggles
+// two elements in lockstep: #sidebar (its own width) and .app-content
+// (its margin-left offset) — see the CSS comment on .app-content.nav-collapsed.
 (function initNavRail() {
-  const nav = document.getElementById("tabs");
+  const sidebar = document.getElementById("sidebar");
+  const content = document.querySelector(".app-content");
   const stored = localStorage.getItem("navCollapsed");
   const collapsed = stored === null ? window.innerWidth < 1000 : stored === "1";
-  nav.classList.toggle("collapsed", collapsed);
+  sidebar.classList.toggle("collapsed", collapsed);
+  content.classList.toggle("nav-collapsed", collapsed);
   document.getElementById("nav-collapse-toggle").addEventListener("click", () => {
-    const next = !nav.classList.contains("collapsed");
-    nav.classList.toggle("collapsed", next);
+    const next = !sidebar.classList.contains("collapsed");
+    sidebar.classList.toggle("collapsed", next);
+    content.classList.toggle("nav-collapsed", next);
     localStorage.setItem("navCollapsed", next ? "1" : "0");
   });
 })();
 document.getElementById("ex-dim").addEventListener("change", renderAll);
 document.getElementById("ex-type").addEventListener("change", renderAll);
 
-// Profile menu (top-right): open/close, outside-click to dismiss, uninstall.
+// Profile menu (sidebar bottom): open/close, outside-click to dismiss, uninstall.
 document.getElementById("profile-btn").addEventListener("click", (e) => {
   e.stopPropagation();
   toggleProfileMenu();
@@ -1935,6 +1965,18 @@ document.getElementById("profile-btn").addEventListener("click", (e) => {
 document.addEventListener("click", (e) => {
   const menu = document.getElementById("profile-menu");
   if (!menu.classList.contains("hidden") && !e.target.closest(".profile")) menu.classList.add("hidden");
+});
+
+// Settings (sidebar bottom): opens the same profile-menu popover the
+// Profile row does — one panel, two entry points, since Settings already
+// lives inside it (pm-section "Settings") rather than needing its own.
+document.getElementById("settings-btn").addEventListener("click", (e) => {
+  e.stopPropagation(); // must match #profile-btn's own handler — without this,
+                        // the document-level outside-click dismiss (below,
+                        // checks .closest(".profile")) would immediately
+                        // close the menu this same click just opened, since
+                        // #settings-btn sits outside the .profile wrapper.
+  toggleProfileMenu();
 });
 
 // Vibe trend filter menu: unlike the profile menu above, #ov-trend-filter-menu
@@ -1955,7 +1997,6 @@ function handleUpdateDeepLink() {
   if (new URLSearchParams(location.search).get("update") !== "1") return;
   history.replaceState(null, "", location.pathname);
   toggleProfileMenu(true);
-  document.getElementById("profile-menu").scrollIntoView({ block: "start" });
 }
 
 /* One-time welcome. A fresh install lands on empty charts with the next game
