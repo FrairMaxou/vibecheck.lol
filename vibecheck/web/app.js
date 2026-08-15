@@ -1301,6 +1301,7 @@ async function checkUpdate() {
   try {
     const u = await api("/api/update");
     UPDATE = u;
+    renderNotifVersion();
     if (!u.update_available) {
       body.innerHTML = `You're on <b>v${escapeAttr(u.current)}</b> — up to date. 🎉`;
       btn.classList.add("hidden");
@@ -1322,6 +1323,19 @@ async function checkUpdate() {
   } catch {
     body.textContent = "Couldn't check for updates right now.";
   }
+}
+
+/* Passive "Status" line in the notification drawer, mirroring the same
+   /api/update read the profile menu's Version section already does —
+   independent read, same pattern as renderSyncStatus() above it, so the
+   drawer has something to show without the user ever opening the profile
+   menu first. */
+function renderNotifVersion() {
+  const el = document.getElementById("notif-version");
+  if (!UPDATE) { el.textContent = ""; return; }
+  el.innerHTML = UPDATE.update_available
+    ? `<span class="notif-sync-dot"></span> v${escapeAttr(UPDATE.current)} — update available`
+    : `<span class="notif-sync-dot is-synced"></span> v${escapeAttr(UPDATE.current)} — up to date`;
 }
 
 const UPDATE_STATES = {
@@ -1388,6 +1402,7 @@ async function updateBadge() {
   try {
     const u = await api("/api/update");
     UPDATE = u;
+    renderNotifVersion();
     if (!u.update_available) return;
     document.getElementById("profile-dot").classList.remove("hidden");
     if (localStorage.getItem("dismissedUpdate") === u.latest) return;
