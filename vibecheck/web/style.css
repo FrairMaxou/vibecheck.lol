@@ -15,6 +15,14 @@
   --shell-offset: 34px; /* header's 14px margin-bottom + .page-container's 20px top padding */
 }
 
+/* Exactly one scroll container on the page: <main>, below. Locking html/body
+   to the viewport height with overflow hidden is what makes that a hard
+   guarantee rather than a tuning target — previously body could also grow
+   past 100vh (to reach the footer, which sat below main in normal flow),
+   producing two independent scrollbars at once. Fixing that meant moving
+   the footer inside <main> (see index.html) rather than just capping body,
+   since capping alone would have made the footer unreachable. */
+html, body { height: 100%; overflow: hidden; }
 * { box-sizing: border-box; margin: 0; }
 body {
   background: var(--bg);
@@ -29,14 +37,21 @@ body {
    falls on the right, never as a gap next to the sidebar. */
 .app-content {
   margin-left: var(--sidebar-w);
-  min-height: 100vh;
+  height: 100vh;
   transition: margin-left .18s ease;
 }
 .app-content.nav-collapsed { margin-left: var(--sidebar-w-collapsed); }
 
+/* flex column: header and the banner strip take their natural height, main
+   gets everything left over via flex: 1 (see main's rule below) — the
+   browser derives that number, rather than a second calc(100vh - ...) that
+   has to be hand-kept in sync with header's real height, the way main's
+   height used to be computed. Bottom padding moved to main itself (below)
+   so it lands after the scrollable content, not as dead space outside it. */
 .page-container {
-  max-width: 1400px; width: 100%;
-  padding: 20px clamp(12px, 4vw, 48px) 60px;
+  max-width: 1400px; width: 100%; height: 100%;
+  padding: 20px clamp(12px, 4vw, 48px) 0;
+  display: flex; flex-direction: column;
 }
 
 /* Slim page-title bar — replaces the old hero brand banner, which now lives
@@ -294,14 +309,18 @@ h1 {
 }
 .msel-panel label:hover { background: var(--surface); }
 
-/* --shell-offset accounts for everything above main's own box: header's
-   margin-bottom plus .page-container's top padding. Keep this in sync with
-   the zero-scroll .ov-grid12 rule below, which caps its own max-height with
-   the same --header-h/--shell-offset pair — they must always agree, or main
-   overhangs the real available space and produces a double scrollbar. */
+/* flex: 1 inside .page-container's column — main's height is whatever's
+   left after header (and the banner strip, when one's showing), derived by
+   the browser rather than a calc() that has to be kept in sync with
+   header's real height by hand. min-height: 0 is load-bearing: without it
+   a flex child defaults to min-height: auto (its content's natural size),
+   which would make main grow to fit its content instead of shrinking to
+   fit the remaining space — the classic flexbox overflow trap. This is
+   the ONLY scrolling element on the page; the legal footer moved inside
+   it (index.html) specifically so nothing needs a second one. */
 main {
-  height: calc(100vh - var(--header-h) - var(--shell-offset));
-  overflow-y: auto;
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding-bottom: 60px;
 }
 
 /* ---------- fixed left sidebar ---------- */
@@ -735,12 +754,11 @@ tr.low-n td { color: var(--ink-3); }
      need that much to show their label/number/pill/bar/ticks/caption
      without clipping anything — measured live at 241px natural content
      height, +1px slack.
-   - The container uses max-height + overflow-y: auto, not a hard height +
-     overflow: hidden, as a safety net: if the offset below is ever off in a
-     real browser (different font metrics, header wrapping to a second row
-     now that it's min-height rather than a hard height — see the header
-     rule above), the page gains a small scrollbar instead of silently
-     clipping a card's content.
+   - No max-height/overflow-y of its own here — see below for why that
+     changed — so if the offset above is ever off in a real browser
+     (different font metrics, header wrapping to a second row, a banner),
+     the grid just renders taller and main (its scrolling ancestor) gains a
+     scrollbar, instead of silently clipping a card's content.
 
    All three rows are fixed px, not minmax(...,1fr) — deliberately, not an
    oversight. An 1fr row grows to fill whatever budget max-height gives the
@@ -754,27 +772,29 @@ tr.low-n td { color: var(--ink-3); }
    1920x889 viewport (a normal 1080p window after browser chrome) — the
    realistic case the shipped 215px/minmax version fell short on.
 
-   Container budget re-derived for the fixed-sidebar shell: --header-h
-   (56px, :root) plus --shell-offset (34px, :root — header's own 14px
-   margin-bottom plus .page-container's 20px top padding) is a fixed 90px
-   offset above the grid, measured live via getBoundingClientRect() —
-   independent of window height, since the header is a slim fixed-height bar,
-   not content-driven. No local --header-h override needed here — the root
-   value already matches the real header. Keep this rule's offset in sync
-   with main's above — both must resolve to the same 90px.
-
-   Row 2 (spotlight) is the intentional size lever (see the comment on
-   .ov-cell-spotlight below) — deliberately sized past the zero-scroll
-   budget at 254px (a maintainer-requested ~30% tile-size bump beyond the
-   197px that exactly filled the reclaimed slim-header space). At 1920x889
-   this needs 242+254+305+48gaps=849px against 799px available, so the
-   grid's own overflow-y: auto safety net is expected to activate at that
-   viewport — a deliberate trade of the zero-scroll enhancement for bigger
-   Spotlight art, not a bug. Still zero-scroll on taller/larger windows. */
+   This rule used to carry its own max-height: calc(100vh - var(--header-h)
+   - var(--shell-offset)) + overflow-y: auto, sized against the viewport
+   directly. That formula had no way to know about anything that shrinks
+   main's real available space — a visible banner (#update-banner,
+   #offline-banner, #low-data-banner, the last of which fires for any
+   account under MIN_N rated games — not a rare case) eats into main's
+   flex-derived height, but this grid's own calc() didn't shrink to match,
+   so on a short-enough window the grid could render taller than main's
+   actual box and pop its own scrollbar alongside main's — a second,
+   independent scroll region, exactly the class of bug the rest of this
+   PR/pass exists to eliminate. Fix: removed this rule's own max-height and
+   overflow-y entirely. The grid now renders at its natural content height
+   and main — the page's one and only scrolling element (see main's own
+   rule) — is what gains a scrollbar if that height doesn't fit, banner or
+   no banner. Row 2 (spotlight) is deliberately sized past the plain
+   zero-scroll budget anyway (a maintainer-requested ~30% tile-size bump:
+   242+254+305+48gaps=849px content against roughly 799px of budget at
+   1920x889 with no banner showing), so main's scrollbar was already the
+   real safety net in the common case — this just makes that the ONLY
+   safety net instead of a second one layered on top of it. */
 @media (min-width: 1400px) and (min-height: 850px) {
   .ov-grid12 {
-    max-height: calc(100vh - var(--header-h) - var(--shell-offset));
-    overflow-y: auto; margin-bottom: 0;
+    margin-bottom: 0;
     grid-template-rows: 242px 254px 305px;
     grid-template-areas:
       "vibemeter vibemeter vibemeter vibemeter aram aram aram aram totals totals totals totals"
