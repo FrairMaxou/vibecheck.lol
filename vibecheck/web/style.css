@@ -231,20 +231,36 @@ h1 { font-size: 26px; letter-spacing: .5px; color: var(--gold); }
 .ghost-btn:hover { color: var(--ink); border-color: var(--ink-2); }
 .filter-count { color: var(--ink-2); font-size: 12px; }
 
-/* ---------- header: "To Rate" trigger and sync status ---------- */
-.pending-toggle-btn {
-  display: flex; align-items: center; gap: 6px;
-  background: var(--surface); border: 1px solid var(--line); color: var(--ink);
-  border-radius: 8px; padding: 8px 14px; cursor: pointer; font: inherit; font-size: 14px;
+/* ---------- header: notification drawer (replaces the #86 "To Rate"
+   button and sync-status pill — both consolidated into one bell+popover) ---------- */
+.notif { position: relative; }
+.notif-bell-btn {
+  position: relative; display: flex; align-items: center; justify-content: center;
+  width: 38px; height: 38px; font-size: 17px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 999px; cursor: pointer;
 }
-.pending-toggle-btn:hover { border-color: var(--gold); }
-.sync-status {
-  display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-2);
-  padding: 5px 10px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line);
+.notif-bell-btn:hover { border-color: var(--gold); }
+.notif-bell-btn .badge { position: absolute; top: -4px; right: -4px; margin-left: 0; }
+.notif-panel {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 26; width: 300px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0,0,0,.55);
 }
-.sync-status .sync-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); flex: none; }
-.sync-status.is-synced .sync-dot { background: #10B981; }
-.sync-status.is-error .sync-dot { background: #e2725b; }
+.notif-section { padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.notif-section:last-child { border-bottom: none; }
+.notif-title { font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--ink-3); margin-bottom: 8px; }
+.notif-row {
+  display: flex; align-items: center; justify-content: space-between; width: 100%;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px;
+  padding: 8px 10px; cursor: pointer; font: inherit; font-size: 13px; color: var(--ink); text-align: left;
+}
+.notif-row:hover { border-color: var(--gold); }
+.notif-row-arrow { color: var(--ink-2); }
+.notif-empty { font-size: 12.5px; color: var(--ink-2); }
+.notif-sync { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-2); }
+.notif-sync-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); flex: none; }
+.notif-sync-dot.is-synced { background: #10B981; }
+.notif-sync-dot.is-error { background: #e2725b; }
 
 /* multiselect dropdown */
 .msel { position: relative; min-width: 130px; }
@@ -639,14 +655,23 @@ tr.low-n td { color: var(--ink-3); }
 
 /* 12-column dashboard grid (issue #88). Fixed repeat(12, ...), not auto-fit —
    every cell below is a definite span, so there's no risk of the auto-fit/
-   indefinite-container collapse #86 had to work around for a similar grid. */
-.ov-grid12 { display: grid; grid-template-columns: repeat(12, 1fr); gap: 24px; align-items: start; margin-bottom: 26px; }
-.ov-cell-vibemeter { grid-column: span 7; }
-.ov-cell-aram { grid-column: span 5; }
-.ov-cell-spotlight { grid-column: span 8; }
-.ov-cell-totals { grid-column: span 4; }
-.ov-cell-trend { grid-column: span 8; margin-bottom: 0; }
-.ov-cell-regret { grid-column: span 4; margin-bottom: 0; }
+   indefinite-container collapse #86 had to work around for a similar grid.
+   Named areas (not just grid-column spans) so the zero-scroll media query
+   below can rearrange cells — Totals moves into the hero row, Spotlight
+   becomes its own full-width row — without touching the HTML. */
+.ov-grid12 {
+  display: grid; grid-template-columns: repeat(12, 1fr); gap: 24px; align-items: start; margin-bottom: 26px;
+  grid-template-areas:
+    "vibemeter vibemeter vibemeter vibemeter vibemeter vibemeter vibemeter aram aram aram aram aram"
+    "spotlight spotlight spotlight spotlight spotlight spotlight spotlight spotlight totals totals totals totals"
+    "trend trend trend trend trend trend trend trend regret regret regret regret";
+}
+.ov-cell-vibemeter { grid-area: vibemeter; }
+.ov-cell-aram { grid-area: aram; }
+.ov-cell-spotlight { grid-area: spotlight; }
+.ov-cell-totals { grid-area: totals; }
+.ov-cell-trend { grid-area: trend; margin-bottom: 0; }
+.ov-cell-regret { grid-area: regret; margin-bottom: 0; }
 .ov-cell-spotlight .ov-section-label, .ov-cell-totals .ov-section-label { margin-top: 0; }
 .ov-regret-wrap { height: 200px; }
 
@@ -654,10 +679,73 @@ tr.low-n td { color: var(--ink-3); }
    complexity — stack everything single-column instead, same as any other
    panel list. Matches the left rail's own auto-collapse threshold from #86. */
 @media (max-width: 1000px) {
-  .ov-grid12 { grid-template-columns: 1fr; }
-  .ov-cell-vibemeter, .ov-cell-aram, .ov-cell-spotlight, .ov-cell-totals, .ov-cell-trend, .ov-cell-regret {
-    grid-column: 1 / -1;
+  .ov-grid12 {
+    grid-template-columns: 1fr;
+    grid-template-areas: "vibemeter" "aram" "spotlight" "totals" "trend" "regret";
   }
+}
+
+/* Zero-scroll dashboard (issue #88 follow-up): on a large-enough window,
+   Vibe-O-Meter / ARAM / Totals become one three-card hero row, Spotlight
+   spans full width on its own row, and all three tiers get fixed-ish
+   heights so the page reads as one glanceable screen instead of a scroll.
+   This is an enhancement layered on the always-safe layout above, not a
+   guarantee — gated on both width AND height so a short-but-wide window (or
+   the 900x600 minimum from window.py) falls back to normal scrolling rather
+   than cramming three tiers into too little space.
+
+   Two deliberate deviations from a literal reading of the spec, both in the
+   direction of "never hide data the user can't get back":
+   - Row 1 is ~215px, not ~160px. The existing Vibe-O-Meter/ARAM cards need
+     that much to show their label/number/pill/bar/ticks/caption without
+     clipping anything — 160px was checked against their actual layout and
+     doesn't fit.
+   - The container uses max-height + overflow-y: auto, not a hard height +
+     overflow: hidden. --header-h below is a fixed estimate, not measured at
+     runtime, so if it's ever off (a longer summoner name wraps the header
+     to two lines, different font metrics, etc.), the page gains a small
+     scrollbar instead of silently clipping a card's content. */
+@media (min-width: 1400px) and (min-height: 850px) {
+  .ov-grid12 {
+    --header-h: 96px;
+    max-height: calc(100vh - var(--header-h) - 120px);
+    overflow-y: auto; margin-bottom: 0;
+    grid-template-rows: 215px minmax(200px, 1fr) minmax(200px, 1fr);
+    grid-template-areas:
+      "vibemeter vibemeter vibemeter vibemeter aram aram aram aram totals totals totals totals"
+      "spotlight spotlight spotlight spotlight spotlight spotlight spotlight spotlight spotlight spotlight spotlight spotlight"
+      "trend trend trend trend trend trend trend trend regret regret regret regret";
+  }
+  .ov-cell-vibemeter, .ov-cell-aram { height: 100%; }
+  .ov-cell-vibemeter .ov-vibemeter-card, .ov-cell-aram .ov-aram-card { height: 100%; }
+  /* .ov-cell-totals has two children (the section label, then #ov-totals) —
+     unlike vibemeter/aram's single child, a naive height: 100% on #ov-totals
+     would overflow the cell by however tall the label is, since normal block
+     flow doesn't know to leave room for a 100%-height sibling. Flex column
+     (same pattern as spotlight below) gives the label its natural height and
+     #ov-totals exactly the remainder instead. */
+  .ov-cell-totals { height: 100%; display: flex; flex-direction: column; }
+  .ov-cell-totals .ov-totals { flex: 1; min-height: 0; }
+  /* The label plus two fixed-96px card rows (206px) don't fit the ~187px
+     left inside a 215px hero cell after the label. .ov-tcard's own content
+     (icon+label row, value+caption block) only needs ~69px, so 84px keeps
+     real breathing room while actually fitting: 2*84 + 14px gap = 182px. */
+  .ov-cell-totals .ov-tcard { height: 84px; }
+  .ov-cell-spotlight { height: 100%; display: flex; flex-direction: column; }
+  .ov-cell-spotlight .ov-spotlight { flex: 1; min-height: 0; justify-items: center; }
+  /* aspect-ratio (11/20, set on .ov-stile elsewhere) ties width to this
+     height, so a tile that's short enough to fit the row also ends up
+     narrower than its 1fr column track — justify-items: center above keeps
+     that from reading as misaligned. */
+  .ov-cell-spotlight .ov-stile { height: 100%; width: auto; }
+  /* Regret curve is a real Chart.js canvas (maintainAspectRatio: false
+     already), so it safely fills whatever height flex gives it. The vibe
+     trend is a hand-rolled mini-chart with its own fixed --ov-trend-chart-h
+     — a past bug already had to fix a y-axis/chart alignment mismatch there,
+     so it stays at its natural height here rather than risking that again
+     without a way to see the result. */
+  .ov-cell-regret { height: 100%; display: flex; flex-direction: column; }
+  .ov-cell-regret .ov-regret-wrap { flex: 1; min-height: 0; height: auto; }
 }
 
 /* ---------- Shared hero-card anatomy: label / big number / pill / caption.
