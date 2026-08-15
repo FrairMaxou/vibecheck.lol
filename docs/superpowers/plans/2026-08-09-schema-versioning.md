@@ -122,9 +122,7 @@ def test_failing_step_leaves_the_database_usable_and_version_unchanged(root):
         assert store._schema_version == original[-1][0], "must not advance past the failing step"
         assert store._migration_failed is True
         # the app keeps working on the old shape
-        gid = store.insert_game(
-            {"played_at": "2099-01-01T00:00:00", "riot_match_id": "z1"}, []
-        )
+        gid = store.insert_game({"played_at": "2099-01-01T00:00:00", "riot_match_id": "z1"}, [])
         assert gid is not None
         store.close()
     finally:
@@ -321,7 +319,9 @@ def test_pending_migration_backs_up_the_database_first(root):
 
     backups = list((root / "backups").glob(f"*-schema-v{LATEST_VERSION}.sqlite3"))
     assert len(backups) == 1, backups
-    assert backups[0].read_bytes() == pre_migration_bytes, "backup must hold the pre-migration content"
+    assert backups[0].read_bytes() == pre_migration_bytes, (
+        "backup must hold the pre-migration content"
+    )
 
 
 def test_up_to_date_database_creates_no_further_backup(root):
@@ -494,6 +494,7 @@ Add these two methods to `vibecheck/store.py`, near `_migrate`:
 def schema_version(self) -> int:
     """Current schema version, after whatever migration ran at open."""
     return self._schema_version
+
 
 def schema_migration_failed(self) -> bool:
     """Whether the most recent startup's migration attempt failed, leaving

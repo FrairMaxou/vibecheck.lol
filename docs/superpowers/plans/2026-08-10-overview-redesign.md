@@ -165,7 +165,11 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from vibecheck import ddragon  # noqa: E402
 
-FAKE_MANIFEST = {"version": "14.24.1", "fetched_at": 1e12, "names": {"jinx": "Jinx", "drmundo": "DrMundo"}}
+FAKE_MANIFEST = {
+    "version": "14.24.1",
+    "fetched_at": 1e12,
+    "names": {"jinx": "Jinx", "drmundo": "DrMundo"},
+}
 
 
 def _reset(tmp_path: Path):
@@ -241,6 +245,7 @@ def main():
             print(f"  ok  {test.__name__}")
         finally:
             import shutil
+
             shutil.rmtree(root, ignore_errors=True)
     print("ddragon splash test OK")
 
@@ -347,6 +352,7 @@ def main():
             print(f"  ok  {test.__name__}")
         finally:
             import shutil
+
             shutil.rmtree(root, ignore_errors=True)
     print("dashboard splash test OK")
 
@@ -365,40 +371,41 @@ Expected: `404` becomes a connection/route error — `/api/champ-splash/Jinx` do
 Add immediately after the existing `champ_icon` route and its `_warm_icons` helper (after line 236, before `@app.get("/api/aram-god")`):
 
 ```python
-    @app.get("/api/champ-splash/{name}")
-    def champ_splash(name: str, classic: bool = False):
-        """A champion's loading-screen splash, served from the local cache
-        only — same never-block-on-network contract as champ_icon."""
-        path = ddragon.splash_path(name, classic=classic)
-        if not path:
-            _warm_splashes()
-            raise HTTPException(404)
-        return FileResponse(path)
+@app.get("/api/champ-splash/{name}")
+def champ_splash(name: str, classic: bool = False):
+    """A champion's loading-screen splash, served from the local cache
+    only — same never-block-on-network contract as champ_icon."""
+    path = ddragon.splash_path(name, classic=classic)
+    if not path:
+        _warm_splashes()
+        raise HTTPException(404)
+    return FileResponse(path)
 
-    def _warm_splashes() -> None:
-        """Download any splash art the store needs but the cache doesn't have.
 
-        Mirrors _warm_icons exactly, including the same guard-flag caveat:
-        it clears when the pass finishes rather than latching permanently.
-        """
+def _warm_splashes() -> None:
+    """Download any splash art the store needs but the cache doesn't have.
+
+    Mirrors _warm_icons exactly, including the same guard-flag caveat:
+    it clears when the pass finishes rather than latching permanently.
+    """
+    nonlocal _warming_splash
+    with _warm_lock:
+        if _warming_splash:
+            return
+        _warming_splash = True
+
+    def worker():
         nonlocal _warming_splash
-        with _warm_lock:
-            if _warming_splash:
-                return
-            _warming_splash = True
+        try:
+            ddragon.warm_splash(
+                (g["champion"], capture.is_classic(g.get("queue_id"), g.get("queue_type")))
+                for g in store.games_with_details()
+            )
+        finally:
+            with _warm_lock:
+                _warming_splash = False
 
-        def worker():
-            nonlocal _warming_splash
-            try:
-                ddragon.warm_splash(
-                    (g["champion"], capture.is_classic(g.get("queue_id"), g.get("queue_type")))
-                    for g in store.games_with_details()
-                )
-            finally:
-                with _warm_lock:
-                    _warming_splash = False
-
-        threading.Thread(target=worker, name="champ-splashes", daemon=True).start()
+    threading.Thread(target=worker, name="champ-splashes", daemon=True).start()
 ```
 
 Add `_warming_splash = False` next to the existing `_warming = False` declaration (search for where `_warming` is initialized near the top of `create_app`, alongside `_warm_lock`).
