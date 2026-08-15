@@ -893,6 +893,10 @@ function renderOverview(games) {
   renderSpotlight(rows);
   renderAramGodCompact();
   renderVibeTrend(games);
+  // Compact preview of the full regret curve on Patterns & Tags (chart-sessions)
+  // — same aggregation, same funBarChart helper, just a second, smaller canvas,
+  // since a Chart.js instance is bound 1:1 to its canvas element.
+  funBarChart("chart-ov-regret", aggregate(games, (g) => g.session_index), { fixedOrder: ["1", "2", "3", "4", "5+"] });
 }
 
 function renderChampions(games) {

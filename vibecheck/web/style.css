@@ -545,9 +545,12 @@ tr.low-n td { color: var(--ink-3); }
   text-transform: uppercase; margin: 26px 0 12px;
 }
 
-.ov-totals { display: flex; gap: 14px; flex-wrap: wrap; }
+/* 2x2 matrix (Kills/Deaths/Assists/Time played) rather than a 4-wide strip —
+   matches the 4/12 column this now lives in instead of the full-width row
+   it used to have to itself. */
+.ov-totals { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
 .ov-tcard {
-  flex: 1 1 160px; position: relative; height: 96px; border-radius: 12px;
+  position: relative; height: 96px; border-radius: 12px;
   overflow: hidden; border: 1px solid var(--vc-border); background: var(--vc-bg-surface);
 }
 .ov-tcard .ov-splash-img {
@@ -634,15 +637,39 @@ tr.low-n td { color: var(--ink-3); }
 .ov-tier1 { background: rgba(239,68,68,.35); color: #ffaba3; }
 .ov-empty-note { color: var(--vc-text-muted); font-size: 12.5px; }
 
-.ov-top-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 320px)); gap: 14px; margin-bottom: 26px; justify-content: center; }
+/* 12-column dashboard grid (issue #88). Fixed repeat(12, ...), not auto-fit —
+   every cell below is a definite span, so there's no risk of the auto-fit/
+   indefinite-container collapse #86 had to work around for a similar grid. */
+.ov-grid12 { display: grid; grid-template-columns: repeat(12, 1fr); gap: 24px; align-items: start; margin-bottom: 26px; }
+.ov-cell-vibemeter { grid-column: span 7; }
+.ov-cell-aram { grid-column: span 5; }
+.ov-cell-spotlight { grid-column: span 8; }
+.ov-cell-totals { grid-column: span 4; }
+.ov-cell-trend { grid-column: span 8; margin-bottom: 0; }
+.ov-cell-regret { grid-column: span 4; margin-bottom: 0; }
+.ov-cell-spotlight .ov-section-label, .ov-cell-totals .ov-section-label { margin-top: 0; }
+.ov-regret-wrap { height: 200px; }
 
-/* ---------- Shared "square card" anatomy: label / big number / pill / caption.
+/* Below this, the 7/5 and 8/4 splits get too narrow to be worth the layout
+   complexity — stack everything single-column instead, same as any other
+   panel list. Matches the left rail's own auto-collapse threshold from #86. */
+@media (max-width: 1000px) {
+  .ov-grid12 { grid-template-columns: 1fr; }
+  .ov-cell-vibemeter, .ov-cell-aram, .ov-cell-spotlight, .ov-cell-totals, .ov-cell-trend, .ov-cell-regret {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ---------- Shared hero-card anatomy: label / big number / pill / caption.
    Both the ARAM God run and VIBE-O-METER cards share this frame — only the
    pill color and the bar/marker underneath (segmented tier bar vs. a single
-   progress fill) differ, so those stay in each card's own rules below. ---------- */
+   progress fill) differ, so those stay in each card's own rules below.
+   No fixed aspect-ratio now (the old square top-row is gone, #88): width
+   comes from the 7/12 and 5/12 grid columns in .ov-grid12, height from
+   content, same as every other panel on the page. ---------- */
 .ov-aram-card, .ov-vibemeter-card {
   background: var(--vc-bg-surface); border: 1px solid var(--vc-border); border-radius: 14px;
-  padding: 20px; text-align: center; aspect-ratio: 1; box-sizing: border-box;
+  padding: 24px; text-align: center; box-sizing: border-box;
   display: flex; flex-direction: column; justify-content: center; min-height: fit-content;
 }
 .ov-aram-sq-label, .ov-vm-label {
@@ -700,8 +727,6 @@ tr.low-n td { color: var(--ink-3); }
 .ov-vm-ticks span:last-child { text-align: right; }
 .ov-vm-caption { margin-top: 18px; font-size: 12px; color: var(--vc-text-muted); }
 .ov-vm-caption b { font-family: "JetBrains Mono", "Consolas", monospace; color: var(--vc-text-main); font-weight: 700; }
-
-.ov-trend-panel { margin-top: 26px; }
 
 /* --ov-trend-chart-h/-mt drive both the chart and the y-axis (below), so the
    two can't drift out of alignment the way they did once already — see the
