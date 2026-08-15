@@ -245,10 +245,12 @@ function championTotals(games) {
   }));
 }
 
-/* One champion per category — "spotlight" tiles pick the max, "kills"/etc.
-   need no MIN_N gate (a raw total, not an average), but "vibe" does: an
-   average from one lucky game isn't a career highlight, it's noise. Matches
-   the MIN_N threshold the existing "Certified Banger" card already uses. */
+/* One champion per category — used for the Lifetime totals cards, which each
+   show exactly one stat's leader and so never hit the Spotlight duplication
+   problem (see categoryRanked/buildSpotlightCards below). "kills"/etc. need
+   no MIN_N gate (a raw total, not an average), but "vibe" does: an average
+   from one lucky game isn't a career highlight, it's noise. Matches the
+   MIN_N threshold the existing "Certified Banger" card already uses. */
 function categoryLeaders(rows) {
   const top = (fn) => rows.length ? rows.reduce((best, r) => (fn(r) > fn(best) ? r : best)) : null;
   const vibeRows = rows.filter((r) => r.avgFun != null && r.n >= MIN_N);
@@ -259,6 +261,60 @@ function categoryLeaders(rows) {
     assists: top((r) => r.assists),
     hours: top((r) => r.seconds),
   };
+}
+
+/* Same categories, but every champion ranked best-to-worst instead of just
+   the winner — Spotlight's dedup (below) needs runners-up to fill slots a
+   duplicate champion would otherwise have left empty. */
+function categoryRanked(rows) {
+  const byStat = (fn) => rows.slice().sort((a, b) => fn(b) - fn(a));
+  const vibeRows = rows.filter((r) => r.avgFun != null && r.n >= MIN_N);
+  return {
+    vibe: vibeRows.slice().sort((a, b) => b.avgFun - a.avgFun),
+    kills: byStat((r) => r.kills),
+    deaths: byStat((r) => r.deaths),
+    assists: byStat((r) => r.assists),
+    hours: byStat((r) => r.seconds),
+  };
+}
+
+const SPOTLIGHT_CATS = ["vibe", "kills", "deaths", "assists", "hours"];
+const SPOTLIGHT_SLOTS = 5;
+
+/* A champion holding multiple leads (best vibe AND most kills) used to
+   produce one Spotlight tile per category, so the same splash art repeated.
+   Now: one card per unique champion carrying every badge it earned, and if
+   that leaves fewer than SPOTLIGHT_SLOTS cards, the gap is filled with the
+   next-best not-yet-featured champion in whichever category still has
+   runners-up — so one dominant champion doesn't shrink the section. */
+function buildSpotlightCards(rows) {
+  const ranked = categoryRanked(rows);
+  const cards = new Map(); // champion key -> { row, cats: [] }
+  const order = [];
+
+  const addBadge = (cat, row) => {
+    let c = cards.get(row.key);
+    if (!c) { c = { row, cats: [] }; cards.set(row.key, c); order.push(row.key); }
+    c.cats.push(cat);
+  };
+
+  for (const cat of SPOTLIGHT_CATS) {
+    if (ranked[cat].length) addBadge(cat, ranked[cat][0]);
+  }
+
+  // Runner-up fill: walk every category's ranking one rank deeper each pass
+  // until slots are full or every category is exhausted.
+  for (let depth = 1; order.length < SPOTLIGHT_SLOTS; depth++) {
+    let addedThisPass = false;
+    for (const cat of SPOTLIGHT_CATS) {
+      if (order.length >= SPOTLIGHT_SLOTS) break;
+      const row = ranked[cat][depth];
+      if (row && !cards.has(row.key)) { addBadge(cat, row); addedThisPass = true; }
+    }
+    if (!addedThisPass) break; // every category's ranking is exhausted
+  }
+
+  return order.map((key) => cards.get(key));
 }
 
 /* Career sums across every champion, plus the earliest game's day for the
@@ -353,21 +409,25 @@ const OV_CAT_HEADLINE = {
   hours: (r) => formatHours(r.seconds),
 };
 
-function ovSpotlightTile(cat, row) {
-  if (!row) {
+function ovSpotlightTile(card) {
+  if (!card) {
     return `<div class="ov-stile"><div class="ov-overlay" style="opacity:1"><div class="ov-empty-note">not enough data yet</div></div></div>`;
   }
+  const { row, cats } = card;
   const tierRound = row.avgFun != null ? Math.round(row.avgFun) : null;
   const tierClass = tierRound ? OV_TIER_CLASS[tierRound] : "ov-tier3";
   const vibeLabel = tierRound ? `${row.avgFun.toFixed(2)} · ${GRADES[tierRound]}` : "not enough rated games";
+  const pills = cats.map((cat) =>
+    `<div class="ov-cat-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${OV_CAT_ICON[cat]}</svg>${OV_CAT_LABEL[cat]}</div>`
+  ).join("");
   return `
     <div class="ov-stile">
       ${ovSplashImg(row)}
       <div class="ov-scrim"></div>
-      <div class="ov-cat-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${OV_CAT_ICON[cat]}</svg>${OV_CAT_LABEL[cat]}</div>
+      <div class="ov-cat-pills">${pills}</div>
       <div class="ov-headline">
         <div class="ov-champ-name">${escapeAttr(row.key)}</div>
-        <div class="ov-stat-big">${OV_CAT_HEADLINE[cat](row)}</div>
+        <div class="ov-stat-big">${OV_CAT_HEADLINE[cats[0]](row)}</div>
       </div>
       <div class="ov-overlay">
         <div class="ov-name">${escapeAttr(row.key)}</div>
@@ -383,9 +443,11 @@ function ovSpotlightTile(cat, row) {
     </div>`;
 }
 
-function renderSpotlight(games, leaders) {
-  document.getElementById("ov-spotlight").innerHTML =
-    ["vibe", "kills", "deaths", "assists", "hours"].map((cat) => ovSpotlightTile(cat, leaders[cat])).join("");
+function renderSpotlight(rows) {
+  const cards = buildSpotlightCards(rows);
+  document.getElementById("ov-spotlight").innerHTML = cards.length
+    ? cards.map((c) => ovSpotlightTile(c)).join("")
+    : ovSpotlightTile(null);
 }
 
 async function renderAramGodCompact() {
@@ -784,12 +846,12 @@ function renderOverview(games) {
   // lifetime-average and does not react to the filter bar (see
   // vibeMeterStats' doc comment). Everything below it does.
   renderVibeMeter();
-  // Computed once and shared: the spotlight below needs this exact same
-  // result, and championTotals()/categoryLeaders() aren't free to redo
-  // twice on every filter-bar keystroke.
-  const leaders = categoryLeaders(championTotals(games));
-  renderLifetimeTotals(games, leaders);
-  renderSpotlight(games, leaders);
+  // Computed once and shared: totals and spotlight both derive from the same
+  // per-champion rows, and championTotals() isn't free to redo twice on
+  // every filter-bar keystroke.
+  const rows = championTotals(games);
+  renderLifetimeTotals(games, categoryLeaders(rows));
+  renderSpotlight(rows);
   renderAramGodCompact();
   renderVibeTrend(games);
 }
