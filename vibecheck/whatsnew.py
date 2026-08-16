@@ -12,6 +12,11 @@ version automatically, so a missing entry means it was forgotten, not chosen.
 """
 
 RELEASE_NOTES = {
+    "0.4.1": [
+        "Quick polish on the new Arena God card: it now matches the height "
+        "of Vibe-O-Meter and ARAM God at every window size, and Spotlight/"
+        "Lifetime Totals share their row in better proportion.",
+    ],
     "0.4.0": [
         "New: Arena God. Same idea as ARAM God, but for Arena — how many "
         "different champions you've placed 1st with. Find it next to ARAM "
