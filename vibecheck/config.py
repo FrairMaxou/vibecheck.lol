@@ -173,6 +173,23 @@ ARAM_GOD_CHALLENGE_ID = 101301
 # client closed — which is most of the time a tray app is open.
 ASSETS_CHAMPS_KEY = "assets_champions"
 
+# "Arena God": the client's "Adapt to All Situations" challenge — placing 1st
+# in Arena with different champions. Unlike ARAM God, this isn't a full-roster
+# goal: Riot's own Master threshold for it is 60, well short of the champion
+# count, and that's the real finish line VibeCheck should show, not the
+# roster size (this challenge was never designed as a full-roster grind).
+# Hardcoded rather than read live from the challenge payload — it's part of
+# the challenge's static definition, not per-player data, so it changes only
+# if Riot re-tunes the challenge itself, same as ARAM_GOD_CHALLENGE_ID above.
+#
+# Also unlike ARAM God, this challenge is tagged "LEGACY" in Riot's own data
+# (ARAM God's is "IMAGINATION", still actively maintained) — a real chance
+# Riot retires it in a future patch. `lcu.challenge()`'s existing "retired
+# challenge returns None" handling covers that for free; no extra code needed.
+ARENA_GOD_KEY = "arena_god"
+ARENA_GOD_CHALLENGE_ID = 602002
+ARENA_GOD_MASTER_THRESHOLD = 60
+
 # Bump whenever QUEUE_NAMES or GAME_MODE_NAMES changes. Labels are stored on the
 # game row at capture time, so already-captured games keep whatever name was
 # known back then — League Classic games captured before its label existed read

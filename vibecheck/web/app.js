@@ -501,11 +501,15 @@ function renderSpotlight(rows) {
     : ovSpotlightTile(null);
 }
 
-async function renderAramGodCompact() {
-  const host = document.getElementById("ov-aram");
+/* Shared engine behind the compact hero-row cards (ARAM God / Arena God on
+   Overview) — same markup, same "not tracked yet" guard, only the label/
+   caption copy and the data source differ. One generic function instead of
+   a second near-duplicate now that there are two of these (issue #103). */
+async function renderAchievementCompact(hostId, fetchFn, getCached, setCached, copy) {
+  const host = document.getElementById(hostId);
   let d;
   try {
-    d = ARAM_GOD = ARAM_GOD || (await fetchAramGod());
+    d = setCached(getCached() || (await fetchFn()));
   } catch {
     host.innerHTML = "";
     return;
@@ -515,7 +519,7 @@ async function renderAramGodCompact() {
   if (!d.tracked || !d.total) {
     host.innerHTML = `
       <div class="ov-aram-card ov-aram-empty">
-        <div class="ov-aram-sq-label">ARAM god run</div>
+        <div class="ov-aram-sq-label">${copy.label}</div>
         <div class="ov-aram-sq-number">—</div>
         <div class="ov-aram-sq-pill">Not tracked yet</div>
         <div class="ov-aram-sq-bar"><div class="ov-aram-sq-fill" style="width:0%"></div></div>
@@ -526,12 +530,32 @@ async function renderAramGodCompact() {
   const pct = Math.round((d.completed / d.total) * 100);
   host.innerHTML = `
     <div class="ov-aram-card">
-      <div class="ov-aram-sq-label">ARAM god run</div>
+      <div class="ov-aram-sq-label">${copy.label}</div>
       <div class="ov-aram-sq-number">${d.completed}/${d.total}</div>
       <div class="ov-aram-sq-pill">${pct}% complete</div>
       <div class="ov-aram-sq-bar"><div class="ov-aram-sq-fill" style="width:${pct}%"></div></div>
-      <div class="ov-aram-sq-caption">S- or better on every ARAM champion</div>
+      <div class="ov-aram-sq-caption">${copy.caption}</div>
     </div>`;
+}
+
+function renderAramGodCompact() {
+  return renderAchievementCompact(
+    "ov-aram",
+    fetchAramGod,
+    () => ARAM_GOD,
+    (d) => (ARAM_GOD = d),
+    { label: "ARAM god run", caption: "S- or better on every ARAM champion" }
+  );
+}
+
+function renderArenaGodCompact() {
+  return renderAchievementCompact(
+    "ov-arena",
+    fetchArenaGod,
+    () => ARENA_GOD,
+    (d) => (ARENA_GOD = d),
+    { label: "Arena god run", caption: "1st place in Arena with every champion, up to Riot's own Master rank" }
+  );
 }
 
 const OV_TIER_HEX = { 1: "#EF4444", 2: "#F97316", 3: "#EAB308", 4: "#10B981", 5: "#8B5CF6" };
@@ -931,6 +955,7 @@ function renderOverview(games) {
   renderLifetimeTotals(games, categoryLeaders(rows));
   renderSpotlight(rows);
   renderAramGodCompact();
+  renderArenaGodCompact();
   renderVibeTrend(games);
   // Compact preview of the full regret curve on Patterns & Tags (chart-sessions)
   // — same aggregation, same funBarChart helper, just a second, smaller canvas,
@@ -941,6 +966,7 @@ function renderOverview(games) {
 function renderChampions(games) {
   const byChamp = aggregate(games, (g) => g.champion_key);
   renderAramGod();
+  renderArenaGod();
   renderTierList(byChamp);
   funScatterChart("chart-champ-scatter", byChamp);
 }
@@ -956,6 +982,9 @@ function renderChampions(games) {
 let ARAM_GOD = null;
 let ARAM_GOD_PENDING = null; // in-flight fetch, so rapid re-renders share one request
 let ARAM_GOD_DRAWN = null; // what's currently on screen
+let ARENA_GOD = null;
+let ARENA_GOD_PENDING = null;
+let ARENA_GOD_DRAWN = null;
 
 /* Shared by the full grid (Champions tab) and the compact widget (Overview)
    — both read the same lifetime figure, so this in-flight-request guard
@@ -966,21 +995,32 @@ function fetchAramGod() {
   return ARAM_GOD_PENDING.finally(() => { ARAM_GOD_PENDING = null; });
 }
 
-async function renderAramGod() {
-  const host = document.getElementById("aram-god");
+function fetchArenaGod() {
+  ARENA_GOD_PENDING = ARENA_GOD_PENDING || fetchJSON("/api/arena-god");
+  return ARENA_GOD_PENDING.finally(() => { ARENA_GOD_PENDING = null; });
+}
+
+/* Shared engine behind the full champion grids (Champions tab) — same as
+   renderAchievementCompact above, one generic function behind two thin,
+   purpose-named callers (issue #103). `copy.notEarnedWord` is the noun the
+   "every single one" congratulation refers to ("champion" for ARAM,
+   "win" for Arena — Arena God's grid can't literally reach every champion,
+   since its own finish line is 60, not the full roster). */
+async function renderAchievementGrid(hostId, fetchFn, getCached, setCached, getDrawn, setDrawn, copy) {
+  const host = document.getElementById(hostId);
+  let d;
   try {
-    if (!ARAM_GOD) ARAM_GOD = await fetchAramGod();
+    d = getCached() || setCached(await fetchFn());
   } catch {
-    host.innerHTML = '<div class="empty-note">Couldn\'t read your ARAM God progress.</div>';
+    host.innerHTML = `<div class="empty-note">Couldn't read your ${copy.label} progress.</div>`;
     return;
   }
-  const d = ARAM_GOD;
   // The grid is ~173 cells and as many <img>s. Rebuilding it on every keystroke
   // in the filter bar is a visible stutter, and pointless: this panel is
   // lifetime data that no filter can change. Only redraw when it actually did.
-  if (ARAM_GOD_DRAWN === d && host.firstChild) return;
-  ARAM_GOD_DRAWN = d;
-  // Never render a confident 0/173 we haven't earned: before the app has read
+  if (getDrawn() === d && host.firstChild) return;
+  setDrawn(d);
+  // Never render a confident 0/N we haven't earned: before the app has read
   // the challenge once, zero completed and "we don't know yet" look identical
   // in the data and mean completely different things to the player.
   if (!d.tracked || !d.total) {
@@ -997,10 +1037,34 @@ async function renderAramGod() {
   host.innerHTML =
     `<div class="ag-head">` +
     `<b class="ag-score">${d.completed} / ${d.total}</b>` +
-    `<span class="ag-left">${left ? `${left} to go` : "every single one. absolute unit."}</span>` +
+    `<span class="ag-left">${left ? `${left} to go` : `every single ${copy.notEarnedWord}. absolute unit.`}</span>` +
     `</div>` +
     `<div class="ag-bar"><i style="width:${pct}%"></i></div>` +
     `<div class="ag-grid">${d.champions.map(cell).join("")}</div>`;
+}
+
+function renderAramGod() {
+  return renderAchievementGrid(
+    "aram-god",
+    fetchAramGod,
+    () => ARAM_GOD,
+    (d) => (ARAM_GOD = d),
+    () => ARAM_GOD_DRAWN,
+    (d) => (ARAM_GOD_DRAWN = d),
+    { label: "ARAM God", notEarnedWord: "champion" }
+  );
+}
+
+function renderArenaGod() {
+  return renderAchievementGrid(
+    "arena-god",
+    fetchArenaGod,
+    () => ARENA_GOD,
+    (d) => (ARENA_GOD = d),
+    () => ARENA_GOD_DRAWN,
+    (d) => (ARENA_GOD_DRAWN = d),
+    { label: "Arena God", notEarnedWord: "win" }
+  );
 }
 
 /* Aggregate keys carry the "(Classic)" suffix, so split it back out to get the
@@ -1860,6 +1924,8 @@ async function refresh() {
   await loadData();
   ARAM_GOD = null; // a new game may have completed a champion — refetch it too
   ARAM_GOD_DRAWN = null;
+  ARENA_GOD = null;
+  ARENA_GOD_DRAWN = null;
   document.getElementById("offline-banner").classList.add("hidden");
   buildFilters();
   renderAll();

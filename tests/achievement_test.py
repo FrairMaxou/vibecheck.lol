@@ -25,7 +25,12 @@ sys.path.insert(0, str(REPO_ROOT))
 from fastapi.testclient import TestClient  # noqa: E402
 
 from vibecheck import lcu  # noqa: E402
-from vibecheck.config import ARAM_GOD_KEY, ASSETS_CHAMPS_KEY  # noqa: E402
+from vibecheck.config import (  # noqa: E402
+    ARAM_GOD_KEY,
+    ARENA_GOD_KEY,
+    ARENA_GOD_MASTER_THRESHOLD,
+    ASSETS_CHAMPS_KEY,
+)
 from vibecheck.dashboard import create_app  # noqa: E402
 from vibecheck.store import GameStore  # noqa: E402
 
@@ -161,6 +166,42 @@ def test_api_survives_a_missing_or_corrupt_roster(root):
         store.close()
 
 
+def test_arena_god_total_is_the_master_threshold_not_the_roster(root):
+    """Unlike ARAM God, Arena God's denominator is Riot's own 60-champion
+    Master threshold (issue #103) — this challenge was never designed as a
+    full-roster grind, so the roster size (3, in this test's synthetic
+    NAMES) would understate the real finish line, not just be inconvenient.
+    """
+    store = store_in(root)
+    store.set_meta(ASSETS_CHAMPS_KEY, json.dumps(NAMES))
+    store.set_achievement_champions(ARENA_GOD_KEY, [1, 2], source="client")
+
+    body = api_for(store).get("/api/arena-god").json()
+    assert body["tracked"] is True, body
+    assert body["total"] == ARENA_GOD_MASTER_THRESHOLD, body
+    assert body["completed"] == 2, body
+    # The grid still shows the whole roster, same as ARAM God's — a player
+    # needs to see *which* champions still need an Arena win, not just a
+    # bare count against 60.
+    assert len(body["champions"]) == ROSTER_SIZE, body
+    store.close()
+
+
+def test_arena_god_tracked_independently_of_aram_god(root):
+    """The two achievements share the generic store methods (same `key`
+    parameter, different string) — this pins that they don't share state.
+    """
+    store = store_in(root)
+    store.set_meta(ASSETS_CHAMPS_KEY, json.dumps(NAMES))
+    store.set_achievement_champions(ARAM_GOD_KEY, [1, 2, 3], source="client")
+
+    body = api_for(store).get("/api/arena-god").json()
+    assert body["tracked"] is False, body
+    assert body["completed"] == 0, body
+    assert api_for(store).get("/api/aram-god").json()["completed"] == 3
+    store.close()
+
+
 TESTS = [
     test_classic_variants_do_not_inflate_the_roster,
     test_roster_survives_json_string_keys,
@@ -172,6 +213,8 @@ TESTS = [
     test_api_score_never_exceeds_the_grid,
     test_api_is_untracked_before_the_first_sync,
     test_api_survives_a_missing_or_corrupt_roster,
+    test_arena_god_total_is_the_master_threshold_not_the_roster,
+    test_arena_god_tracked_independently_of_aram_god,
 ]
 
 

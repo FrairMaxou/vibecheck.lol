@@ -446,32 +446,36 @@ class App:
         log.info("Asset maps loaded: %d items, %d augments", len(items), len(augments))
 
     def _sync_achievements(self) -> None:
-        """Refresh ARAM God progress from the client's challenge data (PRD §16).
+        """Refresh per-champion achievement progress from the client's
+        challenge data (PRD §16: ARAM God; issue #103: Arena God).
 
         Read on every client connect rather than after every game: the client
-        recomputes the challenge itself, and a game that completes a new
+        recomputes each challenge itself, and a game that completes a new
         champion is reflected the next time we connect at the latest. Cheap
-        enough to do inline here — one local GET the watcher is already making
-        four of.
+        enough to do inline here — one local GET each, on a watcher that's
+        already making several.
+        """
+        self._sync_one_achievement("ARAM God", config.ARAM_GOD_KEY, config.ARAM_GOD_CHALLENGE_ID)
+        self._sync_one_achievement("Arena God", config.ARENA_GOD_KEY, config.ARENA_GOD_CHALLENGE_ID)
 
-        Never destructive. A read that fails leaves the stored set alone, so
+    def _sync_one_achievement(self, label: str, key: str, challenge_id: int) -> None:
+        """Never destructive. A read that fails leaves the stored set alone, so
         launching with the client closed, or Riot retiring the challenge, shows
         the last known progress instead of wiping a lifetime figure VibeCheck
         has no way to rebuild.
         """
         try:
-            completed = self._client.completed_champion_ids(config.ARAM_GOD_CHALLENGE_ID)
+            completed = self._client.completed_champion_ids(challenge_id)
         except Exception:
-            log.warning("Could not read challenge progress", exc_info=True)
+            log.warning("Could not read %s challenge progress", label, exc_info=True)
             return
         if completed is None:
-            log.info("ARAM God progress unavailable from the client — keeping what we have")
+            log.info("%s progress unavailable from the client — keeping what we have", label)
             return
-        changed = self.store.set_achievement_champions(
-            config.ARAM_GOD_KEY, completed, source="client"
-        )
+        changed = self.store.set_achievement_champions(key, completed, source="client")
         log.info(
-            "ARAM God: %d champion(s) completed%s",
+            "%s: %d champion(s) completed%s",
+            label,
             len(completed),
             "" if changed else " (unchanged)",
         )
