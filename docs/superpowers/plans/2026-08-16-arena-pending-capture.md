@@ -168,7 +168,13 @@ FAKE_ARENA_MATCH = {
             "championId": 79,
             "playerSubteamId": 3,
             "timeline": {"lane": "NONE"},
-            "stats": {"win": False, "kills": 4, "deaths": 6, "assists": 5, "totalMinionsKilled": 20},
+            "stats": {
+                "win": False,
+                "kills": 4,
+                "deaths": 6,
+                "assists": 5,
+                "totalMinionsKilled": 20,
+            },
         },
         {
             "participantId": 2,
@@ -214,7 +220,9 @@ def test_complete_game_fills_stats_and_keeps_the_rating():
         stored_id = store.insert_pending_game("597690405", "2026-08-16T11:01:16", {"friend-1"})
         store.set_rating(stored_id, 4)
 
-        result = capture.normalize_match(FAKE_ARENA_MATCH, MY_PUUID, {79: "Gragas", 34: "Anivia"}, {"friend-1"})
+        result = capture.normalize_match(
+            FAKE_ARENA_MATCH, MY_PUUID, {79: "Gragas", 34: "Anivia"}, {"friend-1"}
+        )
         assert store.complete_game(stored_id, result["game"], result["teammates"]) is True
 
         assert store.unresolved_games() == []
@@ -258,102 +266,104 @@ Expected: FAIL — `AttributeError: 'GameStore' object has no attribute 'insert_
 In `vibecheck/store.py`, add these methods right after `insert_game` (after line 337):
 
 ```python
-    def insert_pending_game(
-        self, riot_match_id: str, played_at: str, premade_puuids: set
-    ) -> int | None:
-        """Insert a minimal stub for a game whose stats aren't available yet
-        (issue #96 — Arena's local match-history sync can take minutes).
+def insert_pending_game(
+    self, riot_match_id: str, played_at: str, premade_puuids: set
+) -> int | None:
+    """Insert a minimal stub for a game whose stats aren't available yet
+    (issue #96 — Arena's local match-history sync can take minutes).
 
-        Rateable immediately via the returned id, same as insert_game's.
-        `premade_puuids` is frozen here rather than left in the caller's
-        single shared slot, because that slot gets overwritten the moment
-        the player queues into their next game — which routinely happens
-        before this one resolves.
-        """
-        with self._lock, self._db:
-            session_id, game_index = self._session_for(played_at)
-            cur = self._db.execute(
-                """INSERT OR IGNORE INTO games
-                   (riot_match_id, played_at, session_id, game_index_in_session,
-                    resolved, pending_premades)
-                   VALUES (?,?,?,?,0,?)""",
+    Rateable immediately via the returned id, same as insert_game's.
+    `premade_puuids` is frozen here rather than left in the caller's
+    single shared slot, because that slot gets overwritten the moment
+    the player queues into their next game — which routinely happens
+    before this one resolves.
+    """
+    with self._lock, self._db:
+        session_id, game_index = self._session_for(played_at)
+        cur = self._db.execute(
+            """INSERT OR IGNORE INTO games
+               (riot_match_id, played_at, session_id, game_index_in_session,
+                resolved, pending_premades)
+               VALUES (?,?,?,?,0,?)""",
+            (
+                riot_match_id,
+                played_at,
+                session_id,
+                game_index,
+                json.dumps(sorted(premade_puuids)),
+            ),
+        )
+        if cur.rowcount == 0:
+            return None
+        self._bump_rev()
+        return cur.lastrowid
+
+
+def complete_game(self, game_id: int, game: dict, teammates: list) -> bool:
+    """Fill in real stats for a pending stub (issue #96), in place.
+
+    Only played_at and the stat/detail columns change — session_id and
+    game_index_in_session stay as assigned at pending-insert time (see
+    "Known limitation" in the #96 plan). Returns False if the row is
+    missing or already resolved, so a duplicate resolution attempt is a
+    safe no-op rather than a second insert or a crash.
+    """
+    with self._lock, self._db:
+        cur = self._db.execute(
+            """UPDATE games SET
+                   played_at=?, queue_id=?, queue_type=?, champion=?, role=?,
+                   win=?, kills=?, deaths=?, assists=?, cs=?, duration_seconds=?,
+                   is_remake=?, raw_payload=?, enemy_champions=?, augments=?,
+                   items=?, damage_to_champs=?, gold=?, resolved=1, pending_premades=NULL
+               WHERE id=? AND resolved=0""",
+            (
+                game["played_at"],
+                game.get("queue_id"),
+                game.get("queue_type"),
+                game.get("champion"),
+                game.get("role"),
+                game.get("win"),
+                game.get("kills"),
+                game.get("deaths"),
+                game.get("assists"),
+                game.get("cs"),
+                game.get("duration_seconds"),
+                game.get("is_remake", 0),
+                json.dumps(game.get("raw_payload")) if game.get("raw_payload") else None,
+                json.dumps(game.get("enemy_champions") or []),
+                json.dumps(game.get("augments") or []),
+                json.dumps(game.get("items") or []),
+                game.get("damage_to_champs"),
+                game.get("gold"),
+                game_id,
+            ),
+        )
+        if cur.rowcount == 0:
+            return False
+        self._db.executemany(
+            """INSERT INTO game_teammates (game_id, summoner_name, riot_puuid, was_premade)
+               VALUES (?,?,?,?)""",
+            [
                 (
-                    riot_match_id,
-                    played_at,
-                    session_id,
-                    game_index,
-                    json.dumps(sorted(premade_puuids)),
-                ),
-            )
-            if cur.rowcount == 0:
-                return None
-            self._bump_rev()
-            return cur.lastrowid
-
-    def complete_game(self, game_id: int, game: dict, teammates: list) -> bool:
-        """Fill in real stats for a pending stub (issue #96), in place.
-
-        Only played_at and the stat/detail columns change — session_id and
-        game_index_in_session stay as assigned at pending-insert time (see
-        "Known limitation" in the #96 plan). Returns False if the row is
-        missing or already resolved, so a duplicate resolution attempt is a
-        safe no-op rather than a second insert or a crash.
-        """
-        with self._lock, self._db:
-            cur = self._db.execute(
-                """UPDATE games SET
-                       played_at=?, queue_id=?, queue_type=?, champion=?, role=?,
-                       win=?, kills=?, deaths=?, assists=?, cs=?, duration_seconds=?,
-                       is_remake=?, raw_payload=?, enemy_champions=?, augments=?,
-                       items=?, damage_to_champs=?, gold=?, resolved=1, pending_premades=NULL
-                   WHERE id=? AND resolved=0""",
-                (
-                    game["played_at"],
-                    game.get("queue_id"),
-                    game.get("queue_type"),
-                    game.get("champion"),
-                    game.get("role"),
-                    game.get("win"),
-                    game.get("kills"),
-                    game.get("deaths"),
-                    game.get("assists"),
-                    game.get("cs"),
-                    game.get("duration_seconds"),
-                    game.get("is_remake", 0),
-                    json.dumps(game.get("raw_payload")) if game.get("raw_payload") else None,
-                    json.dumps(game.get("enemy_champions") or []),
-                    json.dumps(game.get("augments") or []),
-                    json.dumps(game.get("items") or []),
-                    game.get("damage_to_champs"),
-                    game.get("gold"),
                     game_id,
-                ),
-            )
-            if cur.rowcount == 0:
-                return False
-            self._db.executemany(
-                """INSERT INTO game_teammates (game_id, summoner_name, riot_puuid, was_premade)
-                   VALUES (?,?,?,?)""",
-                [
-                    (
-                        game_id,
-                        t.get("summoner_name"),
-                        t.get("riot_puuid"),
-                        int(t.get("was_premade", 0)),
-                    )
-                    for t in teammates
-                ],
-            )
-            self._bump_rev()
-            return True
+                    t.get("summoner_name"),
+                    t.get("riot_puuid"),
+                    int(t.get("was_premade", 0)),
+                )
+                for t in teammates
+            ],
+        )
+        self._bump_rev()
+        return True
 
-    def unresolved_games(self) -> list:
-        """Pending stubs still waiting on real stats (issue #96)."""
-        with self._lock:
-            rows = self._db.execute(
-                "SELECT id, riot_match_id, pending_premades FROM games WHERE resolved = 0"
-            ).fetchall()
-        return [dict(r) for r in rows]
+
+def unresolved_games(self) -> list:
+    """Pending stubs still waiting on real stats (issue #96)."""
+    with self._lock:
+        rows = self._db.execute(
+            "SELECT id, riot_match_id, pending_premades FROM games WHERE resolved = 0"
+        ).fetchall()
+    return [dict(r) for r in rows]
 ```
 
 Then filter the two dashboard-facing read queries so stub rows stay invisible until resolved — `recent_games()` (`vibecheck/store.py:523-536`):
@@ -429,17 +439,18 @@ This is a one-line, direct pass-through of an already-tested pattern (`get()` is
 In `vibecheck/lcu.py`, right after `end_of_game_stats` (line 112-113):
 
 ```python
-    def end_of_game_stats(self):
-        return self.get("/lol-end-of-game/v1/eol-game-data")
+def end_of_game_stats(self):
+    return self.get("/lol-end-of-game/v1/eol-game-data")
 
-    def gameflow_session(self):
-        """The live gameflow session, including gameData.gameId — the
-        authoritative id for the game that just ended (issue #96). Available
-        immediately after PreEndOfGame fires, before Riot's local
-        match-history cache has synced it (which can take minutes for
-        Arena).
-        """
-        return self.get("/lol-gameflow/v1/session")
+
+def gameflow_session(self):
+    """The live gameflow session, including gameData.gameId — the
+    authoritative id for the game that just ended (issue #96). Available
+    immediately after PreEndOfGame fires, before Riot's local
+    match-history cache has synced it (which can take minutes for
+    Arena).
+    """
+    return self.get("/lol-gameflow/v1/session")
 ```
 
 - [ ] **Step 3: Verify manually**
@@ -574,54 +585,55 @@ git commit -m "fix(capture): resolve match history by known game id, not a recen
 Add `_create_pending_capture` in `vibecheck/app.py`, right after `_finish_capture` (after line 703):
 
 ```python
-    def _create_pending_capture(self, game_id: int) -> None:
-        """Two-phase capture for a game whose match history hasn't synced yet
-        (issue #96 — Arena regularly takes minutes, not seconds). Ask how it
-        went right now, while the moment is fresh, and let
-        _resolve_pending_games fill in the real stats later.
+def _create_pending_capture(self, game_id: int) -> None:
+    """Two-phase capture for a game whose match history hasn't synced yet
+    (issue #96 — Arena regularly takes minutes, not seconds). Ask how it
+    went right now, while the moment is fresh, and let
+    _resolve_pending_games fill in the real stats later.
 
-        premade_puuids is snapshotted into the stub itself: self._premade_puuids
-        is a single shared slot that the *next* lobby's ChampSelect overwrites,
-        and that routinely happens before this game resolves.
-        """
-        game_id_str = str(game_id)
-        if self._already_captured(game_id_str):
-            return
-        played_at = datetime.now().isoformat(timespec="seconds")
-        stored_id = self.store.insert_pending_game(game_id_str, played_at, self._premade_puuids)
-        self._premade_puuids = set()
-        self.store.set_meta(PREMADES_KEY, "")
-        if stored_id is None:
-            log.info("Pending game %s already stored", game_id_str)
-            return
-        self._advance_watermark(played_at)
-        log.info("Game %s not synced yet; asking for a rating now, stats to follow", game_id_str)
-        if not self.paused:
-            self._popup_request("show", stored_id, "Stats are still syncing — rate it now")
+    premade_puuids is snapshotted into the stub itself: self._premade_puuids
+    is a single shared slot that the *next* lobby's ChampSelect overwrites,
+    and that routinely happens before this game resolves.
+    """
+    game_id_str = str(game_id)
+    if self._already_captured(game_id_str):
+        return
+    played_at = datetime.now().isoformat(timespec="seconds")
+    stored_id = self.store.insert_pending_game(game_id_str, played_at, self._premade_puuids)
+    self._premade_puuids = set()
+    self.store.set_meta(PREMADES_KEY, "")
+    if stored_id is None:
+        log.info("Pending game %s already stored", game_id_str)
+        return
+    self._advance_watermark(played_at)
+    log.info("Game %s not synced yet; asking for a rating now, stats to follow", game_id_str)
+    if not self.paused:
+        self._popup_request("show", stored_id, "Stats are still syncing — rate it now")
 
-    def _resolve_pending_games(self) -> None:
-        """Complete any pending stub whose match history has caught up.
 
-        Caller must already hold self._capture_lock (see _start_catch_up and
-        _start_pending_resolution, the two callers).
-        """
-        if self._client is None:
-            return
-        for row in self.store.unresolved_games():
-            match = self._client.match_details(int(row["riot_match_id"]))
-            if not (isinstance(match, dict) and match.get("gameId")):
-                continue
-            premades = set(json.loads(row["pending_premades"] or "[]"))
-            result = capture.normalize_match(
-                match, self._my_puuid, self._champ_names, premades, self._assets
+def _resolve_pending_games(self) -> None:
+    """Complete any pending stub whose match history has caught up.
+
+    Caller must already hold self._capture_lock (see _start_catch_up and
+    _start_pending_resolution, the two callers).
+    """
+    if self._client is None:
+        return
+    for row in self.store.unresolved_games():
+        match = self._client.match_details(int(row["riot_match_id"]))
+        if not (isinstance(match, dict) and match.get("gameId")):
+            continue
+        premades = set(json.loads(row["pending_premades"] or "[]"))
+        result = capture.normalize_match(
+            match, self._my_puuid, self._champ_names, premades, self._assets
+        )
+        if self.store.complete_game(row["id"], result["game"], result["teammates"]):
+            log.info(
+                "Resolved pending game %s: %s (%s)",
+                row["riot_match_id"],
+                result["game"].get("champion"),
+                result["game"].get("queue_type"),
             )
-            if self.store.complete_game(row["id"], result["game"], result["teammates"]):
-                log.info(
-                    "Resolved pending game %s: %s (%s)",
-                    row["riot_match_id"],
-                    result["game"].get("champion"),
-                    result["game"].get("queue_type"),
-                )
 ```
 
 Wire it into the existing catch-up sweep so a pending game can resolve on the very next lobby visit or reconnect, not just the new timer. In `_start_catch_up`'s `worker()` (`vibecheck/app.py:555-572`):
