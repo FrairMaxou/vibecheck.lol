@@ -112,6 +112,20 @@ def _step_v1_added_columns(conn: sqlite3.Connection) -> None:
             log.info("Migrated games table: added column %s", name)
 
 
+def _step_v2_added_pending_capture_columns(conn: sqlite3.Connection) -> None:
+    """v2: pending two-phase capture (issue #96) — a game can be inserted as
+    a stub (rating only, no stats yet) while Arena's match-history sync
+    catches up, then completed in place once the real data arrives.
+    """
+    existing = {r["name"] for r in conn.execute("PRAGMA table_info(games)")}
+    if "resolved" not in existing:
+        conn.execute("ALTER TABLE games ADD COLUMN resolved INTEGER NOT NULL DEFAULT 1")
+        log.info("Migrated games table: added column resolved")
+    if "pending_premades" not in existing:
+        conn.execute("ALTER TABLE games ADD COLUMN pending_premades TEXT")
+        log.info("Migrated games table: added column pending_premades")
+
+
 class GameStore:
     def __init__(self, db_path: Path = DB_PATH):
         db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -166,6 +180,11 @@ class GameStore:
             1,
             "add enemy_champions/augments/items/damage_to_champs/gold columns",
             _step_v1_added_columns,
+        ),
+        (
+            2,
+            "add resolved/pending_premades columns for two-phase Arena capture",
+            _step_v2_added_pending_capture_columns,
         ),
     )
     # Fields stored as JSON arrays.
