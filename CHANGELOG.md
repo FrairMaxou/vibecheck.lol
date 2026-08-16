@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/FrairMaxou/vibecheck.lol/compare/v0.3.2...v0.4.0) (2026-08-16)
+
+
+### Features
+
+* **web:** Arena God — per-champion Arena win tracker ([#103](https://github.com/FrairMaxou/vibecheck.lol/issues/103)) ([#104](https://github.com/FrairMaxou/vibecheck.lol/issues/104)) ([7d46b6a](https://github.com/FrairMaxou/vibecheck.lol/commit/7d46b6a747cac46d68823ea6f70a5635b5188208))
+
 ## [0.3.2](https://github.com/FrairMaxou/vibecheck.lol/compare/v0.3.1...v0.3.2) (2026-08-16)
 
 
