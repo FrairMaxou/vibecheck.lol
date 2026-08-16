@@ -524,7 +524,24 @@ class App:
 
         threading.Thread(target=worker, name="capture", daemon=True).start()
 
+    def _known_game_id(self) -> int | None:
+        """The authoritative id for the game that's ending, straight from the
+        live gameflow session (issue #96) — available immediately after
+        PreEndOfGame/EndOfGame, well before Riot's local match-history cache
+        has synced it. Using this instead of guessing the "newest" entry in
+        recent_matches() is what makes the match-history lookup exact rather
+        than order- and timing-dependent, which is what actually broke Arena
+        capture (a stale "newest" id can win for the entire retry window).
+        """
+        if self._client is None:
+            return None
+        session = self._client.gameflow_session() or {}
+        game_id = (session.get("gameData") or {}).get("gameId")
+        return game_id if isinstance(game_id, int) and game_id > 0 else None
+
     def _capture_game(self) -> None:
+        known_game_id = self._known_game_id()
+
         # Primary source: the end-of-game stats endpoint (has premade/party info).
         eol = self._await(self._client.end_of_game_stats, attempts=6, label="end_of_game_stats")
         if eol is not None:
@@ -537,20 +554,39 @@ class App:
             self._finish_capture(game_id_str, result, source="end-of-game stats")
             return
 
-        # Fallback: the client's own match history. Works for every game type
-        # (incl. bots) and persists after the stats screen is gone.
+        # Fallback: the client's own match history. Look it up by the id we
+        # already know from the live gameflow session when we have one —
+        # exact, not a guess — falling back to the old "newest in
+        # recent_matches()" heuristic only if that id is somehow unavailable.
         log.info("End-of-game stats unavailable; falling back to match history")
-        match = self._await(
-            self._fresh_match_from_history, attempts=10, interval=3.0, label="match_history"
-        )
-        if match is None:
+        if known_game_id is not None:
+            match = self._await(
+                lambda: self._client.match_details(known_game_id),
+                attempts=10,
+                interval=3.0,
+                label="match_history",
+            )
+        else:
+            match = self._await(
+                self._fresh_match_from_history, attempts=10, interval=3.0, label="match_history"
+            )
+        if match is not None:
+            game_id_str = str(match.get("gameId", ""))
+            result = capture.normalize_match(
+                match, self._my_puuid, self._champ_names, self._premade_puuids, self._assets
+            )
+            self._finish_capture(game_id_str, result, source="match history")
+            return
+
+        if known_game_id is None:
             log.warning("Game ended but neither stats nor match history yielded it")
             return
-        game_id_str = str(match.get("gameId", ""))
-        result = capture.normalize_match(
-            match, self._my_puuid, self._champ_names, self._premade_puuids, self._assets
-        )
-        self._finish_capture(game_id_str, result, source="match history")
+
+        # Match history hasn't synced yet — measured 3-10+ minutes for Arena
+        # (#96), well past any reasonable live retry window. Ask for the
+        # rating now, while it's fresh, and resolve the real stats
+        # asynchronously once the client's history catches up.
+        self._create_pending_capture(known_game_id)
 
     def _start_catch_up(self) -> None:
         """Import finished games we missed (F6), in the capture worker slot."""
