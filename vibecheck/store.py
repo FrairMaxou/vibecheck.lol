@@ -470,13 +470,19 @@ class GameStore:
 
         Keyed on fun_score, not the ratings row's existence, so a game that
         only has a note attached still counts as pending.
+
+        resolved = 1 excludes two-phase pending-capture stubs (issue #96):
+        one is already rated at insert time (so it wouldn't match anyway),
+        but an unrated one — the popup was paused or dismissed — has every
+        stat column NULL until it resolves, and would otherwise surface here
+        as a garbage all-None row.
         """
         with self._lock:
             rows = self._db.execute(
                 """SELECT g.* FROM games g
                    LEFT JOIN ratings r ON r.game_id = g.id
                    WHERE r.fun_score IS NULL AND COALESCE(r.skipped, 0) = 0
-                     AND g.is_remake = 0
+                     AND g.is_remake = 0 AND g.resolved = 1
                    ORDER BY g.played_at DESC"""
             ).fetchall()
         return [dict(r) for r in rows]
