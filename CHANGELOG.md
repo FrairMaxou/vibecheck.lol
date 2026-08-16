@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/FrairMaxou/vibecheck.lol/compare/v0.3.1...v0.3.2) (2026-08-16)
+
+
+### Fixes
+
+* **web:** let dashboard content fill the window, hide the main scrollbar ([#101](https://github.com/FrairMaxou/vibecheck.lol/issues/101)) ([36ea8e7](https://github.com/FrairMaxou/vibecheck.lol/commit/36ea8e7d0e236cbadcfc8dd3dfe7aaf7b1b83a23))
+
 ## [0.3.1](https://github.com/FrairMaxou/vibecheck.lol/compare/v0.3.0...v0.3.1) (2026-08-16)
 
 

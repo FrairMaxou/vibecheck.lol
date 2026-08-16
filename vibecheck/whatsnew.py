@@ -12,6 +12,12 @@ version automatically, so a missing entry means it was forgotten, not chosen.
 """
 
 RELEASE_NOTES = {
+    "0.3.2": [
+        "The dashboard now fills the window instead of leaving a big empty "
+        "gap on the right on wide monitors.",
+        "The scrollbar's gone — scrolling still works the same, it's just "
+        "not sitting there as a visible bar anymore.",
+    ],
     "0.3.1": [
         "Arena games that took a while to show up in your match history — "
         "sometimes several minutes — were sometimes never getting captured at "
