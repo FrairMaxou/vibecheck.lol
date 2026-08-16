@@ -734,12 +734,13 @@ tr.low-n td { color: var(--ink-3); }
 .ov-grid12 {
   display: grid; grid-template-columns: repeat(12, 1fr); gap: 24px; align-items: start; margin-bottom: 26px;
   grid-template-areas:
-    "vibemeter vibemeter vibemeter vibemeter vibemeter vibemeter vibemeter aram aram aram aram aram"
+    "vibemeter vibemeter vibemeter vibemeter aram aram aram aram arena arena arena arena"
     "spotlight spotlight spotlight spotlight spotlight spotlight spotlight spotlight totals totals totals totals"
     "trend trend trend trend trend trend trend trend regret regret regret regret";
 }
 .ov-cell-vibemeter { grid-area: vibemeter; }
 .ov-cell-aram { grid-area: aram; }
+.ov-cell-arena { grid-area: arena; }
 .ov-cell-spotlight { grid-area: spotlight; }
 .ov-cell-totals { grid-area: totals; }
 .ov-cell-trend { grid-area: trend; margin-bottom: 0; }
@@ -747,24 +748,43 @@ tr.low-n td { color: var(--ink-3); }
 .ov-cell-spotlight .ov-section-label, .ov-cell-totals .ov-section-label { margin-top: 0; }
 .ov-regret-wrap { height: 200px; }
 
-/* Below this, the 7/5 and 8/4 splits get too narrow to be worth the layout
+/* Below this, the fractional splits get too narrow to be worth the layout
    complexity — stack everything single-column instead, same as any other
    panel list. Matches the left rail's own auto-collapse threshold from #86. */
 @media (max-width: 1000px) {
   .ov-grid12 {
     grid-template-columns: 1fr;
-    grid-template-areas: "vibemeter" "aram" "spotlight" "totals" "trend" "regret";
+    grid-template-areas: "vibemeter" "aram" "arena" "spotlight" "totals" "trend" "regret";
   }
 }
 
 /* Zero-scroll dashboard (issue #88 follow-up): on a large-enough window,
-   Vibe-O-Meter / ARAM / Totals become one three-card hero row, Spotlight
-   spans full width on its own row, and all three tiers get fixed-ish
-   heights so the page reads as one glanceable screen instead of a scroll.
-   This is an enhancement layered on the always-safe layout above, not a
-   guarantee — gated on both width AND height so a short-but-wide window (or
-   the 900x600 minimum from window.py) falls back to normal scrolling rather
-   than cramming three tiers into too little space.
+   Vibe-O-Meter / ARAM / Arena become one three-card hero row, Spotlight
+   shares its row with Lifetime Totals (issue #103 — moved off the hero row
+   to make room for the Arena God card; totals is a narrow 3-col sidebar
+   next to spotlight rather than a 12-col row split three ways, see below),
+   and all three tiers get fixed-ish heights so the page reads as one
+   glanceable screen instead of a scroll. This is an enhancement layered on
+   the always-safe layout above, not a guarantee — gated on both width AND
+   height so a short-but-wide window (or the 900x600 minimum from window.py)
+   falls back to normal scrolling rather than cramming three tiers into too
+   little space.
+
+   Row 2's 9/3 spotlight/totals split (issue #103) is NOT a free choice the
+   way the hero row's 4/4/4 is: .ov-stile's tiles are width: auto sized off
+   this row's fixed height via aspect-ratio (see the note on row heights
+   below), not off their grid column's fractional width — so unlike a normal
+   1fr column, narrowing spotlight's span doesn't shrink the tiles, it risks
+   them overflowing their cell against whatever's left. Five 3/4-aspect
+   tiles at a 254px row height need ~1006px (190px/tile + 14px gaps) no
+   matter how many columns they're given. 9/12 leaves comfortable room for
+   that at typical desktop widths (≥1920px, this file's own reference
+   viewport) with totals' own small cards needing far less than a 3/12
+   share — but hasn't been verified pixel-by-pixel at every width down to
+   this breakpoint's 1400px floor the way the 242/254/305 row heights below
+   were. If spotlight ever visibly overflows into totals at a real window
+   size, narrow totals further or raise this breakpoint's min-width rather
+   than shrinking spotlight's share more.
 
    Two deliberate deviations from a literal reading of the spec, both in the
    direction of "never hide data the user can't get back":
@@ -815,12 +835,14 @@ tr.low-n td { color: var(--ink-3); }
     margin-bottom: 0;
     grid-template-rows: 242px 254px 305px;
     grid-template-areas:
-      "vibemeter vibemeter vibemeter vibemeter aram aram aram aram totals totals totals totals"
-      "spotlight spotlight spotlight spotlight spotlight spotlight spotlight spotlight spotlight spotlight spotlight spotlight"
+      "vibemeter vibemeter vibemeter vibemeter aram aram aram aram arena arena arena arena"
+      "spotlight spotlight spotlight spotlight spotlight spotlight spotlight spotlight spotlight totals totals totals"
       "trend trend trend trend trend trend trend trend regret regret regret regret";
   }
-  .ov-cell-vibemeter, .ov-cell-aram { height: 100%; }
-  .ov-cell-vibemeter .ov-vibemeter-card, .ov-cell-aram .ov-aram-card { height: 100%; }
+  .ov-cell-vibemeter, .ov-cell-aram, .ov-cell-arena { height: 100%; }
+  .ov-cell-vibemeter .ov-vibemeter-card,
+  .ov-cell-aram .ov-aram-card,
+  .ov-cell-arena .ov-aram-card { height: 100%; }
   /* .ov-cell-totals has two children (the section label, then #ov-totals) —
      unlike vibemeter/aram's single child, a naive height: 100% on #ov-totals
      would overflow the cell by however tall the label is, since normal block
@@ -836,7 +858,7 @@ tr.low-n td { color: var(--ink-3); }
   .ov-cell-totals .ov-tcard { height: 84px; }
   .ov-cell-spotlight { height: 100%; display: flex; flex-direction: column; }
   .ov-cell-spotlight .ov-spotlight { flex: 1; min-height: 0; justify-items: center; }
-  /* aspect-ratio (11/20, set on .ov-stile elsewhere) ties width to this
+  /* aspect-ratio (3/4, set on .ov-stile elsewhere) ties width to this
      height, so a tile that's short enough to fit the row also ends up
      narrower than its 1fr column track — justify-items: center above keeps
      that from reading as misaligned. */
