@@ -58,6 +58,7 @@ ONBOARDING_GAMES = 5  # == PRD MIN_N, so rating them all clears "not enough data
 
 UPDATE_CHECK_DELAY_SECONDS = 90  # let startup finish first
 UPDATE_CHECK_INTERVAL_SECONDS = 6 * 3600  # matches the updater's cache TTL
+PENDING_RESOLUTION_INTERVAL_SECONDS = 5 * 60  # #96: Arena sync lag measured 3-10+ min live
 PREMADES_MAX_AGE_HOURS = 6
 
 
@@ -134,6 +135,7 @@ class App:
             self._root.after(1000, self._open_dashboard)
         self._start_usage_ping()
         self._start_update_check()
+        self._start_pending_resolution()
         self._relabel_queues()
         self._root.mainloop()
 
@@ -217,6 +219,31 @@ class App:
                     return
 
         threading.Thread(target=worker, name="update-check", daemon=True).start()
+
+    def _start_pending_resolution(self) -> None:
+        """Safety net for #96: catch-up only re-checks on the next lobby
+        visit or reconnect, and Arena's sync lag (measured 3-10+ minutes)
+        routinely outlasts a single lobby visit. This sweeps on its own
+        schedule instead, but stays cheap when idle — it only touches the
+        LCU when the store actually has an unresolved row.
+        """
+
+        def worker():
+            while not self._stopping.is_set():
+                if self._stopping.wait(PENDING_RESOLUTION_INTERVAL_SECONDS):
+                    return
+                if not self.store.unresolved_games():
+                    continue
+                if not self._capture_lock.acquire(blocking=False):
+                    continue  # a capture/catch-up is already using the client
+                try:
+                    self._resolve_pending_games()
+                except Exception:
+                    log.exception("Pending-game resolution sweep failed")
+                finally:
+                    self._capture_lock.release()
+
+        threading.Thread(target=worker, name="pending-resolve", daemon=True).start()
 
     def _check_for_update(self) -> None:
         info = updater.check_cached(self.store)
@@ -600,6 +627,7 @@ class App:
                 # and doesn't pop a rating prompt for one of them.
                 self._backfill_for_onboarding()
                 self._catch_up()
+                self._resolve_pending_games()
             except Exception:
                 log.exception("Catch-up sweep failed")
             finally:
@@ -737,6 +765,55 @@ class App:
         # F5: remakes are recorded but never rated (there was no real game).
         if not self.paused and not game.get("is_remake"):
             self._popup_request("show", stored_id, _summary_line(game))
+
+    def _create_pending_capture(self, game_id: int) -> None:
+        """Two-phase capture for a game whose match history hasn't synced yet
+        (issue #96 — Arena regularly takes minutes, not seconds). Ask how it
+        went right now, while the moment is fresh, and let
+        _resolve_pending_games fill in the real stats later.
+
+        premade_puuids is snapshotted into the stub itself: self._premade_puuids
+        is a single shared slot that the *next* lobby's ChampSelect overwrites,
+        and that routinely happens before this game resolves.
+        """
+        game_id_str = str(game_id)
+        if self._already_captured(game_id_str):
+            return
+        played_at = datetime.now().isoformat(timespec="seconds")
+        stored_id = self.store.insert_pending_game(game_id_str, played_at, self._premade_puuids)
+        self._premade_puuids = set()
+        self.store.set_meta(PREMADES_KEY, "")
+        if stored_id is None:
+            log.info("Pending game %s already stored", game_id_str)
+            return
+        self._advance_watermark(played_at)
+        log.info("Game %s not synced yet; asking for a rating now, stats to follow", game_id_str)
+        if not self.paused:
+            self._popup_request("show", stored_id, "Stats are still syncing — rate it now")
+
+    def _resolve_pending_games(self) -> None:
+        """Complete any pending stub whose match history has caught up.
+
+        Caller must already hold self._capture_lock (see _start_catch_up and
+        _start_pending_resolution, the two callers).
+        """
+        if self._client is None:
+            return
+        for row in self.store.unresolved_games():
+            match = self._client.match_details(int(row["riot_match_id"]))
+            if not (isinstance(match, dict) and match.get("gameId")):
+                continue
+            premades = set(json.loads(row["pending_premades"] or "[]"))
+            result = capture.normalize_match(
+                match, self._my_puuid, self._champ_names, premades, self._assets
+            )
+            if self.store.complete_game(row["id"], result["game"], result["teammates"]):
+                log.info(
+                    "Resolved pending game %s: %s (%s)",
+                    row["riot_match_id"],
+                    result["game"].get("champion"),
+                    result["game"].get("queue_type"),
+                )
 
     def _await(self, fetch, attempts: int, interval: float = 2.0, label: str = ""):
         """Retry a fetch that legitimately 404s/lags right after game end."""
