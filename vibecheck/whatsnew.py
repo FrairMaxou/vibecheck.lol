@@ -12,6 +12,11 @@ version automatically, so a missing entry means it was forgotten, not chosen.
 """
 
 RELEASE_NOTES = {
+    "0.4.0": [
+        "New: Arena God. Same idea as ARAM God, but for Arena — how many "
+        "different champions you've placed 1st with. Find it next to ARAM "
+        "God on the Vibe Check tab and on Champions.",
+    ],
     "0.3.2": [
         "The dashboard now fills the window instead of leaving a big empty "
         "gap on the right on wide monitors.",
