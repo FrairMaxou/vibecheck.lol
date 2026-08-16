@@ -794,34 +794,62 @@ class App:
     def _resolve_pending_games(self) -> None:
         """Complete any pending stub whose match history has caught up.
 
+        Each row is isolated in its own try/except: this runs on a timer for
+        as long as a stub stays unresolved, so one row with malformed or
+        unusual data must never take the rest of the sweep down with it —
+        that would permanently wedge every other pending row behind it.
+
         Caller must already hold self._capture_lock (see _start_catch_up and
         _start_pending_resolution, the two callers).
         """
         if self._client is None:
             return
         for row in self.store.unresolved_games():
-            match = self._client.match_details(int(row["riot_match_id"]))
-            if not (isinstance(match, dict) and match.get("gameId")):
-                age = datetime.now() - datetime.fromisoformat(row["played_at"])
-                if age > timedelta(hours=24):
-                    log.warning(
-                        "Pending game %s still unresolved after %s — Riot may never "
-                        "have synced this one; the rating is kept, stats stay blank",
-                        row["riot_match_id"],
-                        age,
-                    )
-                continue
-            premades = set(json.loads(row["pending_premades"] or "[]"))
-            result = capture.normalize_match(
-                match, self._my_puuid, self._champ_names, premades, self._assets
-            )
-            if self.store.complete_game(row["id"], result["game"], result["teammates"]):
-                log.info(
-                    "Resolved pending game %s: %s (%s)",
-                    row["riot_match_id"],
-                    result["game"].get("champion"),
-                    result["game"].get("queue_type"),
+            try:
+                match = self._client.match_details(int(row["riot_match_id"]))
+                if not (isinstance(match, dict) and match.get("gameId")):
+                    age = datetime.now() - datetime.fromisoformat(row["played_at"])
+                    # Bounded to ~one warning per row: without this, a
+                    # permanently-stuck row would log on every 5-minute sweep
+                    # forever. Not exactly-once (an extra catch-up sweep in
+                    # between timer ticks can still double it up), but it
+                    # caps the growth instead of leaving it unbounded.
+                    if (
+                        timedelta(hours=24)
+                        <= age
+                        < timedelta(hours=24, seconds=PENDING_RESOLUTION_INTERVAL_SECONDS)
+                    ):
+                        log.warning(
+                            "Pending game %s still unresolved after %s — Riot may never "
+                            "have synced this one; the rating is kept, stats stay blank",
+                            row["riot_match_id"],
+                            age,
+                        )
+                    continue
+                premades = set(json.loads(row["pending_premades"] or "[]"))
+                result = capture.normalize_match(
+                    match, self._my_puuid, self._champ_names, premades, self._assets
                 )
+                if self.store.complete_game(row["id"], result["game"], result["teammates"]):
+                    game = result["game"]
+                    if game.get("is_remake"):
+                        # F5: never keep a rating on a remake. Pending-capture
+                        # can't know this at popup time — the game had to be
+                        # rated blind — so undo it now that we know.
+                        self.store.set_rating(row["id"], None, skipped=True)
+                        log.info(
+                            "Pending game %s resolved as a remake; clearing its rating",
+                            row["riot_match_id"],
+                        )
+                    else:
+                        log.info(
+                            "Resolved pending game %s: %s (%s)",
+                            row["riot_match_id"],
+                            game.get("champion"),
+                            game.get("queue_type"),
+                        )
+            except Exception:
+                log.exception("Failed to resolve pending game %s", row.get("riot_match_id"))
 
     def _await(self, fetch, attempts: int, interval: float = 2.0, label: str = ""):
         """Retry a fetch that legitimately 404s/lags right after game end."""
