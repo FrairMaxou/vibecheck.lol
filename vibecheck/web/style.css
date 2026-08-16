@@ -746,6 +746,22 @@ tr.low-n td { color: var(--ink-3); }
 .ov-cell-trend { grid-area: trend; margin-bottom: 0; }
 .ov-cell-regret { grid-area: regret; margin-bottom: 0; }
 .ov-cell-spotlight .ov-section-label, .ov-cell-totals .ov-section-label { margin-top: 0; }
+
+/* The three hero cards must read as one row of equivalent tiles, not three
+   independently-sized boxes — but `.ov-grid12`'s own align-items: start
+   (needed so spotlight/trend/regret each size to their own content, not
+   stretch to match a taller sibling) means these three don't get that for
+   free. VIBE-O-METER's card has one more element than ARAM/Arena God's
+   (the 1-5 tick-mark row under the bar), so without this it's visibly
+   taller everywhere the fixed-row-height zero-scroll breakpoint isn't
+   active — i.e. most window sizes, not just "not full screen" as it first
+   looks (issue #103 follow-up). align-self: stretch here, height: 100% on
+   the actual card below, is a general fix — it doesn't depend on the
+   242px desktop breakpoint's fixed row height at all. */
+.ov-cell-vibemeter, .ov-cell-aram, .ov-cell-arena { align-self: stretch; }
+.ov-cell-vibemeter .ov-vibemeter-card,
+.ov-cell-aram .ov-aram-card,
+.ov-cell-arena .ov-aram-card { height: 100%; }
 .ov-regret-wrap { height: 200px; }
 
 /* Below this, the fractional splits get too narrow to be worth the layout
@@ -770,21 +786,26 @@ tr.low-n td { color: var(--ink-3); }
    falls back to normal scrolling rather than cramming three tiers into too
    little space.
 
-   Row 2's 9/3 spotlight/totals split (issue #103) is NOT a free choice the
-   way the hero row's 4/4/4 is: .ov-stile's tiles are width: auto sized off
-   this row's fixed height via aspect-ratio (see the note on row heights
-   below), not off their grid column's fractional width — so unlike a normal
-   1fr column, narrowing spotlight's span doesn't shrink the tiles, it risks
+   Row 2's spotlight/totals split is NOT a free choice the way the hero
+   row's 4/4/4 is: .ov-stile's tiles are width: auto sized off this row's
+   fixed height via aspect-ratio (see the note on row heights below), not
+   off their grid column's fractional width — so unlike a normal 1fr
+   column, narrowing spotlight's span doesn't shrink the tiles, it risks
    them overflowing their cell against whatever's left. Five 3/4-aspect
    tiles at a 254px row height need ~1006px (190px/tile + 14px gaps) no
-   matter how many columns they're given. 9/12 leaves comfortable room for
-   that at typical desktop widths (≥1920px, this file's own reference
-   viewport) with totals' own small cards needing far less than a 3/12
-   share — but hasn't been verified pixel-by-pixel at every width down to
-   this breakpoint's 1400px floor the way the 242/254/305 row heights below
-   were. If spotlight ever visibly overflows into totals at a real window
-   size, narrow totals further or raise this breakpoint's min-width rather
-   than shrinking spotlight's share more.
+   matter how many columns they're given.
+
+   8/4 (issue #103 follow-up) — same ratio the always-safe base layout
+   above already uses for this same pair, chosen for that consistency
+   after a first attempt at 9/3 shipped visibly imbalanced (totals reads
+   as an afterthought at 3/12 next to five much-narrower-than-their-cell
+   tiles). Verified live in Chrome at 1994px — a realistic non-maximized
+   desktop window, not just this file's 1920×889 reference viewport —
+   with both a comfortable spotlight fit and a visually balanced row. Not
+   verified at the breakpoint's 1400px floor itself: if spotlight ever
+   visibly overflows into totals at a real narrow-but-≥1400px window,
+   narrow totals further or raise this breakpoint's min-width rather than
+   shrinking spotlight's share more.
 
    Two deliberate deviations from a literal reading of the spec, both in the
    direction of "never hide data the user can't get back":
@@ -836,13 +857,12 @@ tr.low-n td { color: var(--ink-3); }
     grid-template-rows: 242px 254px 305px;
     grid-template-areas:
       "vibemeter vibemeter vibemeter vibemeter aram aram aram aram arena arena arena arena"
-      "spotlight spotlight spotlight spotlight spotlight spotlight spotlight spotlight spotlight totals totals totals"
+      "spotlight spotlight spotlight spotlight spotlight spotlight spotlight spotlight totals totals totals totals"
       "trend trend trend trend trend trend trend trend regret regret regret regret";
   }
-  .ov-cell-vibemeter, .ov-cell-aram, .ov-cell-arena { height: 100%; }
-  .ov-cell-vibemeter .ov-vibemeter-card,
-  .ov-cell-aram .ov-aram-card,
-  .ov-cell-arena .ov-aram-card { height: 100%; }
+  /* No vibemeter/aram/arena height rule here anymore — align-self: stretch
+     on the base rule above already fills whatever height this row's own
+     grid-template-rows (242px) gives it, fixed row or not. */
   /* .ov-cell-totals has two children (the section label, then #ov-totals) —
      unlike vibemeter/aram's single child, a naive height: 100% on #ov-totals
      would overflow the cell by however tall the label is, since normal block
