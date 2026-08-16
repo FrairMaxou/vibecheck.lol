@@ -448,7 +448,8 @@ class GameStore:
         """Pending stubs still waiting on real stats (issue #96)."""
         with self._lock:
             rows = self._db.execute(
-                "SELECT id, riot_match_id, pending_premades FROM games WHERE resolved = 0"
+                "SELECT id, riot_match_id, pending_premades, played_at "
+                "FROM games WHERE resolved = 0"
             ).fetchall()
         return [dict(r) for r in rows]
 
