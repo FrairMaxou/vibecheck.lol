@@ -802,6 +802,14 @@ class App:
         for row in self.store.unresolved_games():
             match = self._client.match_details(int(row["riot_match_id"]))
             if not (isinstance(match, dict) and match.get("gameId")):
+                age = datetime.now() - datetime.fromisoformat(row["played_at"])
+                if age > timedelta(hours=24):
+                    log.warning(
+                        "Pending game %s still unresolved after %s — Riot may never "
+                        "have synced this one; the rating is kept, stats stay blank",
+                        row["riot_match_id"],
+                        age,
+                    )
                 continue
             premades = set(json.loads(row["pending_premades"] or "[]"))
             result = capture.normalize_match(
