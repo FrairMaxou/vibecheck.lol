@@ -112,6 +112,15 @@ class LcuClient:
     def end_of_game_stats(self):
         return self.get("/lol-end-of-game/v1/eol-game-data")
 
+    def gameflow_session(self):
+        """The live gameflow session, including gameData.gameId — the
+        authoritative id for the game that just ended (issue #96). Available
+        immediately after PreEndOfGame fires, before Riot's local
+        match-history cache has synced it (which can take minutes for
+        Arena).
+        """
+        return self.get("/lol-gameflow/v1/session")
+
     def recent_matches(self, count: int = 10) -> list:
         """Most recent games (summary records) from the client's match history."""
         data = self.get(
