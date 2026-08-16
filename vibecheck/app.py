@@ -526,7 +526,7 @@ class App:
 
     def _capture_game(self) -> None:
         # Primary source: the end-of-game stats endpoint (has premade/party info).
-        eol = self._await(self._client.end_of_game_stats, attempts=6)
+        eol = self._await(self._client.end_of_game_stats, attempts=6, label="end_of_game_stats")
         if eol is not None:
             game_id_str = str(eol.get("gameId", ""))
             if self._already_captured(game_id_str):
@@ -540,7 +540,9 @@ class App:
         # Fallback: the client's own match history. Works for every game type
         # (incl. bots) and persists after the stats screen is gone.
         log.info("End-of-game stats unavailable; falling back to match history")
-        match = self._await(self._fresh_match_from_history, attempts=10, interval=3.0)
+        match = self._await(
+            self._fresh_match_from_history, attempts=10, interval=3.0, label="match_history"
+        )
         if match is None:
             log.warning("Game ended but neither stats nor match history yielded it")
             return
@@ -650,9 +652,23 @@ class App:
     def _fresh_match_from_history(self):
         """Latest match, unless we already have it (history can lag the game end)."""
         match_id = self._client.latest_match_id()
-        if match_id is None or self._already_captured(str(match_id), record=False):
+        if match_id is None:
+            # DIAGNOSTIC (issue #96): distinguishes "history hasn't synced the
+            # game yet" from "history has it but match_details is unusable".
+            log.info("_fresh_match_from_history: recent_matches() has no games yet")
             return None
-        return self._client.match_details(match_id)
+        if self._already_captured(str(match_id), record=False):
+            log.info("_fresh_match_from_history: latest game %s already captured", match_id)
+            return None
+        match = self._client.match_details(match_id)
+        if match is not None and not (isinstance(match, dict) and match.get("gameId")):
+            log.info(
+                "_fresh_match_from_history: match_details(%s) returned %s without gameId: %s",
+                match_id,
+                type(match).__name__,
+                json.dumps(match, default=str)[:2000],
+            )
+        return match
 
     def _already_captured(self, game_id_str: str, record: bool = True) -> bool:
         if not game_id_str or game_id_str in self._processed_game_ids:
@@ -686,14 +702,26 @@ class App:
         if not self.paused and not game.get("is_remake"):
             self._popup_request("show", stored_id, _summary_line(game))
 
-    def _await(self, fetch, attempts: int, interval: float = 2.0):
+    def _await(self, fetch, attempts: int, interval: float = 2.0, label: str = ""):
         """Retry a fetch that legitimately 404s/lags right after game end."""
-        for _ in range(attempts):
+        for attempt in range(attempts):
             if self._stopping.is_set() or self._client is None:
                 return None
             value = fetch()
             if isinstance(value, dict) and value.get("gameId"):
                 return value
+            # DIAGNOSTIC (issue #96): a 200 with no usable gameId is a silent
+            # failure mode `get()` never logs. Dump the shape so a live Arena
+            # repro tells us whether the payload lacks gameId entirely or
+            # nests it differently. Remove once #96 is understood/fixed.
+            if value is not None:
+                log.info(
+                    "_await(%s) attempt %d: got %s without a usable gameId: %s",
+                    label or getattr(fetch, "__name__", "?"),
+                    attempt + 1,
+                    type(value).__name__,
+                    json.dumps(value, default=str)[:2000],
+                )
             time.sleep(interval)
         return None
 
