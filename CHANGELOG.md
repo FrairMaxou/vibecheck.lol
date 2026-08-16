@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/FrairMaxou/vibecheck.lol/compare/v0.4.0...v0.4.1) (2026-08-16)
+
+
+### Fixes
+
+* **web:** equal-height hero cards, rebalance spotlight/totals split ([#106](https://github.com/FrairMaxou/vibecheck.lol/issues/106)) ([30f196a](https://github.com/FrairMaxou/vibecheck.lol/commit/30f196add94e4171c5bbf57992d8e83cd0795787))
+
 ## [0.4.0](https://github.com/FrairMaxou/vibecheck.lol/compare/v0.3.2...v0.4.0) (2026-08-16)
 
 
