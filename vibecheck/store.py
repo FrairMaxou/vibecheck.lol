@@ -355,6 +355,103 @@ class GameStore:
             self._bump_rev()
             return game_id
 
+    def insert_pending_game(
+        self, riot_match_id: str, played_at: str, premade_puuids: set
+    ) -> int | None:
+        """Insert a minimal stub for a game whose stats aren't available yet
+        (issue #96 — Arena's local match-history sync can take minutes).
+
+        Rateable immediately via the returned id, same as insert_game's.
+        `premade_puuids` is frozen here rather than left in the caller's
+        single shared slot, because that slot gets overwritten the moment
+        the player queues into their next game — which routinely happens
+        before this one resolves.
+        """
+        with self._lock, self._db:
+            session_id, game_index = self._session_for(played_at)
+            cur = self._db.execute(
+                """INSERT OR IGNORE INTO games
+                   (riot_match_id, played_at, session_id, game_index_in_session,
+                    resolved, pending_premades)
+                   VALUES (?,?,?,?,0,?)""",
+                (
+                    riot_match_id,
+                    played_at,
+                    session_id,
+                    game_index,
+                    json.dumps(sorted(premade_puuids)),
+                ),
+            )
+            if cur.rowcount == 0:
+                return None
+            self._bump_rev()
+            return cur.lastrowid
+
+    def complete_game(self, game_id: int, game: dict, teammates: list) -> bool:
+        """Fill in real stats for a pending stub (issue #96), in place.
+
+        Only played_at and the stat/detail columns change — session_id and
+        game_index_in_session stay as assigned at pending-insert time (see
+        "Known limitation" in the #96 plan). Returns False if the row is
+        missing or already resolved, so a duplicate resolution attempt is a
+        safe no-op rather than a second insert or a crash.
+        """
+        with self._lock, self._db:
+            cur = self._db.execute(
+                """UPDATE games SET
+                       played_at=?, queue_id=?, queue_type=?, champion=?, role=?,
+                       win=?, kills=?, deaths=?, assists=?, cs=?, duration_seconds=?,
+                       is_remake=?, raw_payload=?, enemy_champions=?, augments=?,
+                       items=?, damage_to_champs=?, gold=?, resolved=1, pending_premades=NULL
+                   WHERE id=? AND resolved=0""",
+                (
+                    game["played_at"],
+                    game.get("queue_id"),
+                    game.get("queue_type"),
+                    game.get("champion"),
+                    game.get("role"),
+                    game.get("win"),
+                    game.get("kills"),
+                    game.get("deaths"),
+                    game.get("assists"),
+                    game.get("cs"),
+                    game.get("duration_seconds"),
+                    game.get("is_remake", 0),
+                    json.dumps(game.get("raw_payload")) if game.get("raw_payload") else None,
+                    json.dumps(game.get("enemy_champions") or []),
+                    json.dumps(game.get("augments") or []),
+                    json.dumps(game.get("items") or []),
+                    game.get("damage_to_champs"),
+                    game.get("gold"),
+                    game_id,
+                ),
+            )
+            if cur.rowcount == 0:
+                return False
+            self._db.executemany(
+                """INSERT INTO game_teammates (game_id, summoner_name, riot_puuid, was_premade)
+                   VALUES (?,?,?,?)""",
+                [
+                    (
+                        game_id,
+                        t.get("summoner_name"),
+                        t.get("riot_puuid"),
+                        int(t.get("was_premade", 0)),
+                    )
+                    for t in teammates
+                ],
+            )
+            self._bump_rev()
+            return True
+
+    def unresolved_games(self) -> list:
+        """Pending stubs still waiting on real stats (issue #96)."""
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT id, riot_match_id, pending_premades FROM games WHERE resolved = 0"
+            ).fetchall()
+        return [dict(r) for r in rows]
+
     def set_rating(self, game_id: int, fun_score: int | None, skipped: bool = False) -> None:
         with self._lock, self._db:
             self._db.execute(
@@ -549,6 +646,7 @@ class GameStore:
                           r.fun_score, r.skipped, r.rated_at
                    FROM games g
                    LEFT JOIN ratings r ON r.game_id = g.id
+                   WHERE g.resolved = 1
                    ORDER BY g.played_at DESC LIMIT ?""",
                 (limit,),
             ).fetchall()
@@ -568,6 +666,7 @@ class GameStore:
                    g.damage_to_champs, g.gold,
                    r.fun_score, r.skipped, r.rated_at, r.note
                    FROM games g LEFT JOIN ratings r ON r.game_id = g.id
+                   WHERE g.resolved = 1
                    ORDER BY g.played_at"""
             ).fetchall()
             mates = self._db.execute(
