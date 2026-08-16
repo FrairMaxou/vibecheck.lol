@@ -31,10 +31,7 @@ body {
 }
 
 /* Content area to the right of the fixed sidebar. margin-left (not padding)
-   so .app-content's own box starts exactly at the sidebar's right edge —
-   .page-container inside it then caps at 1400px and does NOT auto-center,
-   so on a wide monitor the content hugs the sidebar and any leftover space
-   falls on the right, never as a gap next to the sidebar. */
+   so .app-content's own box starts exactly at the sidebar's right edge. */
 .app-content {
   margin-left: var(--sidebar-w);
   height: 100vh;
@@ -47,9 +44,18 @@ body {
    browser derives that number, rather than a second calc(100vh - ...) that
    has to be hand-kept in sync with header's real height, the way main's
    height used to be computed. Bottom padding moved to main itself (below)
-   so it lands after the scrollable content, not as dead space outside it. */
+   so it lands after the scrollable content, not as dead space outside it.
+
+   No max-width: content fills whatever space .app-content has, all the way
+   to the window edge, on any monitor — a fixed cap here used to leave a
+   growing dead zone on the right on wide/ultrawide screens, with the
+   scrollbar sitting at the cap instead of the real window edge. Every grid
+   inside (.ov-grid12 and friends) is already fluid (1fr columns), so this
+   is a one-line change: cards get proportionally wider, nothing needs
+   restructuring. .ov-grid12's row heights (below) are fixed px, not tied
+   to width, so the zero-scroll vertical budget is unaffected. */
 .page-container {
-  max-width: 1400px; width: 100%; height: 100%;
+  width: 100%; height: 100%;
   padding: 20px clamp(12px, 4vw, 48px) 0;
   display: flex; flex-direction: column;
 }
@@ -317,11 +323,23 @@ h1 {
    which would make main grow to fit its content instead of shrinking to
    fit the remaining space — the classic flexbox overflow trap. This is
    the ONLY scrolling element on the page; the legal footer moved inside
-   it (index.html) specifically so nothing needs a second one. */
+   it (index.html) specifically so nothing needs a second one.
+
+   Scrollbar hidden, not the scrolling itself: overflow-y stays auto, so
+   wheel/trackpad/keyboard scrolling all still work exactly as before —
+   only the visible track+thumb is suppressed. All three rules are needed
+   because there's no single standard property yet: -ms-overflow-style
+   covers old Edge/IE, scrollbar-width covers Firefox, and the ::-webkit-
+   scrollbar pseudo-element covers Chromium — which is what actually
+   matters here, since the desktop app's window is a WebView2 (Chromium)
+   surface, not a browser chrome the user configured themselves. */
 main {
   flex: 1; min-height: 0; overflow-y: auto;
   padding-bottom: 60px;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
+main::-webkit-scrollbar { display: none; }
 
 /* ---------- fixed left sidebar ---------- */
 .sidebar {
