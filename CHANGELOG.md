@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.1](https://github.com/FrairMaxou/vibecheck.lol/compare/v0.3.0...v0.3.1) (2026-08-16)
+
+
+### Fixes
+
+* **capture:** two-phase pending capture for Arena's slow match-history sync ([#96](https://github.com/FrairMaxou/vibecheck.lol/issues/96)) ([#100](https://github.com/FrairMaxou/vibecheck.lol/issues/100)) ([3b28f35](https://github.com/FrairMaxou/vibecheck.lol/commit/3b28f3528965443ad55ca84572857393a312b2e0))
+* **web:** enforce a single scroll container, eliminate the double scrollbar ([#98](https://github.com/FrairMaxou/vibecheck.lol/issues/98)) ([72c794d](https://github.com/FrairMaxou/vibecheck.lol/commit/72c794d1d0e322200572b5454d7c138cc0e9d79e))
+
 ## [0.3.0](https://github.com/FrairMaxou/vibecheck.lol/compare/v0.2.0...v0.3.0) (2026-08-15)
 
 

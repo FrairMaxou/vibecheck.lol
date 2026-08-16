@@ -12,6 +12,13 @@ version automatically, so a missing entry means it was forgotten, not chosen.
 """
 
 RELEASE_NOTES = {
+    "0.3.1": [
+        "Arena games that took a while to show up in your match history — "
+        "sometimes several minutes — were sometimes never getting captured at "
+        'all. You\'ll still get the "Had fun?" popup right away; the stats '
+        "just fill in once League catches up.",
+        "Fixed a double scrollbar showing up on the dashboard.",
+    ],
     # The dashboard rebuild landed across several PRs (#91-97), each replacing
     # the last — a user updating straight from 0.2.0 only ever sees the final
     # shape, so this describes that end state rather than the intermediate
