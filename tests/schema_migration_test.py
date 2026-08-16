@@ -140,7 +140,7 @@ def test_partial_multi_step_pass_stops_at_last_successful_version(root):
     GameStore._MIGRATIONS = (*original, (original[-1][0] + 1, "deliberately broken step", boom))
     try:
         store = GameStore(db_path)
-        assert store._schema_version == 1, "the first (real) step must have committed"
+        assert store._schema_version == original[-1][0], "the last real step must have committed"
         assert store._migration_failed is True
         store.close()
     finally:
@@ -249,6 +249,19 @@ def test_telemetry_payload_carries_schema_health(root):
     store.close()
 
 
+def test_v2_adds_pending_capture_columns(root):
+    store = GameStore(root / "v2.sqlite3")
+    cols = {r["name"] for r in store._db.execute("PRAGMA table_info(games)")}
+    assert {"resolved", "pending_premades"} <= cols, cols
+    row = store._db.execute(
+        "INSERT INTO games (riot_match_id, played_at) VALUES ('v2-1', '2099-01-01T00:00:00') "
+        "RETURNING resolved, pending_premades"
+    ).fetchone()
+    assert row["resolved"] == 1, "existing/normal rows must default to resolved"
+    assert row["pending_premades"] is None
+    store.close()
+
+
 TESTS = [
     test_fresh_database_lands_on_latest_version,
     test_old_partial_columns_database_still_completes,
@@ -261,6 +274,7 @@ TESTS = [
     test_persistently_failing_step_backs_up_on_every_launch,
     test_backup_failure_skips_migration_this_launch,
     test_telemetry_payload_carries_schema_health,
+    test_v2_adds_pending_capture_columns,
 ]
 
 

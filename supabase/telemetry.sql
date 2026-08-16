@@ -59,3 +59,7 @@ create index if not exists telemetry_pings_day_idx on telemetry_pings (day desc)
 -- that starts sending these fields, or every ping from that build 400s.
 alter table telemetry_pings add column if not exists schema_version int;
 alter table telemetry_pings add column if not exists schema_migration_failed boolean;
+
+-- Added for issue #96 (Arena pending-capture). Same additive/nullable/deploy-
+-- before-release rule as above — count of stubs still awaiting real stats.
+alter table telemetry_pings add column if not exists pending_capture_count int;
