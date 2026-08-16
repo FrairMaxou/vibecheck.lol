@@ -94,6 +94,8 @@ row in this table — don't grow this one.
 .venv\Scripts\python tests\smoke_test.py        # capture+store smoke test (no League needed)
 .venv\Scripts\python tests\migration_test.py    # data-folder migration (isolated LOCALAPPDATA)
 .venv\Scripts\python tests\achievement_test.py  # ARAM God: roster rule, store, API (no client needed)
+.venv\Scripts\python tests\schema_migration_test.py  # schema versioning: migrations, backup-before-migrate, failure isolation
+.venv\Scripts\python tests\pending_capture_test.py    # pending Arena capture: stub -> resolved, rating survives (#96)
 .venv\Scripts\ruff check . --fix                # lint (incl. security rules)
 .venv\Scripts\ruff format .                     # format
 .venv\Scripts\pre-commit run --all-files        # everything the commit hook runs

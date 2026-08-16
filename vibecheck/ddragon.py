@@ -39,6 +39,7 @@ log = logging.getLogger(__name__)
 
 CACHE_DIR = DATA_DIR / "ddragon"
 ICON_DIR = CACHE_DIR / "icons"
+SPLASH_DIR = CACHE_DIR / "splash"
 MANIFEST_PATH = CACHE_DIR / "manifest.json"
 
 VERSIONS_URL = "https://ddragon.leagueoflegends.com/api/versions.json"
@@ -53,6 +54,7 @@ _lock = threading.Lock()
 _manifest: dict | None = None
 _failed_at = 0.0
 _missing: set[str] = set()  # icons the CDN didn't have; don't ask twice
+_missing_splash: set[str] = set()  # splash art the CDN didn't have; don't ask twice
 
 
 def _norm(name: str) -> str:
@@ -157,11 +159,11 @@ def _key_for(man: dict, name: str, classic: bool) -> str | None:
     return key
 
 
-def icon_path(name: str, classic: bool = False) -> Path | None:
-    """The on-disk icon for a champion, or None if it isn't cached yet.
-
-    Purely a disk lookup — no network, so this is safe to call per row while
-    rendering. Downloading is `fetch_icon`'s job, off the request path.
+def _cached_path(cache_dir: Path, filename: str, name: str, classic: bool) -> Path | None:
+    """Shared disk-only lookup behind icon_path/splash_path: no network, so
+    safe to call per row/tile while rendering. Downloading is the paired
+    fetch_*'s job, off the request path. `filename` is a `.format(key=...)`
+    template — the one thing that actually differs between icon and splash.
     """
     man = manifest(refresh=False)
     if not man:
@@ -169,57 +171,117 @@ def icon_path(name: str, classic: bool = False) -> Path | None:
     key = _key_for(man, name, classic)
     if not key:
         return None
-    path = ICON_DIR / f"{key}.png"
+    path = cache_dir / filename.format(key=key)
     return path if path.exists() else None
 
 
-def fetch_icon(name: str, classic: bool = False) -> Path | None:
-    """Download one champion's icon if it isn't cached. Returns its path."""
+def _fetch_asset(
+    cache_dir: Path,
+    filename: str,
+    url_tpl: str,
+    missing: set[str],
+    label: str,
+    name: str,
+    classic: bool,
+) -> Path | None:
+    """Shared download behind fetch_icon/fetch_splash: manifest lookup,
+    cache-hit short circuit, atomic write (so a half-downloaded file is never
+    served as valid art), and remembering a permanent miss. `url_tpl` is a
+    `.format(version=..., key=...)` template.
+    """
     man = manifest()
     if not man:
         return None
     key = _key_for(man, name, classic)
-    if not key or key in _missing:
+    if not key or key in missing:
         return None
-    path = ICON_DIR / f"{key}.png"
+    path = cache_dir / filename.format(key=key)
     if path.exists():
         return path
 
-    url = f"https://{ALLOWED_HOST}/cdn/{man['version']}/img/champion/{key}.png"
+    url = url_tpl.format(version=man["version"], key=key)
     try:
         with _get(url) as resp:
             data = resp.read()
-        ICON_DIR.mkdir(parents=True, exist_ok=True)
-        # Write then rename, so a half-downloaded file is never served as a
-        # valid icon (and never poisons the cache permanently).
+        cache_dir.mkdir(parents=True, exist_ok=True)
         tmp = path.with_suffix(".part")
         tmp.write_bytes(data)
         tmp.replace(path)
         return path
     except Exception as exc:
-        _missing.add(key)
-        log.debug("Could not fetch icon for %s: %s", name, exc)
+        missing.add(key)
+        log.debug("Could not fetch %s for %s: %s", label, name, exc)
         return None
+
+
+def _warm_assets(path_fn, fetch_fn, label: str, picks) -> int:
+    """Shared warm-up loop behind warm()/warm_splash(): pre-download whatever
+    isn't already cached for the champions someone actually plays, off the
+    request path. `picks` yields (champion, classic) pairs, so a player who
+    only touches League Classic gets Jade art cached and never pays for the
+    modern set.
+    """
+    added = 0
+    try:
+        for name, classic in {(n, bool(c)) for n, c in picks if n}:
+            if path_fn(name, classic):
+                continue
+            if fetch_fn(name, classic):
+                added += 1
+        if added:
+            log.info("Cached %d champion %s(s)", added, label)
+    except Exception:
+        log.debug("Champion %s warm-up stopped early", label, exc_info=True)
+    return added
+
+
+def icon_path(name: str, classic: bool = False) -> Path | None:
+    """The on-disk icon for a champion, or None if it isn't cached yet."""
+    return _cached_path(ICON_DIR, "{key}.png", name, classic)
+
+
+def fetch_icon(name: str, classic: bool = False) -> Path | None:
+    """Download one champion's icon if it isn't cached. Returns its path."""
+    url_tpl = f"https://{ALLOWED_HOST}/cdn/{{version}}/img/champion/{{key}}.png"
+    return _fetch_asset(ICON_DIR, "{key}.png", url_tpl, _missing, "icon", name, classic)
+
+
+def splash_path(name: str, classic: bool = False) -> Path | None:
+    """The on-disk loading-screen splash for a champion, or None if it isn't
+    cached yet. Same disk-only contract as icon_path.
+    """
+    return _cached_path(SPLASH_DIR, "{key}_0.jpg", name, classic)
+
+
+def fetch_splash(name: str, classic: bool = False) -> Path | None:
+    """Download one champion's loading-screen splash if it isn't cached.
+
+    Unlike the square icon, loading art lives under a version-independent
+    CDN path (no /cdn/{version}/ segment) — Data Dragon serves the current
+    splash for every champion at the same URL regardless of patch.
+    """
+    return _fetch_asset(
+        SPLASH_DIR,
+        "{key}_0.jpg",
+        f"https://{ALLOWED_HOST}/cdn/img/champion/loading/{{key}}_0.jpg",
+        _missing_splash,
+        "splash",
+        name,
+        classic,
+    )
 
 
 def warm(picks) -> int:
     """Pre-download icons for the champions someone actually plays.
 
-    `picks` yields (champion, classic) pairs, so a player who only touches
-    League Classic gets Jade art cached and never pays for the modern set.
-
     Called in the background so the dashboard has icons ready rather than
     404ing its way through the first render. Returns how many were added.
     """
-    added = 0
-    try:
-        for name, classic in {(n, bool(c)) for n, c in picks if n}:
-            if icon_path(name, classic):
-                continue
-            if fetch_icon(name, classic):
-                added += 1
-        if added:
-            log.info("Cached %d champion icon(s)", added)
-    except Exception:
-        log.debug("Champion icon warm-up stopped early", exc_info=True)
-    return added
+    return _warm_assets(icon_path, fetch_icon, "icon", picks)
+
+
+def warm_splash(picks) -> int:
+    """Pre-download splash art for the champions someone actually plays.
+    Mirrors warm() exactly — see its docstring.
+    """
+    return _warm_assets(splash_path, fetch_splash, "splash", picks)

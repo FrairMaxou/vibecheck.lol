@@ -83,6 +83,9 @@ def _payload(store: GameStore) -> dict:
         "games_rated": len(scores),
         "avg_vibe": round(sum(scores) / len(scores), 2) if scores else None,
         "squad_enabled": bool(load_config()),
+        "schema_version": store.schema_version(),
+        "schema_migration_failed": store.schema_migration_failed(),
+        "pending_capture_count": len(store.unresolved_games()),
     }
 
 

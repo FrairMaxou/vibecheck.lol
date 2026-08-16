@@ -12,6 +12,55 @@ version automatically, so a missing entry means it was forgotten, not chosen.
 """
 
 RELEASE_NOTES = {
+    "0.4.1": [
+        "Quick polish on the new Arena God card: it now matches the height "
+        "of Vibe-O-Meter and ARAM God at every window size, and Spotlight/"
+        "Lifetime Totals share their row in better proportion.",
+    ],
+    "0.4.0": [
+        "New: Arena God. Same idea as ARAM God, but for Arena — how many "
+        "different champions you've placed 1st with. Find it next to ARAM "
+        "God on the Vibe Check tab and on Champions.",
+    ],
+    "0.3.2": [
+        "The dashboard now fills the window instead of leaving a big empty "
+        "gap on the right on wide monitors.",
+        "The scrollbar's gone — scrolling still works the same, it's just "
+        "not sitting there as a visible bar anymore.",
+    ],
+    "0.3.1": [
+        "Arena games that took a while to show up in your match history — "
+        "sometimes several minutes — were sometimes never getting captured at "
+        'all. You\'ll still get the "Had fun?" popup right away; the stats '
+        "just fill in once League catches up.",
+        "Fixed a double scrollbar showing up on the dashboard.",
+    ],
+    # The dashboard rebuild landed across several PRs (#91-97), each replacing
+    # the last — a user updating straight from 0.2.0 only ever sees the final
+    # shape, so this describes that end state rather than the intermediate
+    # steps. Redesign leads because it's the whole reason to open the app
+    # today; the fixes are folded into one bullet since none of them are
+    # individually significant enough to carry their own paragraph.
+    "0.3.0": [
+        "The dashboard got a full redesign. A left sidebar replaces the old "
+        "top nav — click the collapse arrow to shrink it to icons only. The "
+        "Vibe Check tab now leads with Spotlight: five tiles calling out "
+        "your best vibe, most kills, most damage and more, each with the "
+        "champion's real splash art. It's built to fit on one screen "
+        "without scrolling on a normal monitor.",
+        "The vibe trend chart now shows real champion portraits instead of "
+        "plain dots, and hovering a game tells you exactly what happened. "
+        "There's a filter menu to slice it by tag, and it shows your last "
+        "20 games by default instead of your whole history at once.",
+        "Lifetime totals — kills, deaths, assists, time played — and your "
+        "ARAM God progress both got their own spot on the Vibe Check tab "
+        "instead of being buried in other tabs.",
+        "A handful of small things that were bugging people: numbers like "
+        "kill counts no longer wrap onto two lines, Spotlight's champion "
+        "art is bigger and easier to make out, and a champion who topped "
+        "several categories at once no longer gets duplicated into "
+        "separate cards.",
+    ],
     # 0.1.10 was assembled but never released — ARAM God landed first and took
     # the version to 0.2.0. Its three bullets are carried over here rather than
     # left behind: nobody ever updated *to* 0.1.10, so this is the only card

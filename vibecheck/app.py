@@ -58,6 +58,7 @@ ONBOARDING_GAMES = 5  # == PRD MIN_N, so rating them all clears "not enough data
 
 UPDATE_CHECK_DELAY_SECONDS = 90  # let startup finish first
 UPDATE_CHECK_INTERVAL_SECONDS = 6 * 3600  # matches the updater's cache TTL
+PENDING_RESOLUTION_INTERVAL_SECONDS = 5 * 60  # #96: Arena sync lag measured 3-10+ min live
 PREMADES_MAX_AGE_HOURS = 6
 
 
@@ -134,6 +135,7 @@ class App:
             self._root.after(1000, self._open_dashboard)
         self._start_usage_ping()
         self._start_update_check()
+        self._start_pending_resolution()
         self._relabel_queues()
         self._root.mainloop()
 
@@ -217,6 +219,31 @@ class App:
                     return
 
         threading.Thread(target=worker, name="update-check", daemon=True).start()
+
+    def _start_pending_resolution(self) -> None:
+        """Safety net for #96: catch-up only re-checks on the next lobby
+        visit or reconnect, and Arena's sync lag (measured 3-10+ minutes)
+        routinely outlasts a single lobby visit. This sweeps on its own
+        schedule instead, but stays cheap when idle — it only touches the
+        LCU when the store actually has an unresolved row.
+        """
+
+        def worker():
+            while not self._stopping.is_set():
+                if self._stopping.wait(PENDING_RESOLUTION_INTERVAL_SECONDS):
+                    return
+                if not self.store.unresolved_games():
+                    continue
+                if not self._capture_lock.acquire(blocking=False):
+                    continue  # a capture/catch-up is already using the client
+                try:
+                    self._resolve_pending_games()
+                except Exception:
+                    log.exception("Pending-game resolution sweep failed")
+                finally:
+                    self._capture_lock.release()
+
+        threading.Thread(target=worker, name="pending-resolve", daemon=True).start()
 
     def _check_for_update(self) -> None:
         info = updater.check_cached(self.store)
@@ -419,32 +446,36 @@ class App:
         log.info("Asset maps loaded: %d items, %d augments", len(items), len(augments))
 
     def _sync_achievements(self) -> None:
-        """Refresh ARAM God progress from the client's challenge data (PRD §16).
+        """Refresh per-champion achievement progress from the client's
+        challenge data (PRD §16: ARAM God; issue #103: Arena God).
 
         Read on every client connect rather than after every game: the client
-        recomputes the challenge itself, and a game that completes a new
+        recomputes each challenge itself, and a game that completes a new
         champion is reflected the next time we connect at the latest. Cheap
-        enough to do inline here — one local GET the watcher is already making
-        four of.
+        enough to do inline here — one local GET each, on a watcher that's
+        already making several.
+        """
+        self._sync_one_achievement("ARAM God", config.ARAM_GOD_KEY, config.ARAM_GOD_CHALLENGE_ID)
+        self._sync_one_achievement("Arena God", config.ARENA_GOD_KEY, config.ARENA_GOD_CHALLENGE_ID)
 
-        Never destructive. A read that fails leaves the stored set alone, so
+    def _sync_one_achievement(self, label: str, key: str, challenge_id: int) -> None:
+        """Never destructive. A read that fails leaves the stored set alone, so
         launching with the client closed, or Riot retiring the challenge, shows
         the last known progress instead of wiping a lifetime figure VibeCheck
         has no way to rebuild.
         """
         try:
-            completed = self._client.completed_champion_ids(config.ARAM_GOD_CHALLENGE_ID)
+            completed = self._client.completed_champion_ids(challenge_id)
         except Exception:
-            log.warning("Could not read challenge progress", exc_info=True)
+            log.warning("Could not read %s challenge progress", label, exc_info=True)
             return
         if completed is None:
-            log.info("ARAM God progress unavailable from the client — keeping what we have")
+            log.info("%s progress unavailable from the client — keeping what we have", label)
             return
-        changed = self.store.set_achievement_champions(
-            config.ARAM_GOD_KEY, completed, source="client"
-        )
+        changed = self.store.set_achievement_champions(key, completed, source="client")
         log.info(
-            "ARAM God: %d champion(s) completed%s",
+            "%s: %d champion(s) completed%s",
+            label,
             len(completed),
             "" if changed else " (unchanged)",
         )
@@ -524,9 +555,26 @@ class App:
 
         threading.Thread(target=worker, name="capture", daemon=True).start()
 
+    def _known_game_id(self) -> int | None:
+        """The authoritative id for the game that's ending, straight from the
+        live gameflow session (issue #96) — available immediately after
+        PreEndOfGame/EndOfGame, well before Riot's local match-history cache
+        has synced it. Using this instead of guessing the "newest" entry in
+        recent_matches() is what makes the match-history lookup exact rather
+        than order- and timing-dependent, which is what actually broke Arena
+        capture (a stale "newest" id can win for the entire retry window).
+        """
+        if self._client is None:
+            return None
+        session = self._client.gameflow_session() or {}
+        game_id = (session.get("gameData") or {}).get("gameId")
+        return game_id if isinstance(game_id, int) and game_id > 0 else None
+
     def _capture_game(self) -> None:
+        known_game_id = self._known_game_id()
+
         # Primary source: the end-of-game stats endpoint (has premade/party info).
-        eol = self._await(self._client.end_of_game_stats, attempts=6)
+        eol = self._await(self._client.end_of_game_stats, attempts=6, label="end_of_game_stats")
         if eol is not None:
             game_id_str = str(eol.get("gameId", ""))
             if self._already_captured(game_id_str):
@@ -537,18 +585,39 @@ class App:
             self._finish_capture(game_id_str, result, source="end-of-game stats")
             return
 
-        # Fallback: the client's own match history. Works for every game type
-        # (incl. bots) and persists after the stats screen is gone.
+        # Fallback: the client's own match history. Look it up by the id we
+        # already know from the live gameflow session when we have one —
+        # exact, not a guess — falling back to the old "newest in
+        # recent_matches()" heuristic only if that id is somehow unavailable.
         log.info("End-of-game stats unavailable; falling back to match history")
-        match = self._await(self._fresh_match_from_history, attempts=10, interval=3.0)
-        if match is None:
+        if known_game_id is not None:
+            match = self._await(
+                lambda: self._client.match_details(known_game_id),
+                attempts=10,
+                interval=3.0,
+                label="match_history",
+            )
+        else:
+            match = self._await(
+                self._fresh_match_from_history, attempts=10, interval=3.0, label="match_history"
+            )
+        if match is not None:
+            game_id_str = str(match.get("gameId", ""))
+            result = capture.normalize_match(
+                match, self._my_puuid, self._champ_names, self._premade_puuids, self._assets
+            )
+            self._finish_capture(game_id_str, result, source="match history")
+            return
+
+        if known_game_id is None:
             log.warning("Game ended but neither stats nor match history yielded it")
             return
-        game_id_str = str(match.get("gameId", ""))
-        result = capture.normalize_match(
-            match, self._my_puuid, self._champ_names, self._premade_puuids, self._assets
-        )
-        self._finish_capture(game_id_str, result, source="match history")
+
+        # Match history hasn't synced yet — measured 3-10+ minutes for Arena
+        # (#96), well past any reasonable live retry window. Ask for the
+        # rating now, while it's fresh, and resolve the real stats
+        # asynchronously once the client's history catches up.
+        self._create_pending_capture(known_game_id)
 
     def _start_catch_up(self) -> None:
         """Import finished games we missed (F6), in the capture worker slot."""
@@ -562,6 +631,7 @@ class App:
                 # and doesn't pop a rating prompt for one of them.
                 self._backfill_for_onboarding()
                 self._catch_up()
+                self._resolve_pending_games()
             except Exception:
                 log.exception("Catch-up sweep failed")
             finally:
@@ -650,9 +720,23 @@ class App:
     def _fresh_match_from_history(self):
         """Latest match, unless we already have it (history can lag the game end)."""
         match_id = self._client.latest_match_id()
-        if match_id is None or self._already_captured(str(match_id), record=False):
+        if match_id is None:
+            # DIAGNOSTIC (issue #96): distinguishes "history hasn't synced the
+            # game yet" from "history has it but match_details is unusable".
+            log.info("_fresh_match_from_history: recent_matches() has no games yet")
             return None
-        return self._client.match_details(match_id)
+        if self._already_captured(str(match_id), record=False):
+            log.info("_fresh_match_from_history: latest game %s already captured", match_id)
+            return None
+        match = self._client.match_details(match_id)
+        if match is not None and not (isinstance(match, dict) and match.get("gameId")):
+            log.info(
+                "_fresh_match_from_history: match_details(%s) returned %s without gameId: %s",
+                match_id,
+                type(match).__name__,
+                json.dumps(match, default=str)[:2000],
+            )
+        return match
 
     def _already_captured(self, game_id_str: str, record: bool = True) -> bool:
         if not game_id_str or game_id_str in self._processed_game_ids:
@@ -686,14 +770,111 @@ class App:
         if not self.paused and not game.get("is_remake"):
             self._popup_request("show", stored_id, _summary_line(game))
 
-    def _await(self, fetch, attempts: int, interval: float = 2.0):
+    def _create_pending_capture(self, game_id: int) -> None:
+        """Two-phase capture for a game whose match history hasn't synced yet
+        (issue #96 — Arena regularly takes minutes, not seconds). Ask how it
+        went right now, while the moment is fresh, and let
+        _resolve_pending_games fill in the real stats later.
+
+        premade_puuids is snapshotted into the stub itself: self._premade_puuids
+        is a single shared slot that the *next* lobby's ChampSelect overwrites,
+        and that routinely happens before this game resolves.
+        """
+        game_id_str = str(game_id)
+        if self._already_captured(game_id_str):
+            return
+        played_at = datetime.now().isoformat(timespec="seconds")
+        stored_id = self.store.insert_pending_game(game_id_str, played_at, self._premade_puuids)
+        self._premade_puuids = set()
+        self.store.set_meta(PREMADES_KEY, "")
+        if stored_id is None:
+            log.info("Pending game %s already stored", game_id_str)
+            return
+        self._advance_watermark(played_at)
+        log.info("Game %s not synced yet; asking for a rating now, stats to follow", game_id_str)
+        if not self.paused:
+            self._popup_request("show", stored_id, "Stats are still syncing — rate it now")
+
+    def _resolve_pending_games(self) -> None:
+        """Complete any pending stub whose match history has caught up.
+
+        Each row is isolated in its own try/except: this runs on a timer for
+        as long as a stub stays unresolved, so one row with malformed or
+        unusual data must never take the rest of the sweep down with it —
+        that would permanently wedge every other pending row behind it.
+
+        Caller must already hold self._capture_lock (see _start_catch_up and
+        _start_pending_resolution, the two callers).
+        """
+        if self._client is None:
+            return
+        for row in self.store.unresolved_games():
+            try:
+                match = self._client.match_details(int(row["riot_match_id"]))
+                if not (isinstance(match, dict) and match.get("gameId")):
+                    age = datetime.now() - datetime.fromisoformat(row["played_at"])
+                    # Bounded to ~one warning per row: without this, a
+                    # permanently-stuck row would log on every 5-minute sweep
+                    # forever. Not exactly-once (an extra catch-up sweep in
+                    # between timer ticks can still double it up), but it
+                    # caps the growth instead of leaving it unbounded.
+                    if (
+                        timedelta(hours=24)
+                        <= age
+                        < timedelta(hours=24, seconds=PENDING_RESOLUTION_INTERVAL_SECONDS)
+                    ):
+                        log.warning(
+                            "Pending game %s still unresolved after %s — Riot may never "
+                            "have synced this one; the rating is kept, stats stay blank",
+                            row["riot_match_id"],
+                            age,
+                        )
+                    continue
+                premades = set(json.loads(row["pending_premades"] or "[]"))
+                result = capture.normalize_match(
+                    match, self._my_puuid, self._champ_names, premades, self._assets
+                )
+                if self.store.complete_game(row["id"], result["game"], result["teammates"]):
+                    game = result["game"]
+                    if game.get("is_remake"):
+                        # F5: never keep a rating on a remake. Pending-capture
+                        # can't know this at popup time — the game had to be
+                        # rated blind — so undo it now that we know.
+                        self.store.set_rating(row["id"], None, skipped=True)
+                        log.info(
+                            "Pending game %s resolved as a remake; clearing its rating",
+                            row["riot_match_id"],
+                        )
+                    else:
+                        log.info(
+                            "Resolved pending game %s: %s (%s)",
+                            row["riot_match_id"],
+                            game.get("champion"),
+                            game.get("queue_type"),
+                        )
+            except Exception:
+                log.exception("Failed to resolve pending game %s", row.get("riot_match_id"))
+
+    def _await(self, fetch, attempts: int, interval: float = 2.0, label: str = ""):
         """Retry a fetch that legitimately 404s/lags right after game end."""
-        for _ in range(attempts):
+        for attempt in range(attempts):
             if self._stopping.is_set() or self._client is None:
                 return None
             value = fetch()
             if isinstance(value, dict) and value.get("gameId"):
                 return value
+            # DIAGNOSTIC (issue #96): a 200 with no usable gameId is a silent
+            # failure mode `get()` never logs. Dump the shape so a live Arena
+            # repro tells us whether the payload lacks gameId entirely or
+            # nests it differently. Remove once #96 is understood/fixed.
+            if value is not None:
+                log.info(
+                    "_await(%s) attempt %d: got %s without a usable gameId: %s",
+                    label or getattr(fetch, "__name__", "?"),
+                    attempt + 1,
+                    type(value).__name__,
+                    json.dumps(value, default=str)[:2000],
+                )
             time.sleep(interval)
         return None
 

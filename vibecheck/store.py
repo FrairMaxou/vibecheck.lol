@@ -6,8 +6,10 @@ future "also sync to server" backend can plug in behind it.
 
 import json
 import logging
+import shutil
 import sqlite3
 import threading
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
@@ -15,6 +17,12 @@ from .config import DB_PATH, DEFAULT_TAGS, SESSION_GAP_SECONDS
 
 log = logging.getLogger(__name__)
 
+# Baseline table creation only — applied unconditionally on every launch, with
+# no backup and no version gate. New structural changes (new columns, new
+# tables, anything that mutates an existing shape) belong in `_MIGRATIONS`
+# below, not here: that's what gets a pre-change backup and a schema_version
+# bump. `CREATE TABLE IF NOT EXISTS` is safe to run forever unversioned;
+# anything less idempotent than that does not belong in this constant.
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS games (
     id INTEGER PRIMARY KEY,
@@ -83,36 +91,174 @@ CREATE TABLE IF NOT EXISTS achievement_progress (
 """
 
 
-class GameStore:
-    def __init__(self, db_path: Path = DB_PATH):
-        db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._lock = threading.Lock()
-        self._db = sqlite3.connect(db_path, check_same_thread=False)
-        self._db.row_factory = sqlite3.Row
-        with self._lock, self._db:
-            self._db.executescript(_SCHEMA)
-        self._migrate()
-        self._seed_default_tags()
-
-    # Columns added after v1 shipped; existing databases get them via ALTER.
-    _ADDED_COLUMNS = (
+def _step_v1_added_columns(conn: sqlite3.Connection) -> None:
+    """v1: the pre-versioning ALTER-by-existence-check pass, unchanged in
+    behavior from before schema_version existed. Idempotent by column
+    existence, so a database mid-way through the old scheme (some columns
+    already added by an earlier build) still ends up complete no matter what
+    version it starts this migration at.
+    """
+    existing = {r["name"] for r in conn.execute("PRAGMA table_info(games)")}
+    for name, decl in (
         ("enemy_champions", "TEXT"),
         ("augments", "TEXT"),
         ("items", "TEXT"),
         ("damage_to_champs", "INTEGER"),
         ("gold", "INTEGER"),
+    ):
+        if name not in existing:
+            # Names are fixed literals above, never user input.
+            conn.execute(f"ALTER TABLE games ADD COLUMN {name} {decl}")  # noqa: S608
+            log.info("Migrated games table: added column %s", name)
+
+
+def _step_v2_added_pending_capture_columns(conn: sqlite3.Connection) -> None:
+    """v2: pending two-phase capture (issue #96) — a game can be inserted as
+    a stub (rating only, no stats yet) while Arena's match-history sync
+    catches up, then completed in place once the real data arrives.
+    """
+    existing = {r["name"] for r in conn.execute("PRAGMA table_info(games)")}
+    if "resolved" not in existing:
+        conn.execute("ALTER TABLE games ADD COLUMN resolved INTEGER NOT NULL DEFAULT 1")
+        log.info("Migrated games table: added column resolved")
+    if "pending_premades" not in existing:
+        conn.execute("ALTER TABLE games ADD COLUMN pending_premades TEXT")
+        log.info("Migrated games table: added column pending_premades")
+
+
+class GameStore:
+    def __init__(self, db_path: Path = DB_PATH):
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.Lock()
+        self._db_path = db_path
+        self._db = sqlite3.connect(db_path, check_same_thread=False)
+        self._db.row_factory = sqlite3.Row
+
+        # Check if migrations are pending before applying schema — if so, back up
+        # the database in its current state before any structural changes. This
+        # is the single computation of "pending": _migrate() takes the list
+        # below rather than recomputing it, so the backup's target version and
+        # the migration loop's target version can never diverge, and _migrate()
+        # can't run without first going through this backup gate.
+        current = self._read_schema_version()
+        pending = [step for step in self._MIGRATIONS if step[0] > current]
+        self._schema_version = current
+        self._migration_failed = False
+        backup_succeeded = True
+        if pending:
+            target_version = pending[-1][0]
+            try:
+                self._backup_before_migration(target_version)
+            except Exception:
+                # Broad on purpose, same as the step loop below: a migration
+                # step (and the backup step that guards it) must never crash
+                # the app. Narrowing this to OSError would let anything else
+                # _backup_before_migration raises propagate out of the
+                # constructor and take app startup down with it — the exact
+                # failure mode this framework exists to prevent.
+                log.exception(
+                    "Could not back up database before migrating to v%d; skipping this launch",
+                    target_version,
+                )
+                self._migration_failed = True
+                backup_succeeded = False
+
+        with self._lock, self._db:
+            self._db.executescript(_SCHEMA)
+        if pending and backup_succeeded:
+            self._migrate(pending)
+        self._seed_default_tags()
+
+    # ---------------- schema migrations (issue #49) ----------------
+    #
+    # Each entry is (target_version, description, step). A step receives the
+    # raw sqlite3.Connection and runs DDL/DML against it directly — it already
+    # runs inside a lock+transaction held by _migrate(), so it must never call
+    # a public helper like get_meta/set_meta (self._lock is not reentrant).
+    _MIGRATIONS: tuple[tuple[int, str, Callable[[sqlite3.Connection], None]], ...] = (
+        (
+            1,
+            "add enemy_champions/augments/items/damage_to_champs/gold columns",
+            _step_v1_added_columns,
+        ),
+        (
+            2,
+            "add resolved/pending_premades columns for two-phase Arena capture",
+            _step_v2_added_pending_capture_columns,
+        ),
     )
     # Fields stored as JSON arrays.
     _JSON_COLUMNS = ("enemy_champions", "augments", "items")
 
-    def _migrate(self) -> None:
-        with self._lock, self._db:
-            existing = {r["name"] for r in self._db.execute("PRAGMA table_info(games)")}
-            for name, decl in self._ADDED_COLUMNS:
-                if name not in existing:
-                    # Names are fixed literals above, never user input.
-                    self._db.execute(f"ALTER TABLE games ADD COLUMN {name} {decl}")  # noqa: S608
-                    log.info("Migrated games table: added column %s", name)
+    def _read_schema_version(self) -> int:
+        try:
+            value = self.get_meta("schema_version")
+            return int(value) if value else 0
+        except sqlite3.OperationalError:
+            # meta table doesn't exist yet (fresh database before _SCHEMA is applied)
+            return 0
+
+    def _backup_before_migration(self, target_version: int) -> None:
+        """Copy the database into <data dir>/backups/ before the first DDL of a
+        new schema version — the safety net for ~100 users' live history if a
+        step turns out to be wrong. Mirrors the naming tools/reset_data.py
+        already uses for its own timestamped backups.
+        """
+        backups_dir = self._db_path.parent / "backups"
+        backups_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+        dest = backups_dir / f"{timestamp}-schema-v{target_version}.sqlite3"
+        shutil.copy2(self._db_path, dest)
+        log.info("Backed up database to %s before migrating to schema v%d", dest, target_version)
+
+    def _migrate(
+        self, pending: list[tuple[int, str, Callable[[sqlite3.Connection], None]]]
+    ) -> None:
+        """Run each pending migration step in its own transaction.
+
+        Only called from __init__, after the backup gate there has already
+        run for this exact `pending` list — never call this directly, and
+        never recompute "pending" here, or the backup's target version and
+        this loop's target version could diverge.
+        """
+        for version, description, step_fn in pending:
+            try:
+                with self._lock, self._db:
+                    # isolation_level="" (the default) only opens an implicit
+                    # transaction before DML (INSERT/UPDATE/DELETE) — never
+                    # before DDL. A bare `with self._db:` here would let a
+                    # step's ALTER TABLE/CREATE TABLE autocommit immediately,
+                    # so it would survive even though the `with` block rolls
+                    # back on a later exception in the same step. BEGIN
+                    # explicitly so DDL joins the same transaction as the rest
+                    # of the step and actually rolls back with it.
+                    self._db.execute("BEGIN")
+                    step_fn(self._db)
+                    self._db.execute(
+                        "INSERT INTO meta (key, value) VALUES ('schema_version', ?) "
+                        "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                        (str(version),),
+                    )
+            except Exception:
+                # A migration step must never take the app down: a user seeing
+                # an empty dashboard reads as "it deleted everything", so this
+                # logs loudly and keeps running on the last version that
+                # worked rather than propagating. self._schema_version already
+                # reflects that version — updated per-step below, not just
+                # once at the end — so it stays truthful even when an earlier
+                # step in this same pass committed before a later one failed.
+                log.exception(
+                    "Schema migration to v%d (%s) failed; staying on v%d",
+                    version,
+                    description,
+                    self._schema_version,
+                )
+                self._migration_failed = True
+                return
+            # Updated after each successful step, not once after the whole
+            # loop — a later step can still fail, and self._schema_version
+            # must reflect what actually got committed, not what was intended.
+            self._schema_version = version
 
     def _seed_default_tags(self) -> None:
         with self._lock, self._db:
@@ -125,6 +271,16 @@ class GameStore:
     def close(self) -> None:
         with self._lock:
             self._db.close()
+
+    def schema_version(self) -> int:
+        """Current schema version, after whatever migration ran at open."""
+        return self._schema_version
+
+    def schema_migration_failed(self) -> bool:
+        """Whether the most recent startup's migration attempt failed, leaving
+        the database on an older version than the code expects.
+        """
+        return self._migration_failed
 
     def _bump_rev(self) -> None:
         """Mark the dataset as changed. Call only from inside a `with self._lock,
@@ -199,6 +355,104 @@ class GameStore:
             self._bump_rev()
             return game_id
 
+    def insert_pending_game(
+        self, riot_match_id: str, played_at: str, premade_puuids: set
+    ) -> int | None:
+        """Insert a minimal stub for a game whose stats aren't available yet
+        (issue #96 — Arena's local match-history sync can take minutes).
+
+        Rateable immediately via the returned id, same as insert_game's.
+        `premade_puuids` is frozen here rather than left in the caller's
+        single shared slot, because that slot gets overwritten the moment
+        the player queues into their next game — which routinely happens
+        before this one resolves.
+        """
+        with self._lock, self._db:
+            session_id, game_index = self._session_for(played_at)
+            cur = self._db.execute(
+                """INSERT OR IGNORE INTO games
+                   (riot_match_id, played_at, session_id, game_index_in_session,
+                    resolved, pending_premades)
+                   VALUES (?,?,?,?,0,?)""",
+                (
+                    riot_match_id,
+                    played_at,
+                    session_id,
+                    game_index,
+                    json.dumps(sorted(premade_puuids)),
+                ),
+            )
+            if cur.rowcount == 0:
+                return None
+            self._bump_rev()
+            return cur.lastrowid
+
+    def complete_game(self, game_id: int, game: dict, teammates: list) -> bool:
+        """Fill in real stats for a pending stub (issue #96), in place.
+
+        Only played_at and the stat/detail columns change — session_id and
+        game_index_in_session stay as assigned at pending-insert time (see
+        "Known limitation" in the #96 plan). Returns False if the row is
+        missing or already resolved, so a duplicate resolution attempt is a
+        safe no-op rather than a second insert or a crash.
+        """
+        with self._lock, self._db:
+            cur = self._db.execute(
+                """UPDATE games SET
+                       played_at=?, queue_id=?, queue_type=?, champion=?, role=?,
+                       win=?, kills=?, deaths=?, assists=?, cs=?, duration_seconds=?,
+                       is_remake=?, raw_payload=?, enemy_champions=?, augments=?,
+                       items=?, damage_to_champs=?, gold=?, resolved=1, pending_premades=NULL
+                   WHERE id=? AND resolved=0""",
+                (
+                    game["played_at"],
+                    game.get("queue_id"),
+                    game.get("queue_type"),
+                    game.get("champion"),
+                    game.get("role"),
+                    game.get("win"),
+                    game.get("kills"),
+                    game.get("deaths"),
+                    game.get("assists"),
+                    game.get("cs"),
+                    game.get("duration_seconds"),
+                    game.get("is_remake", 0),
+                    json.dumps(game.get("raw_payload")) if game.get("raw_payload") else None,
+                    json.dumps(game.get("enemy_champions") or []),
+                    json.dumps(game.get("augments") or []),
+                    json.dumps(game.get("items") or []),
+                    game.get("damage_to_champs"),
+                    game.get("gold"),
+                    game_id,
+                ),
+            )
+            if cur.rowcount == 0:
+                return False
+            self._db.executemany(
+                """INSERT INTO game_teammates (game_id, summoner_name, riot_puuid, was_premade)
+                   VALUES (?,?,?,?)""",
+                [
+                    (
+                        game_id,
+                        t.get("summoner_name"),
+                        t.get("riot_puuid"),
+                        int(t.get("was_premade", 0)),
+                    )
+                    for t in teammates
+                ],
+            )
+            self._bump_rev()
+            return True
+
+    def unresolved_games(self) -> list:
+        """Pending stubs still waiting on real stats (issue #96)."""
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT id, riot_match_id, pending_premades, played_at "
+                "FROM games WHERE resolved = 0"
+            ).fetchall()
+        return [dict(r) for r in rows]
+
     def set_rating(self, game_id: int, fun_score: int | None, skipped: bool = False) -> None:
         with self._lock, self._db:
             self._db.execute(
@@ -216,13 +470,19 @@ class GameStore:
 
         Keyed on fun_score, not the ratings row's existence, so a game that
         only has a note attached still counts as pending.
+
+        resolved = 1 excludes two-phase pending-capture stubs (issue #96):
+        one is already rated at insert time (so it wouldn't match anyway),
+        but an unrated one — the popup was paused or dismissed — has every
+        stat column NULL until it resolves, and would otherwise surface here
+        as a garbage all-None row.
         """
         with self._lock:
             rows = self._db.execute(
                 """SELECT g.* FROM games g
                    LEFT JOIN ratings r ON r.game_id = g.id
                    WHERE r.fun_score IS NULL AND COALESCE(r.skipped, 0) = 0
-                     AND g.is_remake = 0
+                     AND g.is_remake = 0 AND g.resolved = 1
                    ORDER BY g.played_at DESC"""
             ).fetchall()
         return [dict(r) for r in rows]
@@ -393,6 +653,7 @@ class GameStore:
                           r.fun_score, r.skipped, r.rated_at
                    FROM games g
                    LEFT JOIN ratings r ON r.game_id = g.id
+                   WHERE g.resolved = 1
                    ORDER BY g.played_at DESC LIMIT ?""",
                 (limit,),
             ).fetchall()
@@ -412,6 +673,7 @@ class GameStore:
                    g.damage_to_champs, g.gold,
                    r.fun_score, r.skipped, r.rated_at, r.note
                    FROM games g LEFT JOIN ratings r ON r.game_id = g.id
+                   WHERE g.resolved = 1
                    ORDER BY g.played_at"""
             ).fetchall()
             mates = self._db.execute(

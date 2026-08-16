@@ -22,6 +22,8 @@ from .config import (
     APP_NAME,
     APP_VERSION,
     ARAM_GOD_KEY,
+    ARENA_GOD_KEY,
+    ARENA_GOD_MASTER_THRESHOLD,
     ASSETS_CHAMPS_KEY,
     ASSETS_DIR,
     DASHBOARD_HOST,
@@ -113,6 +115,34 @@ class SettingsIn(BaseModel):
     telemetry: bool | None = None
 
 
+def _spawn_guarded_warm(
+    lock: threading.Lock, in_progress: list[bool], work, thread_name: str, label: str
+) -> None:
+    """Fire a background warm-up thread unless one for this asset kind is
+    already running. The flag guards against a page-load's worth of misses
+    each starting their own thread — it is NOT a once-per-process latch; it
+    clears when the pass finishes, or the first warm-up would permanently
+    block every later one. `in_progress` is a one-element list used as a
+    mutable flag cell so this module-level helper (no closure over a
+    caller's locals) can flip it from inside the spawned thread.
+    """
+    with lock:
+        if in_progress[0]:
+            return
+        in_progress[0] = True
+
+    def worker():
+        try:
+            work()
+        except Exception:
+            log.debug("Champion %s warm-up failed", label, exc_info=True)
+        finally:
+            with lock:
+                in_progress[0] = False
+
+    threading.Thread(target=worker, name=thread_name, daemon=True).start()
+
+
 def create_app(
     store: GameStore, squad: SquadService | None = None, controls: dict | None = None
 ) -> FastAPI:
@@ -122,6 +152,7 @@ def create_app(
     update_job = updater.UpdateJob()
     _warm_lock = threading.Lock()
     _warming = False
+    _warming_splash = [False]  # list cell: see _spawn_guarded_warm
 
     def _settings() -> dict:
         is_paused = controls.get("is_paused")
@@ -235,21 +266,50 @@ def create_app(
 
         threading.Thread(target=worker, name="champ-icons", daemon=True).start()
 
-    @app.get("/api/aram-god")
-    def aram_god():
-        """ARAM God progress: the roster, and which champions are done (PRD §16).
+    @app.get("/api/champ-splash/{name}")
+    def champ_splash(name: str, classic: bool = False):
+        """A champion's loading-screen splash, served from the local cache
+        only — same never-block-on-network contract as champ_icon."""
+        path = ddragon.splash_path(name, classic=classic)
+        if not path:
+            _warm_splashes()
+            raise HTTPException(404)
+        return FileResponse(path)
+
+    def _warm_splashes() -> None:
+        """Download any splash art the store needs but the cache doesn't have."""
+        _spawn_guarded_warm(
+            _warm_lock,
+            _warming_splash,
+            lambda: ddragon.warm_splash(
+                (g["champion"], capture.is_classic(g.get("queue_id"), g.get("queue_type")))
+                for g in store.games_with_details()
+            ),
+            "champ-splashes",
+            "splash",
+        )
+
+    def _champion_achievement(key: str, label: str, total: int | None = None) -> dict:
+        """Progress for a per-champion achievement: the roster, and which
+        champions are done (PRD §16: ARAM God; issue #103: Arena God).
 
         Reads only what's stored, so it works with the League client closed —
         which is most of a tray app's life. `tracked` is false until the app has
         managed to read the challenge once; the frontend shows an explainer for
-        that state rather than a 0/173 it hasn't earned.
+        that state rather than a 0/N it hasn't earned.
+
+        `total` overrides the roster count as the denominator — Arena God's
+        real finish line (60, Riot's own Master threshold) is well short of
+        the full roster, unlike ARAM God's, so its score is `completed / 60`
+        while the grid still shows the whole roster (so a player can see
+        *which* champions still need a Arena win, not just a bare count).
         """
         try:
             champ_names = json.loads(store.get_meta(ASSETS_CHAMPS_KEY) or "{}")
         except ValueError:
             champ_names = {}
         roster = lcu.canonical_roster(champ_names)
-        progress = store.achievement_progress(ARAM_GOD_KEY)
+        progress = store.achievement_progress(key)
         done = set(progress["champion_ids"])
         if roster:
             _warm_roster_icons(roster)
@@ -261,6 +321,7 @@ def create_app(
             ),
             key=lambda c: (not c["done"], c["name"]),  # completed first, then A-Z
         )
+        completed = sum(c["done"] for c in champions)
         # A completed champion the cached roster doesn't know — a champion
         # released since we last saw the client, say — must not be counted, or
         # the score reads 46/173 above a grid with 45 cells lit and the panel
@@ -268,15 +329,25 @@ def create_app(
         # disagreement so a stale roster is diagnosable rather than mysterious.
         orphans = sorted(done - set(roster))
         if orphans:
-            log.warning("ARAM God: %d completed id(s) not in the roster: %s", len(orphans), orphans)
+            log.warning(
+                "%s: %d completed id(s) not in the roster: %s", label, len(orphans), orphans
+            )
         return {
             "tracked": progress["synced_at"] is not None,
             "synced_at": progress["synced_at"],
             "source": progress["source"],
-            "completed": sum(c["done"] for c in champions),
-            "total": len(roster),
+            "completed": completed,
+            "total": total if total is not None else len(roster),
             "champions": champions,
         }
+
+    @app.get("/api/aram-god")
+    def aram_god():
+        return _champion_achievement(ARAM_GOD_KEY, "ARAM God")
+
+    @app.get("/api/arena-god")
+    def arena_god():
+        return _champion_achievement(ARENA_GOD_KEY, "Arena God", total=ARENA_GOD_MASTER_THRESHOLD)
 
     def _warm_roster_icons(roster: dict) -> None:
         """Cache portraits for the whole roster, off the request path.

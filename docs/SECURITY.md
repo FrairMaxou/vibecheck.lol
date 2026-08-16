@@ -279,7 +279,7 @@ in `supabase/` are not interchangeable:
 | `harden-grants.sql` | REVOKE only — no data, no schema | Once; re-runnable and reversible |
 | `fix-profiles-puuid-unique.sql` | Drops a constraint, deletes orphan rows | Once, on a project carrying the old constraint |
 | `schema.sql` | **DDL.** Rebuilds tables and every policy | A fresh project, or to refresh policies |
-| `telemetry.sql` | Creates only | Once, on a fresh project |
+| `telemetry.sql` | Creates only (`CREATE TABLE IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`) | On a fresh project, **and again whenever it gains new additive columns** — issue #49's `schema_version`/`schema_migration_failed` columns must exist in production before the build that starts sending them ships, or every ping 400s |
 
 Two rules, both learned the expensive way on 2026-08-02, when `schema.sql` was
 run on prod to check the policies and silently emptied `shared_games`:
